@@ -75,4 +75,5 @@ export interface SearchOverrides {
   autoExpand?: boolean;
   edificio?: string;
   priorizarEdificio?: boolean;
+  maxPages?: number;
 }

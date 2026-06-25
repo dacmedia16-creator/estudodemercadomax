@@ -41,6 +41,7 @@ function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<Searc
     autoExpand: o.autoExpand ?? true,
     edificio: o.edificio ?? input.edificio ?? "",
     priorizarEdificio: o.priorizarEdificio ?? !!(input.edificio && input.edificio.trim()),
+    maxPages: o.maxPages ?? 3,
   };
 }
 
@@ -82,6 +83,7 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
       autoExpand: form.autoExpand,
       edificio: form.edificio.trim() || undefined,
       priorizarEdificio: form.priorizarEdificio,
+      maxPages: Number(form.maxPages),
     });
   };
 
@@ -205,6 +207,21 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
               <div className="text-xs text-muted-foreground">Se a busca estrita retornar menos de 4 imóveis, amplia em camadas (quartos ±1, cidade inteira, faixa ±30%).</div>
             </div>
             <Switch checked={form.autoExpand} onCheckedChange={(v) => set("autoExpand", v)} />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
+            <div>
+              <div className="text-sm font-medium">Páginas por busca</div>
+              <div className="text-xs text-muted-foreground">Quantas páginas da GeckoAPI consultar por etapa (mais páginas = mais cobertura, mais créditos).</div>
+            </div>
+            <Select value={String(form.maxPages)} onValueChange={(v) => set("maxPages", Number(v))}>
+              <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1</SelectItem>
+                <SelectItem value="2">2</SelectItem>
+                <SelectItem value="3">3</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
