@@ -3,7 +3,22 @@ import { geckoItemToProperty, mapTipoToPropertyType, normalizeText } from "@/lib
 import { generateStudy } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides } from "@/lib/study-types";
 import type { MockProperty } from "@/lib/mock-properties";
-import type { GeckoItem } from "@/lib/gecko-types";
+
+const PORTAL_TARGETS = {
+  "zapimoveis.com.br": "Zap Imóveis",
+  "chavesnamao.com.br": "Chaves na Mão",
+} as const;
+type PortalTarget = keyof typeof PORTAL_TARGETS;
+
+function activeTargets(): PortalTarget[] {
+  const list: PortalTarget[] = ["zapimoveis.com.br"];
+  try {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("portal.chavesnamao") === "1") {
+      list.push("chavesnamao.com.br");
+    }
+  } catch { /* ignore */ }
+  return list;
+}
 
 export interface RunStudyOutcome {
   result: StudyResult;
@@ -42,6 +57,7 @@ export async function runStudy(
   let plpCalls = 0;
   let pdpCalls = 0;
   let descartadosIncompletos = 0;
+  const targets = activeTargets();
 
   // Effective parameters (overrides win over input).
   const finalidade = overrides.finalidade ?? input.finalidade;
@@ -93,40 +109,53 @@ export async function runStudy(
     const strictLocal = (p: MockProperty) =>
       matchesType(p) && inBairro(p) && quartosOk(p, 0) && areaInRange(p, 0) && priceInRange(p, 0);
 
-    // Adaptive pagination — stop when shouldStop(collected) is true OR page is empty.
+    // Adaptive pagination across all active portals — stops when
+    // shouldStop(collected) is true OR every portal returned an empty page.
     const adaptivePaginate = async (
       params: PlpParams,
-      shouldStop: (collected: GeckoItem[]) => boolean,
-    ): Promise<{ items: GeckoItem[]; pages: number; errorMessage?: string }> => {
-      const all: GeckoItem[] = [];
+      shouldStop: (collected: MockProperty[]) => boolean,
+    ): Promise<{ properties: MockProperty[]; pages: number; errorMessage?: string }> => {
+      const all: MockProperty[] = [];
       const seen = new Set<string>();
       let pages = 0;
       let firstError: string | undefined;
       for (let page = 1; page <= maxPages; page++) {
-        try {
-          plpCalls++;
-          const res = await geckoPlp({ data: { ...params, page } });
-          pages++;
+        const calls = await Promise.all(
+          targets.map(async (t) => {
+            plpCalls++;
+            try {
+              const res = await geckoPlp({ data: { ...params, target: t, page } });
+              return { t, res };
+            } catch (e) {
+              if (!firstError) firstError = (e as Error).message;
+              return { t, res: null as any };
+            }
+          }),
+        );
+        let anyItems = false;
+        for (const { t, res } of calls) {
+          if (!res) continue;
           if (!res.ok) {
             if (!firstError) firstError = res.errorMessage || res.errorCode || `HTTP_${res.status}`;
-            if (page === 1) break;
             continue;
           }
           const items = res.data?.items ?? [];
-          if (items.length === 0) break;
+          if (items.length === 0) continue;
+          anyItems = true;
+          const portalName = PORTAL_TARGETS[t];
           for (const it of items) {
             const key = (it as any).url || (it as any).id || JSON.stringify(it).slice(0, 64);
             if (seen.has(key)) continue;
             seen.add(key);
-            all.push(it);
+            const p = geckoItemToProperty(it, portalName);
+            if (p) all.push(p);
           }
-          if (shouldStop(all)) break;
-        } catch (e) {
-          if (!firstError) firstError = (e as Error).message;
-          if (page === 1) break;
         }
+        pages++;
+        if (!anyItems) break;
+        if (shouldStop(all)) break;
       }
-      return { items: all, pages, errorMessage: firstError };
+      return { properties: all, pages, errorMessage: firstError };
     };
 
     // ---- Layer 1: same building ----
@@ -135,14 +164,9 @@ export async function runStudy(
       try {
         const res = await adaptivePaginate(
           { city: cidade, state: estado.toUpperCase(), businessType, keyword: edificio, propertyType },
-          (collected) => collected
-            .map((it) => geckoItemToProperty(it))
-            .filter((p): p is MockProperty => p !== null)
-            .filter((p) => matchEdificio(p, edificio)).length >= TARGET,
+          (collected) => collected.filter((p) => matchEdificio(p, edificio)).length >= TARGET,
         );
-        condoMatches = res.items
-          .map((it) => geckoItemToProperty(it))
-          .filter((p): p is MockProperty => p !== null)
+        condoMatches = res.properties
           .filter((p) => matchEdificio(p, edificio))
           .map((p) => {
             // Same-building proxy: if PLP lacked area/quartos, use the
@@ -167,17 +191,11 @@ export async function runStudy(
         const res = await adaptivePaginate(
           { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${enderecoRaw} ${bairro}`.trim(), propertyType },
           (collected) => {
-            const matched = collected
-              .map((it) => geckoItemToProperty(it))
-              .filter((p): p is MockProperty => p !== null)
-              .filter((p) => matchEndereco(p, enderecoRaw)).length;
+            const matched = collected.filter((p) => matchEndereco(p, enderecoRaw)).length;
             return matched + condoMatches.length >= TARGET;
           },
         );
-        enderecoMatches = res.items
-          .map((it) => geckoItemToProperty(it))
-          .filter((p): p is MockProperty => p !== null)
-          .filter((p) => matchEndereco(p, enderecoRaw));
+        enderecoMatches = res.properties.filter((p) => matchEndereco(p, enderecoRaw));
         enderecoMatches.forEach((p) => mesmoEnderecoIds.add(p.id));
         funilBusca.push({ etapa: `Mesmo endereço (${res.pages} pág.)`, total: enderecoMatches.length });
       } catch { /* best-effort */ }
@@ -185,33 +203,28 @@ export async function runStudy(
 
     // ---- Layer 3: neighborhood — PLP wide, local filter ----
     const anchorsCount = condoMatches.length + enderecoMatches.length;
-    let mainItems: GeckoItem[] = [];
+    let mainProperties: MockProperty[] = [];
     let mainPages = 0;
     let mainError: string | undefined;
     if (anchorsCount < TARGET) {
       const res = await adaptivePaginate(
         { city: buscaLivre ? "" : cidade, state: buscaLivre ? "" : estado.toUpperCase(), businessType, keyword, propertyType },
         (collected) => {
-          const strict = collected
-            .map((it) => geckoItemToProperty(it))
-            .filter((p): p is MockProperty => p !== null)
-            .filter(buscaLivre ? matchesType : strictLocal).length;
+          const strict = collected.filter(buscaLivre ? matchesType : strictLocal).length;
           return strict + anchorsCount >= TARGET;
         },
       );
-      mainItems = res.items;
+      mainProperties = res.properties;
       mainPages = res.pages;
       mainError = res.errorMessage;
     }
 
-    if (mainItems.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {
+    if (mainProperties.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {
       throw new Error(mainError || "Nenhum imóvel encontrado para a busca informada");
     }
 
     onStep?.(2);
-    const normalized = mainItems
-      .map((it) => geckoItemToProperty(it))
-      .filter((p): p is MockProperty => p !== null);
+    const normalized = mainProperties;
     descartadosIncompletos = normalized.filter((p) => p.incomplete).length;
     // For the strict/expanded layers, only keep items with real area+quartos.
     const normalizedComplete = normalized.filter((p) => !p.incomplete);
@@ -222,7 +235,7 @@ export async function runStudy(
       normalized.forEach((p) => { if (matchEndereco(p, enderecoRaw)) mesmoEnderecoIds.add(p.id); });
     }
     if (mainPages > 0) funilBusca.push({ etapa: `Páginas consultadas (bairro)`, total: mainPages });
-    funilBusca.push({ etapa: "Retornados pela API", total: mainItems.length });
+    funilBusca.push({ etapa: "Retornados pela API", total: mainProperties.length });
     funilBusca.push({ etapa: "Com dados completos", total: normalizedComplete.length });
     if (descartadosIncompletos > 0) {
       funilBusca.push({ etapa: "Sem área/quartos na listagem (descartados do filtro estrito)", total: descartadosIncompletos });
