@@ -56,8 +56,8 @@ async function callGecko<T>(body: Record<string, unknown>, tokenOverride?: strin
 }
 
 const plpInput = z.object({
-  city: z.string().min(1),
-  state: z.string().length(2),
+  city: z.string().optional().default(""),
+  state: z.string().optional().default(""),
   businessType: z.enum(["sale", "rent"]),
   keyword: z.string().optional(),
   propertyType: z.string().optional(),
@@ -76,11 +76,21 @@ const plpInput = z.object({
 export const geckoPlp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => plpInput.parse(d))
   .handler(async ({ data }) => {
+    const { city, state, keyword, ...rest } = data;
+    const hasCity = !!city && city.trim().length > 0;
+    const hasState = !!state && state.trim().length === 2;
+    const hasKeyword = !!keyword && keyword.trim().length > 0;
+    if (!hasCity && !hasKeyword) {
+      return { ok: false as const, status: 0, errorCode: "MISSING_QUERY", errorMessage: "Informe ao menos uma cidade ou palavra-chave para buscar." };
+    }
     const body: Record<string, unknown> = {
       target: "zapimoveis.com.br",
       type: "plp",
-      ...data,
+      ...rest,
     };
+    if (hasCity) body.city = city;
+    if (hasState) body.state = state;
+    if (hasKeyword) body.keyword = keyword;
     Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
     return callGecko<GeckoPlpData>(body);
   });
