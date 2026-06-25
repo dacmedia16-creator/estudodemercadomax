@@ -23,7 +23,8 @@ function Configuracoes() {
   const [testResult, setTestResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
   const [chavesOn, setChavesOn] = useState<boolean>(() => {
     if (typeof localStorage === "undefined") return false;
-    return localStorage.getItem("portal.chavesnamao") === "1";
+    const v = localStorage.getItem("portal.chavesnamao");
+    return v === null ? true : v === "1";
   });
 
   const toggleChaves = (on: boolean) => {

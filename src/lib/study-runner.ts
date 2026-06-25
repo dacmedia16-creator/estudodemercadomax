@@ -13,7 +13,10 @@ type PortalTarget = keyof typeof PORTAL_TARGETS;
 function activeTargets(): PortalTarget[] {
   const list: PortalTarget[] = ["zapimoveis.com.br"];
   try {
-    if (typeof localStorage !== "undefined" && localStorage.getItem("portal.chavesnamao") === "1") {
+    if (typeof localStorage === "undefined") return list;
+    const v = localStorage.getItem("portal.chavesnamao");
+    // Default ON when the user hasn't explicitly opted out.
+    if (v === null || v === "1") {
       list.push("chavesnamao.com.br");
     }
   } catch { /* ignore */ }
