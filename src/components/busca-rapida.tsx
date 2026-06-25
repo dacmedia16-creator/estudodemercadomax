@@ -71,11 +71,10 @@ export function BuscaRapida({ onEditar }: Props) {
         }
       }
 
-      const built = mergeWithDefaults(merged);
-      // Busca livre: guarda a frase original como keyword pra usar quando faltar cidade/bairro
-      built.keywordLivre = text.trim();
-      setPreview(built);
+      setPreview(mergeWithDefaults(merged));
       setMissing(miss);
+      // Busca livre: salva frase original como keyword override pro runner
+      sessionStorage.setItem("rip:pending-keyword", text.trim());
     } catch (e) {
       setError((e as Error).message);
     } finally {
