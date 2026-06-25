@@ -63,6 +63,7 @@ export async function runStudy(
   const usarEndereco = enderecoRaw.replace(/\s+/g, " ").length >= 4;
   const maxPages = Math.min(3, Math.max(1, overrides.maxPages ?? 3));
   const TARGET = 8;
+  const buscaLivre = !cidade || cidade.trim().length === 0;
 
   try {
     onStep?.(1);
@@ -129,7 +130,7 @@ export async function runStudy(
 
     // ---- Layer 1: same building ----
     let condoMatches: MockProperty[] = [];
-    if (priorizarEdificio) {
+    if (priorizarEdificio && !buscaLivre) {
       try {
         const res = await adaptivePaginate(
           { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${edificio} ${bairro}`.trim(), propertyType },
@@ -149,7 +150,7 @@ export async function runStudy(
 
     // ---- Layer 2: same street (skip if condo already covers target) ----
     let enderecoMatches: MockProperty[] = [];
-    if (usarEndereco && condoMatches.length < TARGET) {
+    if (usarEndereco && !buscaLivre && condoMatches.length < TARGET) {
       try {
         const res = await adaptivePaginate(
           { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${enderecoRaw} ${bairro}`.trim(), propertyType },
@@ -177,12 +178,12 @@ export async function runStudy(
     let mainError: string | undefined;
     if (anchorsCount < TARGET) {
       const res = await adaptivePaginate(
-        { city: cidade, state: estado.toUpperCase(), businessType, keyword, propertyType },
+        { city: buscaLivre ? "" : cidade, state: buscaLivre ? "" : estado.toUpperCase(), businessType, keyword, propertyType },
         (collected) => {
           const strict = collected
             .map((it) => geckoItemToProperty(it))
             .filter((p): p is MockProperty => p !== null)
-            .filter(strictLocal).length;
+            .filter(buscaLivre ? matchesType : strictLocal).length;
           return strict + anchorsCount >= TARGET;
         },
       );
@@ -211,7 +212,9 @@ export async function runStudy(
 
     type Layer = { label: string; fn: (p: MockProperty) => boolean };
     const strict: Layer = { label: "Filtro estrito (critérios definidos)", fn: strictLocal };
-    const layers: Layer[] = autoExpand
+    const layers: Layer[] = buscaLivre
+      ? [{ label: "Busca livre (apenas keyword)", fn: matchesType }]
+      : autoExpand
       ? [
           strict,
           {
