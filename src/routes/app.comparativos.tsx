@@ -19,26 +19,3 @@ export const Route = createFileRoute("/app/comparativos")({
     </div>
   ),
 });
-*** End Patch
-*** Add File: src/routes/app.relatorios.tsx
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { FileText } from "lucide-react";
-
-export const Route = createFileRoute("/app/relatorios")({
-  component: () => (
-    <div className="mx-auto max-w-3xl px-6 py-16">
-      <Card className="flex flex-col items-center border-dashed border-border/60 p-12 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <FileText className="h-7 w-7" />
-        </div>
-        <h2 className="mt-4 text-xl font-semibold">Central de relatórios</h2>
-        <p className="mt-2 max-w-md text-sm text-muted-foreground">
-          Acesse, exporte e compartilhe seus relatórios. Por enquanto, abra os relatórios diretamente pela tela de estudos salvos.
-        </p>
-        <Link to="/app/estudos" className="mt-6"><Button variant="outline">Ver estudos salvos</Button></Link>
-      </Card>
-    </div>
-  ),
-});
