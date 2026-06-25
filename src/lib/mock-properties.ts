@@ -19,6 +19,8 @@ export interface MockProperty {
   diferenciais: string[];
   imagem: string;
   dataColeta: string;
+  incomplete?: boolean;
+  aproximado?: boolean;
 }
 
 const img = (seed: string) =>

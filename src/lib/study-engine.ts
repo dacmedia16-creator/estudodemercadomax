@@ -49,22 +49,23 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
   const faixaMax = Math.round(precoMedio * 1.07);
   const precoM2Pretendido = input.areaUtil > 0 ? Math.round(input.valorPretendido / input.areaUtil) : 0;
 
-  const diff = (input.valorPretendido - precoMedio) / precoMedio;
+  const diff = precoMedio > 0 ? (input.valorPretendido - precoMedio) / precoMedio : 0;
   const status: StudyResult["status"] =
     diff < -0.08 ? "Abaixo da média" : diff > 0.08 ? "Acima da média" : "Dentro da média";
 
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
-  const diagnostico =
-    status === "Acima da média"
+  const diagnostico = filtered.length === 0
+    ? `Nenhum imóvel compatível foi encontrado nesta busca. Tente ampliar os critérios (área, preço, bairros próximos) no painel "Ajustar critérios" abaixo.`
+    : status === "Acima da média"
       ? `Com base nos ${filtered.length} imóveis encontrados em ${input.bairro} e região, este imóvel está posicionado acima da média de mercado. Para aumentar a competitividade, recomenda-se trabalhar uma faixa entre ${fmt(faixaMin)} e ${fmt(faixaMax)}, destacando metragem, localização e diferenciais.`
       : status === "Abaixo da média"
       ? `Seu imóvel está abaixo da média de mercado em ${input.bairro}. Há espaço para reajuste de valor — a faixa recomendada vai de ${fmt(faixaMin)} a ${fmt(faixaMax)}, o que pode aumentar a margem sem comprometer a velocidade de venda.`
       : `Seu imóvel está bem posicionado em relação ao mercado de ${input.bairro}. A faixa competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Reforce os diferenciais para acelerar a negociação.`;
 
   const pontosFortes: string[] = [];
-  const avgArea = avg(filtered.map((p) => p.areaUtil));
-  const avgQuartos = avg(filtered.map((p) => p.quartos));
+  const avgArea = filtered.length ? avg(filtered.map((p) => p.areaUtil)) : input.areaUtil;
+  const avgQuartos = filtered.length ? avg(filtered.map((p) => p.quartos)) : input.quartos;
   if (input.areaUtil >= avgArea) pontosFortes.push("Metragem acima da média da região");
   if (input.quartos >= avgQuartos) pontosFortes.push("Quantidade de quartos competitiva");
   if (input.diferenciais.length >= 4) pontosFortes.push("Boa quantidade de diferenciais");
