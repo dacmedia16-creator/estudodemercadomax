@@ -36,14 +36,17 @@ function Loading() {
       return;
     }
     const input = JSON.parse(raw) as StudyInput;
+    const kwRaw = sessionStorage.getItem("rip:pending-keyword");
+    const overrides = kwRaw ? { keyword: kwRaw, autoExpand: true } : {};
 
     (async () => {
-      const { result, warning, fellBack } = await runStudy(input, {}, (s) => setStep(s));
+      const { result, warning, fellBack } = await runStudy(input, overrides, (s) => setStep(s));
       if (warning) setWarning(warning);
       if (fellBack && warning?.includes("inválido")) toast.error("Token GeckoAPI inválido. Verifique em Configurações.");
       if (fellBack && warning?.includes("créditos")) toast.error("Sem créditos na GeckoAPI.");
       studyStore.save(result);
       sessionStorage.removeItem("rip:pending");
+      sessionStorage.removeItem("rip:pending-keyword");
 
       // brief pause so the user sees the final step
       await new Promise((r) => setTimeout(r, 600));
