@@ -380,6 +380,15 @@ export async function runStudy(
   if (!fellBack) {
     criteriosAplicados.push(`Requisições: ${plpCalls} PLP + ${pdpCalls} PDP = ${plpCalls + pdpCalls}`);
     funilBusca.push({ etapa: `Requisições GeckoAPI (PLP+PDP)`, total: plpCalls + pdpCalls });
+    for (const t of targets) {
+      const stats = perPortal[t];
+      const label = PORTAL_TARGETS[t];
+      funilBusca.push({
+        etapa: `${label}: ${stats.recebidos} recebidos / ${stats.aproveitados} aproveitados${stats.descartados ? ` / ${stats.descartados} descartados` : ""}`,
+        total: stats.aproveitados,
+      });
+    }
+    criteriosAplicados.push(`Portais consultados: ${targets.map((t) => PORTAL_TARGETS[t]).join(", ")}`);
   }
   if (criteriosAplicados.length) result.criteriosAplicados = criteriosAplicados;
   if (funilBusca.length) result.funilBusca = funilBusca;
