@@ -1,53 +1,35 @@
-# Busca livre estilo Google para estudos
+## Diagnóstico
 
-## Objetivo
+Ao digitar "Apartamento 3 quartos Água Verde Curitiba até 700 mil" e clicar **Analisar**, o card "Entendi assim" aparece corretamente (Curitiba/PR, 3 quartos, R$ 700.000 etc.), mas:
 
-Adicionar uma barra de pesquisa única onde o usuário digita uma descrição em linguagem natural (ex.: "apartamento 3 quartos 2 vagas Água Verde Curitiba até 700 mil com piscina") e o sistema entende, busca na GeckoAPI e gera o estudo — sem precisar preencher o formulário de 4 etapas.
+1. O campo **Bairro** fica vazio (—). O parser regex em `parseQueryLocal` só detecta bairro quando há prefixo "bairro X", "em X", "no X" ou "na X". "Água Verde" no meio da frase escapa.
+2. O botão **Confirmar e analisar** fica `disabled` porque `missing.length > 0` (bairro faltando).
+3. Resultado: o usuário clica em "Confirmar" e nada acontece — exatamente o sintoma relatado.
 
-## UX
+## O que vou mudar
 
-- **Onde aparece:** novo bloco no topo de `/app` (dashboard) e no topo de `/app/novo-estudo`, com tabs **"Busca rápida"** (novo padrão) e **"Formulário detalhado"** (fluxo atual preservado).
-- **Componente:** input grande com ícone de lupa, placeholder com exemplo rotativo, botão "Analisar". Abaixo, chips clicáveis com exemplos prontos ("apto 2q Batel aluguel", "casa 3 suítes Santa Felicidade até 1.2mi").
-- **Feedback antes de rodar:** ao submeter, mostra um card "Entendi assim:" com os campos extraídos (tipo, finalidade, cidade, bairro, quartos, faixa de preço, diferenciais) e dois botões: **Confirmar e analisar** / **Ajustar campos** (abre o formulário pré-preenchido na etapa 1). Isso evita gastar créditos numa interpretação errada.
+### 1. `src/lib/query-parser.ts` — detecção de bairro mais inteligente
+- Adicionar dicionário de bairros conhecidos das principais capitais (Curitiba, SP, RJ, BH, POA — ~20 bairros por cidade). Quando a cidade é identificada, varrer o texto procurando esses bairros sem exigir prefixo.
+- Fallback: quando cidade conhecida está no texto, capturar a sequência de 1–3 palavras capitalizadas imediatamente **antes** do nome da cidade como candidato a bairro (ex: "… Água Verde Curitiba …" → bairro = "Água Verde").
+- Ajustar a regra de `missing`: bairro deixa de ser bloqueador se `cidade` está presente — a busca pode rodar só por cidade. Continua aparecendo aviso, mas não trava o fluxo.
 
-## Como interpretar o texto
+### 2. `src/components/busca-rapida.tsx` — desbloquear o botão e editar inline
+- O botão **Confirmar e analisar** só fica desabilitado quando **cidade** está faltando (campo realmente essencial pra GeckoAPI). Bairro vira "recomendado" mas não bloqueador.
+- Quando um campo do card "Entendi assim" estiver vazio ou marcado como faltante, transformar em **input editável inline** (bairro, cidade, quartos) — assim o usuário corrige sem ir pro formulário.
+- O aviso amarelo passa a dizer: "Sem bairro a busca será mais ampla. Adicione um bairro pra resultados mais precisos."
 
-Pipeline em duas camadas, na ordem:
+### 3. Refinar exemplos do chip
+Trocar o exemplo "Apartamento 3 quartos 2 vagas Água Verde Curitiba até 700 mil com piscina" por uma versão que o parser entende 100% após o fix, e validar todos os 5 chips manualmente via Playwright depois.
 
-1. **Parser local (grátis, instantâneo)** em `src/lib/query-parser.ts`:
-   - Regex/heurísticas para: quartos (`3q`, `3 quartos`, `três quartos`), suítes, vagas, banheiros, área (`80m2`, `80 m²`), preço (`700k`, `R$ 700.000`, `até 1.2mi`, `entre 500 e 800 mil`), finalidade (palavras "aluguel/locação" vs "venda/comprar"), tipo (apartamento/casa/cobertura/studio/kitnet/sobrado/sala/terreno), diferenciais (piscina, academia, churrasqueira, varanda, mobiliado, pet, etc).
-   - Cidade/estado/bairro: lista local de cidades+UF do Brasil (compacta, ~500 maiores) + heurística "após `em` ou `no/na`". Se identificar CEP, chama ViaCEP (já temos).
-   - Cobre 70-80% dos casos sem chamar IA.
+## Detalhes técnicos
 
-2. **Fallback IA (Lovable AI Gateway)** quando o parser local não conseguir tipo+cidade+(quartos OU área OU preço):
-   - `createServerFn` `parseQuery` em `src/lib/query-parser.functions.ts` usando `generateText` + `Output.object` com schema enxuto (mesmo shape do `StudyInput`).
-   - Modelo: `google/gemini-3-flash-preview` (barato e rápido).
-   - Prompt curto pedindo extração estrita; campos não identificados ficam `null` e a UI pede pra completar.
+- `parseQueryLocal` ganha um `BAIRROS_POR_CIDADE: Record<string, string[]>` consultado quando `partial.cidade` é setado. Match case-insensitive com normalização de acentos.
+- O fallback "palavras capitalizadas antes da cidade" usa regex `/([A-ZÀ-Ú][\wÀ-ú]+(?:\s+[A-ZÀ-Ú][\wÀ-ú]+){0,2})\s+<cidade>/`.
+- `missing` passa a separar **blockers** (`cidade`) de **warnings** (`bairro`). A UI usa `blockers.length === 0` para habilitar Confirmar.
+- Sem mudanças em `study-runner`, `gecko-adapter` ou na chamada AI — escopo restrito ao parsing e à UI da busca rápida.
 
-A keyword final da GeckoAPI vira `"{tipo} {bairro}"` (igual hoje) — o texto livre só alimenta a extração, não vai cru pra API.
+## Validação
 
-## Reaproveitamento
-
-- Resultado do parser é convertido pra `StudyInput` existente e passa por **exatamente o mesmo `study-runner`** (PLP+PDP, camadas edifício/endereço/bairro, pós-filtro). Zero mudança no pipeline de busca.
-- Painel "Ajustar critérios" no relatório continua funcionando igual.
-
-## Arquivos
-
-- `src/lib/query-parser.ts` — parser local (regex + dicionários).
-- `src/lib/query-parser.functions.ts` — server fn de fallback IA.
-- `src/lib/ai-gateway.server.ts` — provider helper Lovable AI (se ainda não existe).
-- `src/components/busca-rapida.tsx` — input + chips + card "Entendi assim".
-- `src/routes/app.index.tsx` e `src/routes/app.novo-estudo.tsx` — montam o componente + tabs.
-- `src/routes/app.carregando.tsx` — sem mudança (recebe o `StudyInput` via sessionStorage como hoje).
-
-## Custos
-
-- Parser local: grátis.
-- Fallback IA: ~1 chamada Gemini Flash por busca quando o parser falha (texto curto, custo desprezível em créditos Lovable AI).
-- GeckoAPI: mesmo consumo do fluxo atual — o card de confirmação evita queimar créditos em interpretação errada.
-
-## Fora de escopo
-
-- Autocomplete enquanto digita (poderia ser próximo passo).
-- Histórico de buscas livres (já temos histórico de estudos).
-- Busca semântica em estudos salvos.
+Depois das mudanças, rodar Playwright em headless contra `/app/novo-estudo`:
+1. Digitar cada um dos 5 exemplos, clicar Analisar, conferir que o card mostra bairro preenchido e o botão Confirmar fica habilitado.
+2. Digitar uma frase sem cidade pra confirmar que o botão fica bloqueado com a mensagem correta.
