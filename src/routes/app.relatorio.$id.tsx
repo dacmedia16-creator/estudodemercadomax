@@ -259,6 +259,9 @@ function ReportPage() {
                     {c.mesmoCondominio && (
                       <Badge className="mt-1 bg-primary text-primary-foreground text-[9px]">Mesmo prédio</Badge>
                     )}
+                    {!c.mesmoCondominio && c.mesmoEndereco && (
+                      <Badge variant="outline" className="mt-1 text-[9px] border-primary/60 text-primary">Mesmo endereço</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.bairro}</TableCell>
                   <TableCell className="text-right">{c.areaUtil}m²</TableCell>
