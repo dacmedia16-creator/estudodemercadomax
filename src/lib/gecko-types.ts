@@ -33,15 +33,7 @@ export interface GeckoPlpData {
   items?: GeckoItem[];
 }
 
-export interface GeckoResponse<T> {
-  requestId?: string;
-  executionId?: string;
-  notFound?: boolean;
-  data: T | null;
-}
-
-export type GeckoPlpResponse = GeckoResponse<GeckoPlpData>;
-export type GeckoPdpResponse = GeckoResponse<Record<string, unknown>>;
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 
 export interface GeckoCallResult<T> {
   ok: boolean;
@@ -50,5 +42,4 @@ export interface GeckoCallResult<T> {
   errorMessage?: string;
   notFound?: boolean;
   data?: T | null;
-  raw?: unknown;
 }
