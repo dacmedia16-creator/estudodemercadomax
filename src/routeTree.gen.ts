@@ -14,6 +14,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppNovoEstudoRouteImport } from './routes/app.novo-estudo'
 import { Route as AppCarregandoRouteImport } from './routes/app.carregando'
+import { Route as AppRelatorioIdRouteImport } from './routes/app.relatorio.$id'
 
 const AppRoute = AppRouteImport.update({
   id: '/app',
@@ -40,6 +41,11 @@ const AppCarregandoRoute = AppCarregandoRouteImport.update({
   path: '/carregando',
   getParentRoute: () => AppRoute,
 } as any)
+const AppRelatorioIdRoute = AppRelatorioIdRouteImport.update({
+  id: '/relatorio/$id',
+  path: '/relatorio/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,12 +53,14 @@ export interface FileRoutesByFullPath {
   '/app/carregando': typeof AppCarregandoRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/': typeof AppIndexRoute
+  '/app/relatorio/$id': typeof AppRelatorioIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app/carregando': typeof AppCarregandoRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app': typeof AppIndexRoute
+  '/app/relatorio/$id': typeof AppRelatorioIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -61,12 +69,24 @@ export interface FileRoutesById {
   '/app/carregando': typeof AppCarregandoRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/': typeof AppIndexRoute
+  '/app/relatorio/$id': typeof AppRelatorioIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/app/carregando' | '/app/novo-estudo' | '/app/'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/app/carregando'
+    | '/app/novo-estudo'
+    | '/app/'
+    | '/app/relatorio/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/app/carregando' | '/app/novo-estudo' | '/app'
+  to:
+    | '/'
+    | '/app/carregando'
+    | '/app/novo-estudo'
+    | '/app'
+    | '/app/relatorio/$id'
   id:
     | '__root__'
     | '/'
@@ -74,6 +94,7 @@ export interface FileRouteTypes {
     | '/app/carregando'
     | '/app/novo-estudo'
     | '/app/'
+    | '/app/relatorio/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -118,6 +139,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCarregandoRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/relatorio/$id': {
+      id: '/app/relatorio/$id'
+      path: '/relatorio/$id'
+      fullPath: '/app/relatorio/$id'
+      preLoaderRoute: typeof AppRelatorioIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -125,12 +153,14 @@ interface AppRouteChildren {
   AppCarregandoRoute: typeof AppCarregandoRoute
   AppNovoEstudoRoute: typeof AppNovoEstudoRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppRelatorioIdRoute: typeof AppRelatorioIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppCarregandoRoute: AppCarregandoRoute,
   AppNovoEstudoRoute: AppNovoEstudoRoute,
   AppIndexRoute: AppIndexRoute,
+  AppRelatorioIdRoute: AppRelatorioIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
