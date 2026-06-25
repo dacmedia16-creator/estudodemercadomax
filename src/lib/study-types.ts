@@ -8,6 +8,9 @@ export interface StudyInput {
   bairro: string;
   bairrosProximos: string[];
   endereco?: string;
+  numero?: string;
+  complemento?: string;
+  edificio?: string;
   areaUtil: number;
   areaTotal?: number;
   quartos: number;
