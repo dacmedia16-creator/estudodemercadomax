@@ -15,6 +15,58 @@ export interface RunStudyProgress {
   (step: number): void;
 }
 
+type PlpParams = {
+  city: string;
+  state: string;
+  businessType: "sale" | "rent";
+  keyword?: string;
+  propertyType?: string;
+  bedrooms?: number[];
+  parkingSpots?: number[];
+  priceMin?: number;
+  priceMax?: number;
+  areaMin?: number;
+  areaMax?: number;
+};
+
+/** Fetches up to `maxPages` PLP pages sequentially; stops early on empty page. */
+async function fetchPlpPages(
+  params: PlpParams,
+  maxPages: number,
+): Promise<{ ok: boolean; items: GeckoItem[]; pagesFetched: number; errorMessage?: string }> {
+  const all: GeckoItem[] = [];
+  const seen = new Set<string>();
+  let pagesFetched = 0;
+  let firstError: string | undefined;
+  let anyOk = false;
+
+  for (let page = 1; page <= maxPages; page++) {
+    try {
+      const res = await geckoPlp({ data: { ...params, page } });
+      pagesFetched++;
+      if (!res.ok) {
+        if (!firstError) firstError = res.errorMessage || res.errorCode || `HTTP_${res.status}`;
+        if (page === 1) break;
+        continue;
+      }
+      anyOk = true;
+      const items = res.data?.items ?? [];
+      if (items.length === 0) break;
+      for (const it of items) {
+        const key = (it as any).url || (it as any).id || JSON.stringify(it).slice(0, 64);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        all.push(it);
+      }
+    } catch (e) {
+      if (!firstError) firstError = (e as Error).message;
+      if (page === 1) break;
+    }
+  }
+
+  return { ok: anyOk, items: all, pagesFetched, errorMessage: firstError };
+}
+
 /**
  * Orchestrates the full PLP + PDP pipeline and returns a StudyResult.
  * `overrides` lets the UI re-run the search with adjusted criteria.
