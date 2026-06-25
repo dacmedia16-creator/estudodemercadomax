@@ -1,47 +1,29 @@
-## Priorizar imóveis no mesmo condomínio/edifício
+## Objetivo
+Aumentar a cobertura da busca consultando **até 3 páginas** da GeckoAPI (PLP), em vez de apenas 1.
 
-Quando o usuário preencher **Edifício/Condomínio** na etapa 1, o pipeline de busca passa a tratar imóveis do mesmo prédio como prioridade máxima, e só depois amplia para o restante do bairro/cidade.
+## Mudanças
 
-### Comportamento
+### 1. `src/lib/study-runner.ts`
+- Adicionar constante `MAX_PAGES = 3` (ou ler de `overrides.maxPages`, default 3, teto 3).
+- Criar helper `fetchPlpPages(params, maxPages)` que:
+  - Chama `geckoPlp` para `page: 1..maxPages` sequencialmente.
+  - Interrompe cedo se uma página retornar 0 itens.
+  - Concatena `items` de todas as páginas e deduplica por `url`/`id`.
+  - Retorna `{ items, pagesFetched }`.
+- Usar o helper tanto na **Layer 0 (edifício)** quanto na **PLP principal do bairro**.
+- Registrar no `funilBusca` quantas páginas foram efetivamente consultadas em cada etapa (ex.: `"Páginas consultadas (bairro)": 3`).
+- Tratamento de erro: se a página 2 ou 3 falhar, mantém o que já veio da página 1 e segue (não derruba o estudo).
 
-1. Se `input.edificio` (ou override equivalente) estiver preenchido:
-   - **Camada 0 (nova, prioritária)**: busca PLP com `keyword = "<edifício> <bairro>"` e filtra resultados cujo `titulo + descricao + endereco` contenha o nome do edifício (match normalizado, ignorando acentos/caixa e palavras genéricas como "edifício", "residencial", "condomínio").
-   - Se encontrar **≥ 3** comparáveis no mesmo prédio → usa **apenas** esses; o relatório destaca "Comparáveis no mesmo condomínio".
-   - Se encontrar **1–2** → mantém esses como "âncora" e completa com as camadas atuais (bairro → cidade → faixa ampla) até ≥ 4 no total, marcando cada comparável com flag `mesmoCondominio: boolean`.
-   - Se encontrar **0** → cai direto no fluxo atual (estrito → ampliações).
-2. Sem `edificio` preenchido: comportamento idêntico ao de hoje.
+### 2. `src/lib/study-types.ts`
+- Adicionar `maxPages?: number` em `SearchOverrides`.
 
-### UI
+### 3. `src/components/criterios-editor.tsx`
+- Novo controle no painel: campo numérico ou select **"Páginas por busca"** (1, 2, 3 — default 3).
+- Enviar `maxPages` em `onRerun`.
 
-- Editor de critérios (`criterios-editor.tsx`): novo campo **Edifício/Condomínio** com toggle "Priorizar mesmo prédio" (default ON quando há valor).
-- Relatório (`app.relatorio.$id.tsx`):
-  - Funil de busca ganha etapa extra "Mesmo condomínio: N".
-  - Tabela de comparáveis ganha badge "Mesmo prédio" nos itens com `mesmoCondominio = true`.
-  - Diagnóstico menciona quantos comparáveis vieram do próprio edifício.
+### 4. Sem mudanças em
+- `gecko.functions.ts` (já aceita `page`).
+- `gecko-adapter.ts`, `study-engine.ts`, relatório (funil já é renderizado a partir de `funilBusca`).
 
-### Implementação técnica
-
-1. `src/lib/study-types.ts`:
-   - `SearchOverrides`: adicionar `edificio?: string` e `priorizarEdificio?: boolean`.
-   - `ComparableProperty`: adicionar `mesmoCondominio?: boolean`.
-2. `src/lib/study-runner.ts`:
-   - Ler `edificio` efetivo (override > input).
-   - Função `matchEdificio(p, nome)`: normaliza ambos, remove stopwords (`edificio|edifício|residencial|condominio|condomínio|cond|ed`), exige que todos os tokens significativos do nome apareçam em `titulo+descricao+endereco`.
-   - Quando `priorizarEdificio && edificio`:
-     - Roda PLP extra com keyword do edifício (em paralelo à PLP principal, ou sequencial se mais simples).
-     - Faz o ranqueamento descrito acima, marca `mesmoCondominio` nos selecionados.
-     - Acrescenta `{ etapa: "Mesmo condomínio", total: n }` em `funilBusca`.
-   - `criteriosAplicados` ganha linha `Edifício: <nome> (prioridade)` quando aplicável.
-3. `src/lib/study-engine.ts`:
-   - Ao calcular `comparaveis`, preservar a flag `mesmoCondominio` vinda do runner; opcionalmente dar peso extra de similaridade aos do mesmo prédio (mantém ordenação por similaridade — quem é do mesmo prédio sobe naturalmente).
-4. `src/components/criterios-editor.tsx`:
-   - Novo input `edificio` + `Switch` "Priorizar mesmo prédio".
-   - Defaults a partir de `study.input.edificio` / `overridesAplicados`.
-5. `src/routes/app.relatorio.$id.tsx`:
-   - Badge "Mesmo prédio" na tabela.
-   - Frase no diagnóstico: "X de Y comparáveis estão no mesmo condomínio."
-
-### Fora do escopo
-
-- Geocodificação por endereço/CEP para identificar prédio sem nome digitado.
-- Busca cruzada em outros portais (mantém só Zap).
+## Observação de custo
+3 páginas = até 3× chamadas PLP por estudo (1× para edifício + 1× principal viram até 6 chamadas). PDPs continuam limitados aos top 6 comparáveis, sem mudança.
