@@ -13,6 +13,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppNovoEstudoRouteImport } from './routes/app.novo-estudo'
+import { Route as AppCarregandoRouteImport } from './routes/app.carregando'
 
 const AppRoute = AppRouteImport.update({
   id: '/app',
@@ -34,15 +35,22 @@ const AppNovoEstudoRoute = AppNovoEstudoRouteImport.update({
   path: '/novo-estudo',
   getParentRoute: () => AppRoute,
 } as any)
+const AppCarregandoRoute = AppCarregandoRouteImport.update({
+  id: '/carregando',
+  path: '/carregando',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
+  '/app/carregando': typeof AppCarregandoRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/': typeof AppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app/carregando': typeof AppCarregandoRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app': typeof AppIndexRoute
 }
@@ -50,15 +58,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
+  '/app/carregando': typeof AppCarregandoRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/app/novo-estudo' | '/app/'
+  fullPaths: '/' | '/app' | '/app/carregando' | '/app/novo-estudo' | '/app/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/app/novo-estudo' | '/app'
-  id: '__root__' | '/' | '/app' | '/app/novo-estudo' | '/app/'
+  to: '/' | '/app/carregando' | '/app/novo-estudo' | '/app'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/app/carregando'
+    | '/app/novo-estudo'
+    | '/app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -96,15 +111,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNovoEstudoRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/carregando': {
+      id: '/app/carregando'
+      path: '/carregando'
+      fullPath: '/app/carregando'
+      preLoaderRoute: typeof AppCarregandoRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppCarregandoRoute: typeof AppCarregandoRoute
   AppNovoEstudoRoute: typeof AppNovoEstudoRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppCarregandoRoute: AppCarregandoRoute,
   AppNovoEstudoRoute: AppNovoEstudoRoute,
   AppIndexRoute: AppIndexRoute,
 }
