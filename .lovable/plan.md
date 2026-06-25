@@ -1,34 +1,48 @@
-## Por que voltou zero
+## Diagnóstico
 
-Hoje a busca por condomínio cai em dois funis muito apertados e qualquer um zera o resultado:
+A integração já dispara as duas chamadas PLP em paralelo (Zap + Chaves na Mão), mas o adapter `geckoItemToProperty` é 100% modelado no schema do **Zap Imóveis**:
 
-1. **Adapter descarta itens**: `geckoItemToProperty` exige `quartos` E `areaUtil` no payload da PLP. Muitos cards do Zap não trazem esses números na listagem (vêm só na PDP), então a lista chega cheia e o adapter joga tudo fora antes de qualquer filtro.
-2. **`matchEdificio` exige TODOS os tokens**: "Cannes Campolim" vira `["cannes","campolim"]` e exige os dois em `titulo+descricao+bairro`. Anúncios que dizem só "Edifício Cannes" no bairro Campolim passam, mas quando o anúncio só fala "Cannes" no título e descrição genérica, ele exclui.
-3. **Keyword da layer 0 mistura bairro**: hoje manda `"Cannes Campolim"` como keyword da PLP — o Zap interpreta como busca textual e pode devolver pouca coisa. O ideal é mandar só `"Cannes"` (nome do prédio) e filtrar Campolim localmente.
-4. **Layer 1.5 (endereço) só roda se condomínio < TARGET**: ok, mas usa `keyword: "${endereco} ${bairro}"` que sofre do mesmo ruído.
+- exige `item.prices.mainValue` para não devolver `null`
+- lê `item.usableAreas`, `item.address.neighborhood`, `item.images[0].url` no formato Zap
 
-E o **crash da página** ("This page didn't load") acontece quando o estudo volta com 0 comparáveis: `avgArea = NaN`, `diff = ±Infinity`, e a página não tem `errorComponent` nem trata `comparaveis.length === 0`, então qualquer pequeno NaN dentro do Recharts ou do diagnóstico derruba o render todo.
+A GeckoAPI devolve cada portal num shape próprio. Resultado: os itens da Chaves na Mão chegam, o adapter retorna `null` em todos eles e o runner descarta silenciosamente. Daí parece que "não entrou na busca".
 
-## Correções
+Também há um risco secundário: o enum de `propertyType` (`APARTMENT`, `HOME`, …) é o vocabulário do Zap e pode estar filtrando demais no lado da Gecko para chavesnamao.
 
-**`src/lib/gecko-adapter.ts`**
-- Não descartar mais por falta de `quartos`/`areaUtil` na PLP. Quando ausentes, marcar com `0` e deixar passar; o filtro local decide depois.
-- Trazer um campo `incomplete: true` no MockProperty (opcional) para a layer estrita ignorar, mas a layer "mesmo prédio" aceitar.
+## Plano
 
-**`src/lib/study-runner.ts`**
-- Layer 0 (edifício): keyword vira apenas o nome do prédio (`"Cannes"`), sem concatenar bairro. Cidade/estado/businessType seguem no payload da PLP. Continua paginando até 3 páginas.
-- `matchEdificio` mais tolerante: aceita match se ≥1 token significativo aparecer no `titulo` OU `descricao` OU `bairro` (em vez de exigir todos). Adicionar sinônimos comuns ("residencial", "ed", "edif" já estão como STOP — manter).
-- Quando `priorizarEdificio` e a layer 0 retornar ≥1, pular layer principal (bairro) — esses anchors já são os comparáveis. Hoje exige ≥3 para "fixar"; baixar para ≥1 quando o usuário pediu prédio específico.
-- Para itens "mesmo prédio" sem `quartos`/`areaUtil`, preencher com os valores do `input` (proxy razoável: imóvel do mesmo prédio costuma ter planta semelhante) e marcar `c.aproximado = true`.
-- Adicionar log/funilBusca extra: "Itens descartados por dados incompletos" para o usuário ver o quanto a API retornou cru vs aproveitado.
+1. **Visibilidade primeiro (sem mexer no normalizador ainda)**
+   - Adicionar no `study-runner` contadores por portal: itens recebidos, itens normalizados, itens descartados — e empurrar no `funilBusca`.
+   - Logar no `console.debug` o `keys(item)` do primeiro item de cada portal na primeira página, pra confirmar o shape real.
+   - Mostrar no relatório (bloco "Critérios da busca") os portais consultados e o que cada um devolveu/aproveitou.
 
-**`src/lib/study-engine.ts`**
-- `generateStudy` com `filtered.length === 0`: definir `avgArea`/`avgQuartos` como `input.areaUtil`/`input.quartos` (evita NaN) e `diff = 0` (status "Dentro da média" + diagnóstico "Sem comparáveis suficientes — refine a busca").
+2. **Adapter portal-aware (`gecko-adapter.ts`)**
+   - Receber `portal` e ler caminhos alternativos comuns do Chaves na Mão (com fallbacks):
+     - preço: `item.prices?.mainValue ?? item.price ?? item.priceValue ?? parse(desc)`
+     - área: `item.usableAreas ?? item.area ?? item.privateArea`
+     - bairro/cidade/estado: `item.address?.neighborhood ?? item.neighborhood`, idem cidade/estado
+     - imagem: `item.images?.[0]?.url ?? item.image ?? item.thumbnail`
+     - url/id: garantir fallback robusto
+   - Continuar marcando `incomplete: true` quando faltar área/quartos (já é o comportamento atual), em vez de descartar.
 
-**`src/routes/app.relatorio.$id.tsx`**
-- Adicionar `errorComponent` no `createFileRoute` para evitar tela cinza do Lovable quando algo no render explodir.
-- Quando `study.comparaveis.length === 0`, renderizar card amigável "Nenhum comparável encontrado" no lugar dos gráficos/tabela/concorrentes, mantendo o cabeçalho e o painel "Ajustar critérios" funcionando.
+3. **Painel de teste em Configurações ganha modo PLP**
+   - Hoje o painel só faz PDP. Adicionar um botão "Testar PLP" que dispara `geckoPlp` com `target` selecionado, `city/keyword` simples, e mostra o JSON cru — pra eu validar o shape real do Chaves na Mão sem precisar rodar um estudo inteiro.
 
-## Fora de escopo
-- Mudar o pipeline de PDP (continua só nos top 3 sem dados de condomínio).
-- Mexer no formulário, na busca rápida ou na landing.
+4. **propertyType só quando aplicável**
+   - Quando `target === "chavesnamao.com.br"`, omitir `propertyType` no payload PLP (mantém só `keyword`/`bedrooms`/preço). Evita filtro server-side com vocabulário Zap.
+
+5. **Validação**
+   - Rodar um estudo com Chaves na Mão ligado, abrir a aba Network e o relatório:
+     - confirmar 2 POSTs `/v1/extract` por página (um por target)
+     - confirmar no funil que o Chaves na Mão aparece com >0 itens aproveitados
+   - Ajustar paths do adapter se algum item ainda voltar `null` (com base no log do passo 1/3).
+
+## Arquivos afetados
+
+- `src/lib/gecko-adapter.ts` — leitura tolerante a múltiplos shapes
+- `src/lib/study-runner.ts` — contadores por portal + entradas no funil
+- `src/lib/gecko.functions.ts` — não passar `propertyType` para chavesnamao
+- `src/routes/app.configuracoes.tsx` — botão "Testar PLP" no painel de diagnóstico
+- `src/routes/app.relatorio.$id.tsx` — exibir portais consultados/aproveitados no bloco de critérios (se já não exibir)
+
+Sem alteração de regras de negócio do relatório nem do engine.

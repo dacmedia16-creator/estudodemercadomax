@@ -61,6 +61,9 @@ export async function runStudy(
   let pdpCalls = 0;
   let descartadosIncompletos = 0;
   const targets = activeTargets();
+  const perPortal: Record<string, { recebidos: number; aproveitados: number; descartados: number }> = {};
+  for (const t of targets) perPortal[t] = { recebidos: 0, aproveitados: 0, descartados: 0 };
+  const loggedShape = new Set<string>();
 
   // Effective parameters (overrides win over input).
   const finalidade = overrides.finalidade ?? input.finalidade;
@@ -146,12 +149,27 @@ export async function runStudy(
           if (items.length === 0) continue;
           anyItems = true;
           const portalName = PORTAL_TARGETS[t];
+          perPortal[t].recebidos += items.length;
+          if (!loggedShape.has(t) && items[0]) {
+            loggedShape.add(t);
+            try {
+              // eslint-disable-next-line no-console
+              console.debug(`[gecko:${t}] sample item keys =`, Object.keys(items[0] as object));
+              // eslint-disable-next-line no-console
+              console.debug(`[gecko:${t}] sample item =`, items[0]);
+            } catch { /* ignore */ }
+          }
           for (const it of items) {
             const key = (it as any).url || (it as any).id || JSON.stringify(it).slice(0, 64);
             if (seen.has(key)) continue;
             seen.add(key);
             const p = geckoItemToProperty(it, portalName);
-            if (p) all.push(p);
+            if (p) {
+              all.push(p);
+              perPortal[t].aproveitados++;
+            } else {
+              perPortal[t].descartados++;
+            }
           }
         }
         pages++;
@@ -362,6 +380,15 @@ export async function runStudy(
   if (!fellBack) {
     criteriosAplicados.push(`Requisições: ${plpCalls} PLP + ${pdpCalls} PDP = ${plpCalls + pdpCalls}`);
     funilBusca.push({ etapa: `Requisições GeckoAPI (PLP+PDP)`, total: plpCalls + pdpCalls });
+    for (const t of targets) {
+      const stats = perPortal[t];
+      const label = PORTAL_TARGETS[t];
+      funilBusca.push({
+        etapa: `${label}: ${stats.recebidos} recebidos / ${stats.aproveitados} aproveitados${stats.descartados ? ` / ${stats.descartados} descartados` : ""}`,
+        total: stats.aproveitados,
+      });
+    }
+    criteriosAplicados.push(`Portais consultados: ${targets.map((t) => PORTAL_TARGETS[t]).join(", ")}`);
   }
   if (criteriosAplicados.length) result.criteriosAplicados = criteriosAplicados;
   if (funilBusca.length) result.funilBusca = funilBusca;
