@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, Check, MapPin, Home, Sparkles, Globe } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, MapPin, Home, Sparkles, Globe, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { StudyInput } from "@/lib/study-types";
 
@@ -39,6 +39,8 @@ const STEPS = [
 function NovoEstudo() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [cep, setCep] = useState("");
+  const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "ok" | "notfound" | "error">("idle");
   const [data, setData] = useState<Partial<StudyInput>>({
     finalidade: "Venda",
     tipo: "Apartamento",
@@ -68,6 +70,35 @@ function NovoEstudo() {
   const togglePortal = (p: string) => {
     const cur = data.portais ?? [];
     update("portais", cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]);
+  };
+
+  const formatCep = (raw: string) => {
+    const d = raw.replace(/\D/g, "").slice(0, 8);
+    return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+  };
+
+  const lookupCep = async (raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length !== 8) return;
+    setCepStatus("loading");
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const json = await res.json();
+      if (json?.erro) {
+        setCepStatus("notfound");
+        return;
+      }
+      setData((d) => ({
+        ...d,
+        bairro: json.bairro || d.bairro,
+        cidade: json.localidade || d.cidade,
+        estado: json.uf || d.estado,
+        endereco: json.logradouro ? json.logradouro : d.endereco,
+      }));
+      setCepStatus("ok");
+    } catch {
+      setCepStatus("error");
+    }
   };
 
   const handleSubmit = () => {
@@ -108,6 +139,35 @@ function NovoEstudo() {
       <Card className="mt-6 border-border/60 p-6 md:p-8 shadow-[var(--shadow-card)]">
         {step === 1 && (
           <div className="grid gap-5 md:grid-cols-2">
+            <Field label="CEP (preenche bairro, cidade e estado)" className="md:col-span-2">
+              <div className="relative">
+                <Input
+                  value={cep}
+                  onChange={(e) => {
+                    const f = formatCep(e.target.value);
+                    setCep(f);
+                    setCepStatus("idle");
+                    if (f.replace(/\D/g, "").length === 8) lookupCep(f);
+                  }}
+                  onBlur={() => lookupCep(cep)}
+                  placeholder="00000-000"
+                  inputMode="numeric"
+                  maxLength={9}
+                  className="pr-10"
+                />
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {cepStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> :
+                   cepStatus === "ok" ? <Check className="h-4 w-4 text-primary" /> :
+                   <Search className="h-4 w-4" />}
+                </div>
+              </div>
+              {cepStatus === "notfound" && (
+                <p className="text-xs text-warning">CEP não encontrado — preencha manualmente.</p>
+              )}
+              {cepStatus === "error" && (
+                <p className="text-xs text-warning">Não foi possível consultar o CEP agora.</p>
+              )}
+            </Field>
             <Field label="Finalidade">
               <Select value={data.finalidade} onValueChange={(v) => update("finalidade", v as StudyInput["finalidade"])}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
