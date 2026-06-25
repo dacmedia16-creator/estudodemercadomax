@@ -195,6 +195,15 @@ function NovoEstudo() {
             <Field label="Endereço aproximado (opcional)" className="md:col-span-2">
               <Input value={data.endereco ?? ""} onChange={(e) => update("endereco", e.target.value)} placeholder="Ex: Rua Brasílio Itiberê, 1500" />
             </Field>
+            <Field label="Número">
+              <Input value={data.numero ?? ""} onChange={(e) => update("numero", e.target.value)} placeholder="Ex: 1500" />
+            </Field>
+            <Field label="Complemento (apto, bloco, sala)">
+              <Input value={data.complemento ?? ""} onChange={(e) => update("complemento", e.target.value)} placeholder="Ex: Apto 502, Bloco B" />
+            </Field>
+            <Field label="Edifício / Condomínio (opcional)" className="md:col-span-2">
+              <Input value={data.edificio ?? ""} onChange={(e) => update("edificio", e.target.value)} placeholder="Ex: Edifício Solar das Palmeiras" />
+            </Field>
           </div>
         )}
 
