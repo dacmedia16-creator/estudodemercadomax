@@ -108,6 +108,17 @@ const CITY_TO_UF: Record<string, string> = {
   "criciúma":"SC","criciuma":"SC","itajaí":"SC","itajai":"SC","chapecó":"SC","chapeco":"SC",
 };
 
+const BAIRROS_POR_CIDADE: Record<string, string[]> = {
+  "curitiba": ["Água Verde","Batel","Centro","Cabral","Bigorrilho","Mercês","Champagnat","Ecoville","Portão","Vila Izabel","Rebouças","Cristo Rei","Juvevê","Alto da Glória","Alto da Rua XV","Santa Felicidade","Bacacheri","Boa Vista","Hugo Lange","Jardim Social","São Francisco","Tarumã","Capão Raso","Pinheirinho","Boqueirão","Hauer","Tingui","Novo Mundo","Xaxim","Jardim Botânico","Prado Velho","Bom Retiro","Seminário","Campo Comprido","Mossunguê","Cajuru","Uberaba","Fazendinha","Cidade Industrial"],
+  "são paulo": ["Vila Mariana","Moema","Itaim Bibi","Pinheiros","Vila Olímpia","Brooklin","Jardins","Jardim Paulista","Jardim Europa","Jardim América","Higienópolis","Perdizes","Pompeia","Lapa","Vila Madalena","Sumaré","Bela Vista","Consolação","República","Liberdade","Centro","Aclimação","Paraíso","Vila Nova Conceição","Campo Belo","Santo Amaro","Morumbi","Vila Andrade","Butantã","Tatuapé","Mooca","Ipiranga","Saúde","Vila Prudente","Anália Franco","Vila Romana","Barra Funda","Santana","Vila Leopoldina","Alto de Pinheiros"],
+  "rio de janeiro": ["Copacabana","Ipanema","Leblon","Botafogo","Flamengo","Laranjeiras","Catete","Glória","Tijuca","Vila Isabel","Andaraí","Grajaú","Maracanã","Barra da Tijuca","Recreio dos Bandeirantes","Jacarepaguá","Freguesia","Taquara","Lagoa","Gávea","Jardim Botânico","Humaitá","Urca","Centro","Santa Teresa","São Cristóvão","Méier","Cachambi","Penha","Vila da Penha","Campo Grande","Bangu","Realengo"],
+  "belo horizonte": ["Savassi","Funcionários","Lourdes","Centro","Santo Agostinho","Carmo","Sion","Mangabeiras","Belvedere","Vila da Serra","Anchieta","Cruzeiro","Serra","Santa Lúcia","Buritis","Estoril","Pampulha","Castelo","Cidade Nova","Floresta","Santa Efigênia","Padre Eustáquio","Sagrada Família","Prado","Gutierrez","Caiçaras"],
+  "porto alegre": ["Moinhos de Vento","Bela Vista","Petrópolis","Mont Serrat","Auxiliadora","Higienópolis","Boa Vista","Floresta","Independência","Centro","Cidade Baixa","Bom Fim","Rio Branco","Menino Deus","Tristeza","Cristal","Cavalhada","Ipanema","Jardim Botânico","Partenon","Santa Cecília","Três Figueiras","Chácara das Pedras"],
+  "florianópolis": ["Centro","Trindade","Córrego Grande","Itacorubi","Santa Mônica","Pantanal","Carvoeira","Agronômica","Beira Mar Norte","Jurerê","Jurerê Internacional","Canasvieiras","Ingleses","Cachoeira do Bom Jesus","Lagoa da Conceição","Campeche","Rio Tavares","Coqueiros","Estreito","Capoeiras","Itaguaçu","João Paulo","Saco Grande","Cacupé","Santo Antônio de Lisboa"],
+  "salvador": ["Barra","Ondina","Rio Vermelho","Pituba","Itaigara","Caminho das Árvores","Horto Florestal","Graça","Vitória","Canela","Federação","Brotas","Costa Azul","Imbuí","Patamares","Stella Maris","Piatã","Itapuã","Pelourinho","Campo Grande"],
+  "brasília": ["Asa Sul","Asa Norte","Lago Sul","Lago Norte","Sudoeste","Noroeste","Octogonal","Cruzeiro","Águas Claras","Taguatinga","Guará","Park Sul","Park Way","Vicente Pires","Jardim Botânico"],
+};
+
 function stripAccents(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -194,11 +205,13 @@ export function parseQueryLocal(input: string): ParsedQuery {
 
   // Cidade — buscar por nome conhecido (com e sem acento)
   const lowerNoAcc = stripAccents(lower);
+  let cityKey: string | null = null;
   for (const [city, uf] of Object.entries(CITY_TO_UF)) {
     const needle = stripAccents(city);
     if (lowerNoAcc.includes(` ${needle} `) || lowerNoAcc.includes(` ${needle},`)) {
       partial.cidade = city.replace(/(^|\s)\S/g, (c) => c.toUpperCase());
       if (!partial.estado) partial.estado = uf;
+      cityKey = city;
       break;
     }
   }
@@ -214,8 +227,33 @@ export function parseQueryLocal(input: string): ParsedQuery {
   const bairroMatch = text.match(/\bbairro\s+([A-ZÀ-Ú][\wÀ-ú\s]{2,30}?)(?=[,.\n]|$|\s+(?:em|na|no|com|por|até|de|aluguel|venda))/i);
   if (bairroMatch) {
     partial.bairro = bairroMatch[1].trim();
-  } else {
-    // "no/na/em <Nome capitalizado>"
+  }
+  if (!partial.bairro && cityKey && BAIRROS_POR_CIDADE[cityKey]) {
+    const textNoAcc = stripAccents(text.toLowerCase());
+    let best: string | null = null;
+    let bestLen = 0;
+    for (const b of BAIRROS_POR_CIDADE[cityKey]) {
+      const needle = stripAccents(b.toLowerCase()).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`(?:^|[^a-z0-9])${needle}(?:[^a-z0-9]|$)`);
+      if (re.test(textNoAcc) && needle.length > bestLen) {
+        best = b;
+        bestLen = needle.length;
+      }
+    }
+    if (best) partial.bairro = best;
+  }
+  if (!partial.bairro && partial.cidade) {
+    // "<Palavras Capitalizadas> <Cidade>"
+    const cityWords = partial.cidade.split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
+    const re = new RegExp(`([A-ZÀ-Ú][\\wÀ-ú]+(?:\\s+(?:da|de|do|das|dos)\\s+[A-ZÀ-Ú][\\wÀ-ú]+|\\s+[A-ZÀ-Ú][\\wÀ-ú]+){0,2})\\s+${cityWords}\\b`);
+    const m = text.match(re);
+    if (m) {
+      const cand = m[1].trim();
+      const banned = ["apartamento","apartamentos","casa","casas","cobertura","studio","kitnet","sobrado","sala","terreno"];
+      if (!banned.includes(cand.toLowerCase()) && cand.length > 2) partial.bairro = cand;
+    }
+  }
+  if (!partial.bairro) {
     const noMatch = text.match(/\b(?:no|na|em)\s+([A-ZÀ-Ú][\wÀ-ú]+(?:\s+[A-ZÀ-Ú][\wÀ-ú]+){0,2})\b/);
     if (noMatch && partial.cidade && !stripAccents(noMatch[1].toLowerCase()).includes(stripAccents(partial.cidade.toLowerCase()))) {
       partial.bairro = noMatch[1].trim();
@@ -233,17 +271,19 @@ export function parseQueryLocal(input: string): ParsedQuery {
   const edMatch = text.match(/\b(?:edif[íi]cio|cond(?:om[íi]nio)?|residencial)\s+([A-ZÀ-Ú][\wÀ-ú\s]{2,40}?)(?=[,.\n]|$|\s+(?:em|na|no|com|por|até))/i);
   if (edMatch) partial.edificio = edMatch[1].trim();
 
-  // Missing fields check
   const missing: string[] = [];
   if (!partial.tipo) missing.push("tipo");
   if (!partial.cidade) missing.push("cidade");
   if (!partial.bairro) missing.push("bairro");
   if (!partial.quartos && !partial.areaUtil && !partial.valorPretendido) missing.push("características");
 
+  const blockers: string[] = [];
+  if (!partial.cidade) blockers.push("cidade");
+
   const confidence: ParsedQuery["confidence"] =
     missing.length === 0 ? "high" : missing.length <= 1 ? "medium" : "low";
 
-  return { partial, missing, confidence };
+  return { partial, missing, blockers, confidence };
 }
 
 /** Merges parsed result into a complete StudyInput, filling sensible defaults. */
