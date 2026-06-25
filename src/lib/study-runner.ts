@@ -41,6 +41,7 @@ export async function runStudy(
   const mesmoEnderecoIds = new Set<string>();
   let plpCalls = 0;
   let pdpCalls = 0;
+  let descartadosIncompletos = 0;
 
   // Effective parameters (overrides win over input).
   const finalidade = overrides.finalidade ?? input.finalidade;
@@ -133,7 +134,7 @@ export async function runStudy(
     if (priorizarEdificio && !buscaLivre) {
       try {
         const res = await adaptivePaginate(
-          { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${edificio} ${bairro}`.trim(), propertyType },
+          { city: cidade, state: estado.toUpperCase(), businessType, keyword: edificio, propertyType },
           (collected) => collected
             .map((it) => geckoItemToProperty(it))
             .filter((p): p is MockProperty => p !== null)
@@ -142,7 +143,18 @@ export async function runStudy(
         condoMatches = res.items
           .map((it) => geckoItemToProperty(it))
           .filter((p): p is MockProperty => p !== null)
-          .filter((p) => matchEdificio(p, edificio));
+          .filter((p) => matchEdificio(p, edificio))
+          .map((p) => {
+            // Same-building proxy: if PLP lacked area/quartos, use the
+            // user's own values — apartments in the same condo usually
+            // share floor plans.
+            if (p.incomplete) {
+              if (!p.areaUtil) p.areaUtil = input.areaUtil;
+              if (!p.quartos) p.quartos = input.quartos;
+              p.aproximado = true;
+            }
+            return p;
+          });
         condoMatches.forEach((p) => mesmoCondominioIds.add(p.id));
         funilBusca.push({ etapa: `Mesmo condomínio (${res.pages} pág.)`, total: condoMatches.length });
       } catch { /* best-effort */ }
@@ -200,6 +212,9 @@ export async function runStudy(
     const normalized = mainItems
       .map((it) => geckoItemToProperty(it))
       .filter((p): p is MockProperty => p !== null);
+    descartadosIncompletos = normalized.filter((p) => p.incomplete).length;
+    // For the strict/expanded layers, only keep items with real area+quartos.
+    const normalizedComplete = normalized.filter((p) => !p.incomplete);
     if (priorizarEdificio) {
       normalized.forEach((p) => { if (matchEdificio(p, edificio)) mesmoCondominioIds.add(p.id); });
     }
@@ -208,7 +223,10 @@ export async function runStudy(
     }
     if (mainPages > 0) funilBusca.push({ etapa: `Páginas consultadas (bairro)`, total: mainPages });
     funilBusca.push({ etapa: "Retornados pela API", total: mainItems.length });
-    funilBusca.push({ etapa: "Com dados completos", total: normalized.length });
+    funilBusca.push({ etapa: "Com dados completos", total: normalizedComplete.length });
+    if (descartadosIncompletos > 0) {
+      funilBusca.push({ etapa: "Sem área/quartos na listagem (descartados do filtro estrito)", total: descartadosIncompletos });
+    }
 
     type Layer = { label: string; fn: (p: MockProperty) => boolean };
     const strict: Layer = { label: "Filtro estrito (critérios definidos)", fn: strictLocal };
@@ -234,17 +252,17 @@ export async function runStudy(
 
     let chosen: MockProperty[] = [];
     let chosenLayer = layers[0].label;
-    if (priorizarEdificio && condoMatches.length >= 3) {
+    if (priorizarEdificio && condoMatches.length >= 1) {
       chosen = condoMatches;
       chosenLayer = "Apenas imóveis do mesmo condomínio";
-    } else if (enderecoMatches.length >= 3 && condoMatches.length < 3) {
+    } else if (enderecoMatches.length >= 3 && condoMatches.length < 1) {
       const seen = new Set(enderecoMatches.map((p) => p.id));
       const anchors = condoMatches.filter((p) => !seen.has(p.id));
       chosen = [...anchors, ...enderecoMatches];
       chosenLayer = "Apenas imóveis do mesmo endereço";
     } else {
       for (const layer of layers) {
-        const sub = normalized.filter(layer.fn);
+        const sub = normalizedComplete.filter(layer.fn);
         if (sub.length >= 4) {
           chosen = sub;
           chosenLayer = layer.label;
@@ -358,7 +376,10 @@ function matchEdificio(p: MockProperty, nome: string): boolean {
   const tokens = normalizeText(nome).split(/\s+/).filter((t) => t.length >= 3 && !STOP.has(t));
   if (tokens.length === 0) return false;
   const hay = normalizeText(`${p.titulo} ${p.descricao} ${p.bairro}`);
-  return tokens.every((t) => hay.includes(t));
+  // Loose match: at least one significant token must appear. Avoids losing
+  // listings that only mention the building name in the title (not in the
+  // description) or vice-versa.
+  return tokens.some((t) => hay.includes(t));
 }
 
 /** Street-name match: strip address stopwords, require all significant tokens present. */

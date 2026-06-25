@@ -56,16 +56,20 @@ export function geckoItemToProperty(item: GeckoItem): MockProperty | null {
 
   const desc = item.description ?? "";
 
-  const quartos =
+  const quartosRaw =
     firstNumber(item.bedrooms) ??
     extractNumber(desc, [/(\d+)\s*quartos?/i, /(\d+)\s*dorm/i]);
-  const areaUtil =
+  const areaUtilRaw =
     firstNumber(item.usableAreas) ??
     firstNumber(item.totalAreas) ??
     extractNumber(desc, [/(\d+(?:[.,]\d+)?)\s*m[²2]/i]);
 
-  // Hard requirement: without quartos or area we can't compare → discard.
-  if (quartos === null || areaUtil === null || areaUtil <= 0) return null;
+  // Keep the item even without quartos/area on the PLP — the local filter
+  // and the "same building" layer can still use it. Flag as incomplete so
+  // strict filters can skip it.
+  const incomplete = quartosRaw === null || areaUtilRaw === null || (areaUtilRaw ?? 0) <= 0;
+  const quartos = quartosRaw ?? 0;
+  const areaUtil = areaUtilRaw && areaUtilRaw > 0 ? areaUtilRaw : 0;
 
   const suites =
     firstNumber(item.suites) ??
@@ -74,7 +78,7 @@ export function geckoItemToProperty(item: GeckoItem): MockProperty | null {
   const banheiros =
     firstNumber(item.bathrooms) ??
     extractNumber(desc, [/(\d+)\s*banheiros?/i, /(\d+)\s*wc/i]) ??
-    Math.max(1, quartos - 1);
+    Math.max(1, quartos - 1 || 1);
   const vagas =
     firstNumber(item.parkingSpaces) ??
     extractNumber(desc, [/(\d+)\s*vagas?/i, /(\d+)\s*garagens?/i]) ??
@@ -101,5 +105,6 @@ export function geckoItemToProperty(item: GeckoItem): MockProperty | null {
     diferenciais: item.amenities ?? [],
     imagem: item.images?.[0]?.url?.replace("{action}", "fit-in").replace("{width}", "800").replace("{height}", "600") ?? "",
     dataColeta: new Date().toISOString().slice(0, 10),
+    incomplete,
   };
 }

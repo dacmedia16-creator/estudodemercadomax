@@ -21,6 +21,16 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/relatorio/$id")({
   component: ReportPage,
+  errorComponent: ({ error, reset }) => (
+    <div className="mx-auto max-w-2xl px-6 py-20 text-center">
+      <h2 className="text-xl font-semibold">Não foi possível abrir o relatório</h2>
+      <p className="mt-2 text-sm text-muted-foreground">{(error as Error)?.message ?? "Erro inesperado."}</p>
+      <div className="mt-6 flex justify-center gap-2">
+        <Button variant="outline" onClick={() => reset()}>Tentar novamente</Button>
+        <Link to="/app/novo-estudo"><Button>Novo estudo</Button></Link>
+      </div>
+    </div>
+  ),
 });
 
 type SortKey = "menor-preco" | "maior-similaridade" | "maior-area" | "menor-precom2";
@@ -180,6 +190,17 @@ function ReportPage() {
       </div>
 
       {/* Block 5: graficos */}
+      {study.comparaveis.length === 0 ? (
+        <Card className="mt-6 border-warning/30 bg-warning/5 p-8 text-center">
+          <AlertTriangle className="mx-auto h-8 w-8 text-warning-foreground" />
+          <div className="mt-3 text-base font-semibold">Nenhum comparável encontrado</div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            A busca não retornou imóveis compatíveis. Use o painel <strong>Ajustar critérios</strong> acima
+            para ampliar área, preço ou bairros e reexecute a busca.
+          </p>
+        </Card>
+      ) : (
+      <>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card className="border-border/60 p-6">
           <div className="mb-4">
@@ -314,6 +335,8 @@ function ReportPage() {
       </div>
 
       {/* Block 7: pontos fortes e fracos */}
+      </>
+      )}
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <Card className="border-success/30 bg-success/5 p-6">
           <div className="mb-3 flex items-center gap-2">
