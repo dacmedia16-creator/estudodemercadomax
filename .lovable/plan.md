@@ -1,46 +1,47 @@
-## Painel de ajuste de critérios + regeneração do relatório
+## Priorizar imóveis no mesmo condomínio/edifício
 
-Adicionar, no topo do relatório, um painel "Critérios da busca" editável que permite reexecutar a análise com novos filtros sem refazer o formulário inteiro.
+Quando o usuário preencher **Edifício/Condomínio** na etapa 1, o pipeline de busca passa a tratar imóveis do mesmo prédio como prioridade máxima, e só depois amplia para o restante do bairro/cidade.
 
 ### Comportamento
 
-- Bloco atual "Critérios da busca" (somente leitura) vira **collapsible editável**.
-- Campos editáveis:
-  - Keyword (texto livre, default = `tipo + bairro`)
-  - Cidade / Estado
-  - Bairro principal + bairros próximos (chips)
-  - Quartos (min / max)
-  - Área útil (min / max, m²)
-  - Faixa de preço (min / max, R$)
-  - Tipo de imóvel (select)
-  - Finalidade (Venda/Aluguel)
-  - Toggle "Expandir automaticamente se < 4 resultados" (default ON; quando OFF, usa só os filtros estritos definidos)
-- Botões: **Reexecutar busca** (primário) e **Restaurar critérios originais**.
-- Ao reexecutar:
-  - Mostra estado de loading inline no painel (sem sair da página).
-  - Chama o mesmo orquestrador PLP+PDP usado em `app.carregando.tsx`, agora com critérios manuais.
-  - Substitui o `StudyResult` atual (mesmo `id`), atualiza `studyStore`, e re-renderiza gráficos/tabela/diagnóstico.
-  - Em falha (token ausente / 0 resultados / erro de rede): toast com motivo, mantém relatório anterior intacto.
-- Histórico simples: pequeno badge "Revisão Nº" incrementado a cada reexecução (apenas em memória/estudo).
+1. Se `input.edificio` (ou override equivalente) estiver preenchido:
+   - **Camada 0 (nova, prioritária)**: busca PLP com `keyword = "<edifício> <bairro>"` e filtra resultados cujo `titulo + descricao + endereco` contenha o nome do edifício (match normalizado, ignorando acentos/caixa e palavras genéricas como "edifício", "residencial", "condomínio").
+   - Se encontrar **≥ 3** comparáveis no mesmo prédio → usa **apenas** esses; o relatório destaca "Comparáveis no mesmo condomínio".
+   - Se encontrar **1–2** → mantém esses como "âncora" e completa com as camadas atuais (bairro → cidade → faixa ampla) até ≥ 4 no total, marcando cada comparável com flag `mesmoCondominio: boolean`.
+   - Se encontrar **0** → cai direto no fluxo atual (estrito → ampliações).
+2. Sem `edificio` preenchido: comportamento idêntico ao de hoje.
+
+### UI
+
+- Editor de critérios (`criterios-editor.tsx`): novo campo **Edifício/Condomínio** com toggle "Priorizar mesmo prédio" (default ON quando há valor).
+- Relatório (`app.relatorio.$id.tsx`):
+  - Funil de busca ganha etapa extra "Mesmo condomínio: N".
+  - Tabela de comparáveis ganha badge "Mesmo prédio" nos itens com `mesmoCondominio = true`.
+  - Diagnóstico menciona quantos comparáveis vieram do próprio edifício.
 
 ### Implementação técnica
 
-1. **Extrair orquestrador** de `src/routes/app.carregando.tsx` para `src/lib/study-runner.ts`:
-   - `runStudy(input, overrides?)` retorna `StudyResult`.
-   - `overrides` opcional: `{ keyword?, priceMin?, priceMax?, areaMin?, areaMax?, bedroomsMin?, bedroomsMax?, cidade?, estado?, bairro?, autoExpand?: boolean }`.
-   - `app.carregando.tsx` passa a apenas chamar `runStudy(input)`.
-2. **Atualizar `StudyResult`** (`src/lib/study-types.ts`):
-   - Adicionar `overridesAplicados?: SearchOverrides` e `revisao?: number`.
-3. **Novo componente** `src/components/criterios-editor.tsx`:
-   - Painel collapsible (shadcn `Collapsible` + `Card`) com os campos acima.
-   - Estado local controlado; ao submeter chama callback `onRerun(overrides)`.
-4. **Integrar em `src/routes/app.relatorio.$id.tsx`**:
-   - Substituir o bloco 3.5 atual pelo novo `CriteriosEditor`.
-   - `handleRerun` chama `runStudy(study.input, overrides)`, atualiza state + `studyStore.save`, incrementa `revisao`.
-   - Mantém o mini-funil (`funilBusca`) visível abaixo do editor.
-5. **Defaults inteligentes** ao abrir o editor: preencher campos com os valores efetivamente usados na última execução (derivados de `criteriosAplicados` + `input`), não os do formulário original — para o usuário ajustar a partir do que de fato rodou.
+1. `src/lib/study-types.ts`:
+   - `SearchOverrides`: adicionar `edificio?: string` e `priorizarEdificio?: boolean`.
+   - `ComparableProperty`: adicionar `mesmoCondominio?: boolean`.
+2. `src/lib/study-runner.ts`:
+   - Ler `edificio` efetivo (override > input).
+   - Função `matchEdificio(p, nome)`: normaliza ambos, remove stopwords (`edificio|edifício|residencial|condominio|condomínio|cond|ed`), exige que todos os tokens significativos do nome apareçam em `titulo+descricao+endereco`.
+   - Quando `priorizarEdificio && edificio`:
+     - Roda PLP extra com keyword do edifício (em paralelo à PLP principal, ou sequencial se mais simples).
+     - Faz o ranqueamento descrito acima, marca `mesmoCondominio` nos selecionados.
+     - Acrescenta `{ etapa: "Mesmo condomínio", total: n }` em `funilBusca`.
+   - `criteriosAplicados` ganha linha `Edifício: <nome> (prioridade)` quando aplicável.
+3. `src/lib/study-engine.ts`:
+   - Ao calcular `comparaveis`, preservar a flag `mesmoCondominio` vinda do runner; opcionalmente dar peso extra de similaridade aos do mesmo prédio (mantém ordenação por similaridade — quem é do mesmo prédio sobe naturalmente).
+4. `src/components/criterios-editor.tsx`:
+   - Novo input `edificio` + `Switch` "Priorizar mesmo prédio".
+   - Defaults a partir de `study.input.edificio` / `overridesAplicados`.
+5. `src/routes/app.relatorio.$id.tsx`:
+   - Badge "Mesmo prédio" na tabela.
+   - Frase no diagnóstico: "X de Y comparáveis estão no mesmo condomínio."
 
 ### Fora do escopo
 
-- Salvar múltiplas revisões como estudos separados (atual: sobrescreve).
-- Editar diferenciais / dados do imóvel analisado (continua só pelo formulário).
+- Geocodificação por endereço/CEP para identificar prédio sem nome digitado.
+- Busca cruzada em outros portais (mantém só Zap).

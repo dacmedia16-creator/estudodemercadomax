@@ -29,6 +29,7 @@ export async function runStudy(
   let criteriosAplicados: string[] = [];
   const funilBusca: { etapa: string; total: number }[] = [];
   let warningMsg: string | null = null;
+  const mesmoCondominioIds = new Set<string>();
 
   // Effective parameters (overrides win over input).
   const finalidade = overrides.finalidade ?? input.finalidade;
@@ -45,6 +46,8 @@ export async function runStudy(
   const priceMax = overrides.priceMax ?? Math.round(input.valorPretendido * 1.3);
   const keyword = (overrides.keyword ?? `${tipo.toLowerCase()} ${bairro}`).trim();
   const autoExpand = overrides.autoExpand ?? true;
+  const edificio = (overrides.edificio ?? input.edificio ?? "").trim();
+  const priorizarEdificio = (overrides.priorizarEdificio ?? !!edificio) && !!edificio;
 
   try {
     onStep?.(1);
@@ -53,6 +56,35 @@ export async function runStudy(
 
     const bedroomsArr: number[] = [];
     for (let q = quartosMin; q <= quartosMax; q++) if (q > 0) bedroomsArr.push(q);
+
+    // Layer 0 (optional): same-building search by name. Less restrictive on
+    // price/area so we don't miss a different unit in the same property.
+    let condoMatches: MockProperty[] = [];
+    if (priorizarEdificio) {
+      try {
+        const condoRes = await geckoPlp({
+          data: {
+            city: cidade,
+            state: estado.toUpperCase(),
+            businessType,
+            keyword: `${edificio} ${bairro}`.trim(),
+            propertyType,
+            page: 1,
+          },
+        });
+        if (condoRes.ok) {
+          const condoItems = condoRes.data?.items ?? [];
+          const condoNorm = condoItems
+            .map((it) => geckoItemToProperty(it))
+            .filter((p): p is MockProperty => p !== null);
+          condoMatches = condoNorm.filter((p) => matchEdificio(p, edificio));
+          condoMatches.forEach((p) => mesmoCondominioIds.add(p.id));
+          funilBusca.push({ etapa: "Mesmo condomínio (busca por nome)", total: condoMatches.length });
+        }
+      } catch {
+        /* ignore — layer is best-effort */
+      }
+    }
 
     const plpRes = await geckoPlp({
       data: {
@@ -76,12 +108,18 @@ export async function runStudy(
     }
 
     const items: GeckoItem[] = plpRes.data?.items ?? [];
-    if (items.length === 0) throw new Error("Nenhum imóvel encontrado");
+    if (items.length === 0 && condoMatches.length === 0) throw new Error("Nenhum imóvel encontrado");
 
     onStep?.(2);
     const normalized = items
       .map((it) => geckoItemToProperty(it))
       .filter((p): p is MockProperty => p !== null);
+    // Also flag any item from the main PLP that matches the building name.
+    if (priorizarEdificio) {
+      normalized.forEach((p) => {
+        if (matchEdificio(p, edificio)) mesmoCondominioIds.add(p.id);
+      });
+    }
     funilBusca.push({ etapa: "Retornados pela API", total: items.length });
     funilBusca.push({ etapa: "Com dados completos", total: normalized.length });
 
@@ -130,15 +168,27 @@ export async function runStudy(
 
     let chosen: MockProperty[] = [];
     let chosenLayer = layers[0].label;
-    for (const layer of layers) {
-      const sub = normalized.filter(layer.fn);
-      if (sub.length >= 4) {
+    // If priority building has ≥3 matches, use only those — no fallback to bairro.
+    if (priorizarEdificio && condoMatches.length >= 3) {
+      chosen = condoMatches;
+      chosenLayer = "Apenas imóveis do mesmo condomínio";
+    } else {
+      for (const layer of layers) {
+        const sub = normalized.filter(layer.fn);
+        if (sub.length >= 4) {
+          chosen = sub;
+          chosenLayer = layer.label;
+          break;
+        }
         chosen = sub;
         chosenLayer = layer.label;
-        break;
       }
-      chosen = sub;
-      chosenLayer = layer.label;
+      // Prepend condo anchors (deduped) so they always appear and rank first.
+      if (priorizarEdificio && condoMatches.length > 0) {
+        const seen = new Set(chosen.map((p) => p.id));
+        const anchors = condoMatches.filter((p) => !seen.has(p.id));
+        chosen = [...anchors, ...chosen];
+      }
     }
 
     funilBusca.push({ etapa: chosenLayer, total: chosen.length });
@@ -155,6 +205,9 @@ export async function runStudy(
       `Área: ${areaMin}–${areaMax} m²`,
       `Preço: ${priceMin.toLocaleString("pt-BR")}–${priceMax.toLocaleString("pt-BR")}`,
     ];
+    if (priorizarEdificio) {
+      criteriosAplicados.unshift(`Edifício: ${edificio} (prioridade)`);
+    }
     if (chosenLayer !== layers[0].label) {
       warningMsg = `Critério ampliado para encontrar comparáveis: ${chosenLayer}.`;
     }
@@ -194,9 +247,22 @@ export async function runStudy(
 
   onStep?.(3);
   const result = generateStudy(input, properties);
+  // Re-flag mesmoCondominio on the final comparables (engine may reorder/slice).
+  if (mesmoCondominioIds.size > 0) {
+    result.comparaveis.forEach((c) => {
+      if (mesmoCondominioIds.has(c.id)) c.mesmoCondominio = true;
+    });
+  }
   if (criteriosAplicados.length) result.criteriosAplicados = criteriosAplicados;
   if (funilBusca.length) result.funilBusca = funilBusca;
   result.overridesAplicados = overrides;
+  const noCondo = priorizarEdificio ? result.comparaveis.filter((c) => c.mesmoCondominio).length : 0;
+  if (priorizarEdificio && !fellBack) {
+    const prefix = noCondo > 0
+      ? `${noCondo} de ${result.comparaveis.length} comparáveis estão no mesmo condomínio. `
+      : `Nenhum imóvel do edifício "${edificio}" foi encontrado — busca ampliada para o bairro. `;
+    result.diagnostico = prefix + result.diagnostico;
+  }
   if (fellBack) {
     result.diagnostico = `[Dados de demonstração] ${result.diagnostico}`;
   } else if (warningMsg) {
@@ -204,4 +270,18 @@ export async function runStudy(
   }
 
   return { result, warning: warningMsg, fellBack };
+}
+
+/**
+ * Returns true if the property's title/description/address mentions the building name.
+ * Strips generic stopwords and requires every significant token to be present.
+ */
+function matchEdificio(p: MockProperty, nome: string): boolean {
+  const STOP = new Set(["edificio", "ed", "residencial", "condominio", "cond", "torre", "bloco"]);
+  const tokens = normalizeText(nome)
+    .split(/\s+/)
+    .filter((t) => t.length >= 3 && !STOP.has(t));
+  if (tokens.length === 0) return false;
+  const hay = normalizeText(`${p.titulo} ${p.descricao} ${p.bairro}`);
+  return tokens.every((t) => hay.includes(t));
 }

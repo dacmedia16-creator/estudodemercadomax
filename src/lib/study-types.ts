@@ -30,6 +30,7 @@ export interface StudyInput {
 export interface ComparableProperty extends MockProperty {
   precoM2: number;
   similaridade: number;
+  mesmoCondominio?: boolean;
 }
 
 export interface StudyResult {
@@ -72,4 +73,6 @@ export interface SearchOverrides {
   priceMin?: number;
   priceMax?: number;
   autoExpand?: boolean;
+  edificio?: string;
+  priorizarEdificio?: boolean;
 }

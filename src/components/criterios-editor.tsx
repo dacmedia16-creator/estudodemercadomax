@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, RotateCcw, Search, Loader2, AlertTriangle } from "lucide-react";
+import { ChevronDown, RotateCcw, Search, Loader2, AlertTriangle, Building2 } from "lucide-react";
 import type { StudyInput, SearchOverrides, StudyResult } from "@/lib/study-types";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +39,8 @@ function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<Searc
     priceMin: o.priceMin ?? Math.round(input.valorPretendido * 0.7),
     priceMax: o.priceMax ?? Math.round(input.valorPretendido * 1.3),
     autoExpand: o.autoExpand ?? true,
+    edificio: o.edificio ?? input.edificio ?? "",
+    priorizarEdificio: o.priorizarEdificio ?? !!(input.edificio && input.edificio.trim()),
   };
 }
 
@@ -78,6 +80,8 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
       priceMin: Number(form.priceMin),
       priceMax: Number(form.priceMax),
       autoExpand: form.autoExpand,
+      edificio: form.edificio.trim() || undefined,
+      priorizarEdificio: form.priorizarEdificio,
     });
   };
 
@@ -201,6 +205,30 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
               <div className="text-xs text-muted-foreground">Se a busca estrita retornar menos de 4 imóveis, amplia em camadas (quartos ±1, cidade inteira, faixa ±30%).</div>
             </div>
             <Switch checked={form.autoExpand} onCheckedChange={(v) => set("autoExpand", v)} />
+          </div>
+
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Building2 className="h-4 w-4 text-primary" /> Mesmo condomínio / edifício
+            </div>
+            <Field label="Nome do edifício ou condomínio">
+              <Input
+                value={form.edificio}
+                onChange={(e) => set("edificio", e.target.value)}
+                placeholder="Ex.: Edifício Solar das Palmeiras"
+              />
+            </Field>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium">Priorizar imóveis do mesmo prédio</div>
+                <div className="text-xs text-muted-foreground">Quando ativo, busca primeiro pelo nome do edifício e só amplia se faltar comparável.</div>
+              </div>
+              <Switch
+                checked={form.priorizarEdificio}
+                onCheckedChange={(v) => set("priorizarEdificio", v)}
+                disabled={!form.edificio.trim()}
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
