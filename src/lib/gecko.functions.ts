@@ -80,7 +80,7 @@ const plpInput = z.object({
 export const geckoPlp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => plpInput.parse(d))
   .handler(async ({ data }) => {
-    const { city, state, keyword, target, ...rest } = data;
+    const { city, state, keyword, target, propertyType, ...rest } = data;
     const hasCity = !!city && city.trim().length > 0;
     const hasState = !!state && state.trim().length === 2;
     const hasKeyword = !!keyword && keyword.trim().length > 0;
@@ -95,6 +95,9 @@ export const geckoPlp = createServerFn({ method: "POST" })
     if (hasCity) body.city = city;
     if (hasState) body.state = state;
     if (hasKeyword) body.keyword = keyword;
+    // propertyType uses Zap's vocabulary (APARTMENT/HOME/…); only send it
+    // when targeting Zap to avoid over-filtering on Chaves na Mão.
+    if (propertyType && target === "zapimoveis.com.br") body.propertyType = propertyType;
     Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
     return callGecko<GeckoPlpData>(body);
   });
@@ -133,3 +136,28 @@ export const geckoStatus = createServerFn({ method: "GET" }).handler(async () =>
   configured: !!process.env.GECKOAPI_TOKEN,
   endpoint: ENDPOINT,
 }));
+
+const plpTestInput = z.object({
+  target: z.enum(TARGETS),
+  city: z.string().optional().default(""),
+  keyword: z.string().optional().default(""),
+  businessType: z.enum(["sale", "rent"]).optional().default("sale"),
+  token: z.string().optional(),
+});
+
+export const geckoTestPlp = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => plpTestInput.parse(d))
+  .handler(async ({ data }) => {
+    const body: Record<string, unknown> = {
+      target: data.target,
+      type: "plp",
+      businessType: data.businessType,
+      page: 1,
+    };
+    if (data.city) body.city = data.city;
+    if (data.keyword) body.keyword = data.keyword;
+    if (!data.city && !data.keyword) {
+      return { ok: false as const, status: 0, errorCode: "MISSING_QUERY", errorMessage: "Informe city ou keyword." };
+    }
+    return callGecko<JsonValue>(body, data.token);
+  });
