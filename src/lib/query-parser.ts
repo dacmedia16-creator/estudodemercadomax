@@ -3,6 +3,7 @@ import type { StudyInput } from "./study-types";
 export interface ParsedQuery {
   partial: Partial<StudyInput>;
   missing: string[];
+  blockers: string[];
   confidence: "high" | "medium" | "low";
 }
 
