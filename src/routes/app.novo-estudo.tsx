@@ -25,10 +25,10 @@ const DIFERENCIAIS = [
 ];
 const PORTAIS = [
   { nome: "Zap Imóveis", ativo: true },
+  { nome: "Chaves na Mão", ativo: true },
   { nome: "Viva Real", ativo: false },
   { nome: "OLX", ativo: false },
   { nome: "Imovelweb", ativo: false },
-  { nome: "Chaves na Mão", ativo: false },
 ];
 
 const STEPS = [
@@ -63,6 +63,20 @@ function NovoEstudo() {
     portais: ["Zap Imóveis"],
   });
 
+  // Seed Chaves na Mão a partir do flag global (default ligado)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = localStorage.getItem("portal.chavesnamao");
+    const enabled = v === null ? true : v === "true";
+    setData((d) => {
+      const cur = d.portais ?? [];
+      const has = cur.includes("Chaves na Mão");
+      if (enabled && !has) return { ...d, portais: [...cur, "Chaves na Mão"] };
+      if (!enabled && has) return { ...d, portais: cur.filter((x) => x !== "Chaves na Mão") };
+      return d;
+    });
+  }, []);
+
   // Hidrata do prefill (vindo da busca rápida "Ajustar campos")
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -86,7 +100,11 @@ function NovoEstudo() {
 
   const togglePortal = (p: string) => {
     const cur = data.portais ?? [];
-    update("portais", cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]);
+    const next = cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p];
+    update("portais", next);
+    if (p === "Chaves na Mão" && typeof window !== "undefined") {
+      localStorage.setItem("portal.chavesnamao", String(next.includes(p)));
+    }
   };
 
   const formatCep = (raw: string) => {
@@ -325,6 +343,9 @@ function NovoEstudo() {
                 );
               })}
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Também configurável em <span className="font-medium text-foreground">Configurações → Portais ativos</span>.
+            </p>
             <Card className="mt-6 border-warning/30 bg-warning/5 p-4 text-sm">
               <p className="text-muted-foreground">
                 <span className="font-semibold text-foreground">Pronto para gerar?</span> Vamos buscar imóveis comparáveis e montar seu relatório completo em segundos.
