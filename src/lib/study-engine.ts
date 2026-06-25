@@ -41,13 +41,13 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
 
   const precos = filtered.map((p) => p.preco);
   const precosM2 = filtered.map((p) => p.precoM2);
-  const precoMedio = Math.round(avg(precos));
-  const precoM2Medio = Math.round(avg(precosM2));
-  const menorPreco = Math.min(...precos);
-  const maiorPreco = Math.max(...precos);
+  const precoMedio = precos.length ? Math.round(avg(precos)) : 0;
+  const precoM2Medio = precosM2.length ? Math.round(avg(precosM2)) : 0;
+  const menorPreco = precos.length ? Math.min(...precos) : 0;
+  const maiorPreco = precos.length ? Math.max(...precos) : 0;
   const faixaMin = Math.round(precoMedio * 0.93);
   const faixaMax = Math.round(precoMedio * 1.07);
-  const precoM2Pretendido = Math.round(input.valorPretendido / input.areaUtil);
+  const precoM2Pretendido = input.areaUtil > 0 ? Math.round(input.valorPretendido / input.areaUtil) : 0;
 
   const diff = (input.valorPretendido - precoMedio) / precoMedio;
   const status: StudyResult["status"] =
@@ -106,5 +106,7 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
   };
 }
 
-export const formatBRL = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+export const formatBRL = (n: number | null | undefined) => {
+  if (n === null || n === undefined || !Number.isFinite(n)) return "—";
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+};
