@@ -18,8 +18,19 @@ function Configuracoes() {
   const [tokenConfigured, setTokenConfigured] = useState<boolean | null>(null);
   const [endpoint, setEndpoint] = useState("https://api.geckoapi.com.br/v1/extract");
   const [testUrl, setTestUrl] = useState("https://www.zapimoveis.com.br/imovel/aluguel-apartamento-4-quartos-com-piscina-agua-verde-curitiba-pr-158m2-id-2795564422/");
+  const [testTarget, setTestTarget] = useState<"zapimoveis.com.br" | "chavesnamao.com.br">("zapimoveis.com.br");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
+  const [chavesOn, setChavesOn] = useState<boolean>(() => {
+    if (typeof localStorage === "undefined") return false;
+    return localStorage.getItem("portal.chavesnamao") === "1";
+  });
+
+  const toggleChaves = (on: boolean) => {
+    setChavesOn(on);
+    try { localStorage.setItem("portal.chavesnamao", on ? "1" : "0"); } catch {}
+    toast.success(on ? "Chaves na Mão ativada nas buscas." : "Chaves na Mão desativada.");
+  };
 
   useEffect(() => {
     geckoStatus().then((s) => {
@@ -32,7 +43,7 @@ function Configuracoes() {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await geckoTest({ data: { url: testUrl } });
+      const res = await geckoTest({ data: { url: testUrl, target: testTarget } });
       if (res.ok) {
         const d = res.data as Record<string, any> | null;
         const sample = d
@@ -115,7 +126,21 @@ function Configuracoes() {
             Cole uma URL pública de imóvel do Zap Imóveis para validar a integração via PDP.
           </p>
           <div className="mt-3 flex gap-2">
-            <Input value={testUrl} onChange={(e) => setTestUrl(e.target.value)} placeholder="https://www.zapimoveis.com.br/imovel/..." />
+            <select
+              value={testTarget}
+              onChange={(e) => {
+                const v = e.target.value as "zapimoveis.com.br" | "chavesnamao.com.br";
+                setTestTarget(v);
+                setTestUrl(v === "chavesnamao.com.br"
+                  ? "https://www.chavesnamao.com.br/imovel/apartamento-a-venda-4-quartos-com-garagem-sc-balneario-picarras-centro-496m2-RS5990000/id-29279133/"
+                  : "https://www.zapimoveis.com.br/imovel/aluguel-apartamento-4-quartos-com-piscina-agua-verde-curitiba-pr-158m2-id-2795564422/");
+              }}
+              className="h-9 rounded-md border border-input bg-card px-2 text-sm"
+            >
+              <option value="zapimoveis.com.br">Zap Imóveis</option>
+              <option value="chavesnamao.com.br">Chaves na Mão</option>
+            </select>
+            <Input value={testUrl} onChange={(e) => setTestUrl(e.target.value)} placeholder="https://www..." />
             <Button onClick={handleTest} disabled={testing || !testUrl} className="gap-2">
               {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
               Testar
@@ -134,18 +159,24 @@ function Configuracoes() {
         <SectionTitle icon={Globe} title="Portais ativos" />
         <div className="mt-4 space-y-3">
           {[
-            { n: "Zap Imóveis", on: true },
-            { n: "Viva Real", on: false },
-            { n: "OLX", on: false },
-            { n: "Imovelweb", on: false },
-            { n: "Chaves na Mão", on: false },
+            { n: "Zap Imóveis", on: true, locked: true, checked: true },
+            { n: "Chaves na Mão", on: true, locked: false, checked: chavesOn, toggle: toggleChaves },
+            { n: "Viva Real", on: false, locked: true, checked: false },
+            { n: "OLX", on: false, locked: true, checked: false },
+            { n: "Imovelweb", on: false, locked: true, checked: false },
           ].map((p) => (
             <div key={p.n} className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
               <div>
                 <div className="font-medium">{p.n}</div>
-                <div className="text-xs text-muted-foreground">{p.on ? "Coleta ativa" : "Em breve"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {p.locked ? (p.on ? "Sempre ativo" : "Em breve") : p.checked ? "Coleta ativa nas buscas" : "Desativado"}
+                </div>
               </div>
-              <Switch defaultChecked={p.on} disabled={!p.on} />
+              <Switch
+                checked={p.checked}
+                disabled={p.locked}
+                onCheckedChange={(v) => p.toggle?.(v)}
+              />
             </div>
           ))}
         </div>
