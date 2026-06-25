@@ -61,6 +61,9 @@ export async function runStudy(
   let pdpCalls = 0;
   let descartadosIncompletos = 0;
   const targets = activeTargets();
+  const perPortal: Record<string, { recebidos: number; aproveitados: number; descartados: number }> = {};
+  for (const t of targets) perPortal[t] = { recebidos: 0, aproveitados: 0, descartados: 0 };
+  const loggedShape = new Set<string>();
 
   // Effective parameters (overrides win over input).
   const finalidade = overrides.finalidade ?? input.finalidade;
@@ -146,12 +149,27 @@ export async function runStudy(
           if (items.length === 0) continue;
           anyItems = true;
           const portalName = PORTAL_TARGETS[t];
+          perPortal[t].recebidos += items.length;
+          if (!loggedShape.has(t) && items[0]) {
+            loggedShape.add(t);
+            try {
+              // eslint-disable-next-line no-console
+              console.debug(`[gecko:${t}] sample item keys =`, Object.keys(items[0] as object));
+              // eslint-disable-next-line no-console
+              console.debug(`[gecko:${t}] sample item =`, items[0]);
+            } catch { /* ignore */ }
+          }
           for (const it of items) {
             const key = (it as any).url || (it as any).id || JSON.stringify(it).slice(0, 64);
             if (seen.has(key)) continue;
             seen.add(key);
             const p = geckoItemToProperty(it, portalName);
-            if (p) all.push(p);
+            if (p) {
+              all.push(p);
+              perPortal[t].aproveitados++;
+            } else {
+              perPortal[t].descartados++;
+            }
           }
         }
         pages++;
