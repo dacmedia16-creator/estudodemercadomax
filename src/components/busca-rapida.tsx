@@ -29,6 +29,7 @@ export function BuscaRapida({ onEditar }: Props) {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<StudyInput | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
+  const [blockers, setBlockers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [aiUsed, setAiUsed] = useState(false);
 
@@ -41,6 +42,7 @@ export function BuscaRapida({ onEditar }: Props) {
       const local = parseQueryLocal(text);
       let merged = local.partial;
       let miss = local.missing;
+      let block = local.blockers;
 
       // Fallback IA quando faltam campos essenciais
       if (local.confidence !== "high") {
@@ -65,14 +67,17 @@ export function BuscaRapida({ onEditar }: Props) {
             diferenciais: ai.diferenciais && ai.diferenciais.length ? ai.diferenciais : merged.diferenciais,
           };
           miss = [];
+          block = [];
           if (!merged.tipo) miss.push("tipo");
           if (!merged.cidade) miss.push("cidade");
           if (!merged.bairro) miss.push("bairro");
+          if (!merged.cidade) block.push("cidade");
         }
       }
 
       setPreview(mergeWithDefaults(merged));
       setMissing(miss);
+      setBlockers(block);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -82,6 +87,7 @@ export function BuscaRapida({ onEditar }: Props) {
 
   const confirmar = () => {
     if (!preview) return;
+    if (blockers.length > 0) return;
     sessionStorage.setItem("rip:pending", JSON.stringify(preview));
     navigate({ to: "/app/carregando" });
   };
@@ -93,6 +99,12 @@ export function BuscaRapida({ onEditar }: Props) {
       sessionStorage.setItem("rip:prefill", JSON.stringify(preview));
       navigate({ to: "/app/novo-estudo" });
     }
+  };
+
+  const updatePreview = <K extends keyof StudyInput>(k: K, v: StudyInput[K]) => {
+    setPreview((p) => (p ? { ...p, [k]: v } : p));
+    setMissing((m) => m.filter((f) => f !== String(k)));
+    setBlockers((b) => b.filter((f) => f !== String(k)));
   };
 
   return (
@@ -156,8 +168,19 @@ export function BuscaRapida({ onEditar }: Props) {
           <div className="grid gap-2 text-sm sm:grid-cols-2">
             <Info label="Finalidade" value={preview.finalidade} />
             <Info label="Tipo" value={preview.tipo} />
-            <Info label="Cidade / UF" value={`${preview.cidade || "—"}${preview.estado ? ` / ${preview.estado}` : ""}`} miss={!preview.cidade} />
-            <Info label="Bairro" value={preview.bairro || "—"} miss={!preview.bairro} />
+            <Editable
+              label="Cidade"
+              value={preview.cidade}
+              placeholder="ex: Curitiba"
+              onChange={(v) => updatePreview("cidade", v)}
+              required
+            />
+            <Editable
+              label="Bairro"
+              value={preview.bairro}
+              placeholder="ex: Água Verde"
+              onChange={(v) => updatePreview("bairro", v)}
+            />
             <Info label="Quartos" value={String(preview.quartos)} />
             <Info label="Área útil" value={`${preview.areaUtil} m²`} />
             <Info label="Valor pretendido" value={`R$ ${preview.valorPretendido.toLocaleString("pt-BR")}`} />
@@ -171,18 +194,27 @@ export function BuscaRapida({ onEditar }: Props) {
             </div>
           )}
 
-          {missing.length > 0 && (
+          {blockers.length > 0 ? (
+            <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-muted-foreground">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+              <span>Preencha a <strong>cidade</strong> para continuar.</span>
+            </div>
+          ) : missing.length > 0 ? (
             <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-xs text-muted-foreground">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-              <span>Faltou identificar: <strong>{missing.join(", ")}</strong>. Clique em "Ajustar" para completar.</span>
+              <span>
+                {missing.includes("bairro")
+                  ? "Sem bairro a busca será mais ampla. Adicione um bairro para resultados mais precisos."
+                  : <>Faltou identificar: <strong>{missing.join(", ")}</strong>. Edite acima ou clique em "Ajustar campos".</>}
+              </span>
             </div>
-          )}
+          ) : null}
 
           <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Button variant="outline" size="sm" onClick={editar} className="gap-2">
               <Pencil className="h-4 w-4" /> Ajustar campos
             </Button>
-            <Button size="sm" onClick={confirmar} disabled={missing.length > 0} className="gap-2">
+            <Button size="sm" onClick={confirmar} disabled={blockers.length > 0} className="gap-2">
               <Check className="h-4 w-4" /> Confirmar e analisar
             </Button>
           </div>
@@ -197,6 +229,29 @@ function Info({ label, value, miss }: { label: string; value: string; miss?: boo
     <div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-3 py-1.5">
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className={`text-sm font-medium ${miss ? "text-warning" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function Editable({
+  label, value, placeholder, onChange, required,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+}) {
+  const empty = !value;
+  return (
+    <div className={`flex items-center gap-2 rounded-md border px-3 py-1 ${empty && required ? "border-destructive/40 bg-destructive/5" : "border-border/60 bg-muted/30"}`}>
+      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+      <Input
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-7 flex-1 border-0 bg-transparent p-0 text-right text-sm font-medium shadow-none focus-visible:ring-0"
+      />
     </div>
   );
 }
