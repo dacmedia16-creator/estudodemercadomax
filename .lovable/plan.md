@@ -1,36 +1,64 @@
-## Objetivo
-Mudar a ordem de prioridade da busca para: **1) nome do condomínio → 2) endereço (rua) → 3) bairro → 4) expansões automáticas**. Hoje pula direto do condomínio para o bairro.
+# Otimizar busca GeckoAPI: menos crédito + mais imóveis
 
-## Mudanças
+## Diagnóstico
 
-### 1. `src/lib/study-runner.ts`
-- Após a Layer 0 (edifício) e antes da PLP principal do bairro, adicionar **Layer 0.5 — Endereço**:
-  - Só executa se `input.endereco` tiver conteúdo significativo (>= 4 chars depois de strip).
-  - Keyword: `"{endereco} {bairro}"` (sem número — número costuma poluir a busca da Gecko; mantemos só pra matching local).
-  - Usa `fetchPlpPages` com o mesmo `maxPages`, mesmo `propertyType` e `businessType`.
-  - Filtra resultados localmente por `matchEndereco(p, endereco, numero?)` — normaliza, remove stopwords (`rua`, `avenida`, `av`, `r`, `travessa`, `alameda`) e exige que todos os tokens significativos apareçam em `titulo + descricao + endereco` do imóvel. Se `numero` for fornecido, dá um bônus mas não é obrigatório (Gecko raramente expõe número).
-  - Marca esses imóveis como "mesmo endereço" via novo flag `mesmoEndereco?: boolean` em `ComparableProperty` e novo `Set<string>` `mesmoEnderecoIds`.
-  - Adiciona ao `funilBusca`: `"Mesmo endereço (N pág.)": X`.
+Hoje cada estudo gasta até **9 PLP + 6 PDP = 15 requisições**. Dois problemas combinados:
 
-- Atualizar a lógica de seleção:
-  - Se `condoMatches.length >= 3` → usa só condomínio (como hoje).
-  - Senão se `enderecoMatches.length >= 3` **e não temos âncoras de condomínio suficientes** → usa só endereço + âncoras de condomínio na frente.
-  - Senão → fluxo atual de camadas do bairro, com âncoras de condomínio **e** de endereço prefixadas (deduped, na ordem: condo → endereço → bairro).
+1. **PLP devolve pouco** porque mandamos filtros estruturados (`bedrooms`, `priceMin/Max`, `areaMin/Max`) — o Zap corta no servidor antes da gente filtrar localmente.
+2. **PLP gasta demais** porque rodamos 3 camadas (edifício + endereço + bairro) × 3 páginas + 6 PDPs, sempre, mesmo quando a página 1 já basta.
 
-### 2. `src/lib/study-types.ts`
-- Adicionar `mesmoEndereco?: boolean` em `ComparableProperty`.
+## Solução: pipeline adaptativo (sem novos controles na UI)
 
-### 3. `src/routes/app.relatorio.$id.tsx`
-- Tabela de comparáveis: adicionar badge **"Mesmo endereço"** (cor secundária diferente do "Mesmo prédio") quando `c.mesmoEndereco === true`.
+### Mudança 1 — PLP ampla, filtro local
 
-### 4. `src/components/criterios-editor.tsx` — sem nova UI obrigatória
-- A camada de endereço usa `input.endereco` automaticamente. Não adicionar novo campo agora; se o usuário quiser desativar, basta limpar o endereço no formulário do estudo (mudança fora de escopo deste pedido).
+Em `src/lib/study-runner.ts`, parar de enviar filtros estruturados na PLP. Manter só `city`, `state`, `businessType`, `propertyType`, `keyword`, `page`. Todo o filtro de quartos/área/preço passa a acontecer **localmente** (já fazemos isso nas camadas `strict → expandida`). Resultado: cada página devolve 20–30 anúncios em vez de 2–5.
 
-## Detalhes técnicos
-- `matchEndereco` reaproveita `normalizeText` (já existe).
-- Stopwords de endereço: `["rua", "r", "avenida", "av", "travessa", "tv", "alameda", "al", "estrada", "rodovia", "praca", "praça"]`.
-- Diagnóstico no relatório passa a mencionar quantos comparáveis vieram do condomínio E quantos vieram do endereço (prefixo no `result.diagnostico`).
+### Mudança 2 — Parada antecipada por suficiência
+
+Introduzir um alvo `TARGET_COMPARABLES = 8`. Após cada página de cada camada, normalizar + aplicar filtro estrito e checar:
+
+- Se já temos `≥ TARGET` comparáveis estritos → **parar** (não busca próxima página nem próxima camada).
+- Se temos `≥ 4` e estamos na página 2+ → parar a camada atual, ir pra próxima só se faltar âncora de edifício/endereço.
+- Página vazia → parar a camada (já existe).
+
+### Mudança 3 — Camadas sob demanda
+
+Ordem nova das camadas, executadas **uma de cada vez** até atingir alvo:
+
+```text
+1. Edifício (se preenchido) — 1 página primeiro; só pagina 2/3 se a 1 trouxe match e ainda falta âncora
+2. Endereço (se preenchido) — mesma regra
+3. Bairro — 1 página; pagina 2/3 só se filtro estrito local não atingiu TARGET
+```
+
+Camadas 1 e 2 **não rodam** se já temos âncoras suficientes da anterior. Hoje rodam sempre em sequência.
+
+### Mudança 4 — PDP sob demanda
+
+Reduzir PDP de **6 fixos → até 3**, e só dispara em comparáveis cujo `condominio === 0` E que estão no top 3 do ranking de similaridade. Se a PLP já trouxe condomínio/área completos, **zero PDP**. Estudo típico passa a usar 0–3 PDP em vez de 6.
+
+### Mudança 5 — Contador de requisições no relatório
+
+Adicionar ao `funilBusca` uma linha final **"Requisições GeckoAPI: X PLP + Y PDP = Z"**, calculada no runner. Sem nova UI — aparece no bloco "Critérios da busca" que já existe.
+
+## Resultado esperado
+
+| Cenário | Hoje | Depois |
+|---|---|---|
+| Estudo simples (só bairro, página 1 já basta) | ~7 req | **1–2 req** |
+| Estudo médio (bairro, precisa 2 páginas) | ~9 req | **2–4 req** |
+| Estudo completo (edifício+endereço+bairro, dados ruins) | 15 req | **6–8 req** |
+| Comparáveis típicos por estudo | 4–8 | **10–15** |
+
+Redução média estimada: **60–70% de crédito** + ~2× mais comparáveis no relatório (porque a PLP ampla devolve mais anúncios pra filtragem local escolher).
+
+## Arquivos alterados
+
+- `src/lib/study-runner.ts` — toda a lógica de camadas, parada antecipada, PLP sem filtros estruturados, contador.
+- `src/routes/app.relatorio.$id.tsx` — exibir a linha "Requisições GeckoAPI" no funil (renderização já genérica).
 
 ## Fora de escopo
-- Não muda a UI do formulário de novo estudo.
-- Não adiciona controle para desligar/ligar a camada de endereço (default sempre ativo se houver endereço).
+
+- Sem novos toggles no painel "Ajustar critérios" (você pediu automático).
+- Sem cache entre reexecuções (próximo passo se ainda assim ficar caro).
+- Sem mudança em `gecko.functions.ts` nem na UI do formulário.
