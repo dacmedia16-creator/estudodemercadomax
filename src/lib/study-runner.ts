@@ -21,55 +21,11 @@ type PlpParams = {
   businessType: "sale" | "rent";
   keyword?: string;
   propertyType?: string;
-  bedrooms?: number[];
-  parkingSpots?: number[];
-  priceMin?: number;
-  priceMax?: number;
-  areaMin?: number;
-  areaMax?: number;
 };
 
-/** Fetches up to `maxPages` PLP pages sequentially; stops early on empty page. */
-async function fetchPlpPages(
-  params: PlpParams,
-  maxPages: number,
-): Promise<{ ok: boolean; items: GeckoItem[]; pagesFetched: number; errorMessage?: string }> {
-  const all: GeckoItem[] = [];
-  const seen = new Set<string>();
-  let pagesFetched = 0;
-  let firstError: string | undefined;
-  let anyOk = false;
-
-  for (let page = 1; page <= maxPages; page++) {
-    try {
-      const res = await geckoPlp({ data: { ...params, page } });
-      pagesFetched++;
-      if (!res.ok) {
-        if (!firstError) firstError = res.errorMessage || res.errorCode || `HTTP_${res.status}`;
-        if (page === 1) break;
-        continue;
-      }
-      anyOk = true;
-      const items = res.data?.items ?? [];
-      if (items.length === 0) break;
-      for (const it of items) {
-        const key = (it as any).url || (it as any).id || JSON.stringify(it).slice(0, 64);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        all.push(it);
-      }
-    } catch (e) {
-      if (!firstError) firstError = (e as Error).message;
-      if (page === 1) break;
-    }
-  }
-
-  return { ok: anyOk, items: all, pagesFetched, errorMessage: firstError };
-}
-
 /**
- * Orchestrates the full PLP + PDP pipeline and returns a StudyResult.
- * `overrides` lets the UI re-run the search with adjusted criteria.
+ * Orchestrates the full PLP + PDP pipeline (adaptive — stops as soon as it
+ * has enough comparables) and returns a StudyResult.
  */
 export async function runStudy(
   input: StudyInput,
@@ -83,6 +39,8 @@ export async function runStudy(
   let warningMsg: string | null = null;
   const mesmoCondominioIds = new Set<string>();
   const mesmoEnderecoIds = new Set<string>();
+  let plpCalls = 0;
+  let pdpCalls = 0;
 
   // Effective parameters (overrides win over input).
   const finalidade = overrides.finalidade ?? input.finalidade;
@@ -104,112 +62,16 @@ export async function runStudy(
   const enderecoRaw = (input.endereco ?? "").trim();
   const usarEndereco = enderecoRaw.replace(/\s+/g, " ").length >= 4;
   const maxPages = Math.min(3, Math.max(1, overrides.maxPages ?? 3));
+  const TARGET = 8;
 
   try {
     onStep?.(1);
     const businessType: "sale" | "rent" = finalidade === "Aluguel" ? "rent" : "sale";
     const propertyType = mapTipoToPropertyType(tipo);
 
-    const bedroomsArr: number[] = [];
-    for (let q = quartosMin; q <= quartosMax; q++) if (q > 0) bedroomsArr.push(q);
-
-    // Layer 0 (optional): same-building search by name. Less restrictive on
-    // price/area so we don't miss a different unit in the same property.
-    let condoMatches: MockProperty[] = [];
-    if (priorizarEdificio) {
-      try {
-        const condoFetch = await fetchPlpPages({
-          city: cidade,
-          state: estado.toUpperCase(),
-          businessType,
-          keyword: `${edificio} ${bairro}`.trim(),
-          propertyType,
-        }, maxPages);
-        if (condoFetch.items.length || condoFetch.pagesFetched > 0) {
-          const condoNorm = condoFetch.items
-            .map((it) => geckoItemToProperty(it))
-            .filter((p): p is MockProperty => p !== null);
-          condoMatches = condoNorm.filter((p) => matchEdificio(p, edificio));
-          condoMatches.forEach((p) => mesmoCondominioIds.add(p.id));
-          funilBusca.push({ etapa: `Mesmo condomínio (${condoFetch.pagesFetched} pág.)`, total: condoMatches.length });
-        }
-      } catch {
-        /* ignore — layer is best-effort */
-      }
-    }
-
-    // Layer 0.5 (optional): same-street search by address. Runs after building
-    // and before the broader neighborhood PLP.
-    let enderecoMatches: MockProperty[] = [];
-    if (usarEndereco) {
-      try {
-        const addrFetch = await fetchPlpPages({
-          city: cidade,
-          state: estado.toUpperCase(),
-          businessType,
-          keyword: `${enderecoRaw} ${bairro}`.trim(),
-          propertyType,
-        }, maxPages);
-        if (addrFetch.items.length || addrFetch.pagesFetched > 0) {
-          const addrNorm = addrFetch.items
-            .map((it) => geckoItemToProperty(it))
-            .filter((p): p is MockProperty => p !== null);
-          enderecoMatches = addrNorm.filter((p) => matchEndereco(p, enderecoRaw));
-          enderecoMatches.forEach((p) => mesmoEnderecoIds.add(p.id));
-          funilBusca.push({ etapa: `Mesmo endereço (${addrFetch.pagesFetched} pág.)`, total: enderecoMatches.length });
-        }
-      } catch {
-        /* ignore — layer is best-effort */
-      }
-    }
-
-    const mainFetch = await fetchPlpPages({
-      city: cidade,
-      state: estado.toUpperCase(),
-      businessType,
-      keyword,
-      propertyType,
-      bedrooms: bedroomsArr.length ? bedroomsArr : undefined,
-      parkingSpots: input.vagas > 0 ? [input.vagas] : undefined,
-      priceMin,
-      priceMax,
-      areaMin,
-      areaMax,
-    }, maxPages);
-
-    if (!mainFetch.ok && mainFetch.items.length === 0) {
-      if (condoMatches.length === 0 && enderecoMatches.length === 0) {
-        throw new Error(mainFetch.errorMessage || "Falha GeckoAPI");
-      }
-    }
-
-    const items: GeckoItem[] = mainFetch.items;
-    funilBusca.push({ etapa: `Páginas consultadas (bairro)`, total: mainFetch.pagesFetched });
-    if (items.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {
-      throw new Error("Nenhum imóvel encontrado");
-    }
-
-    onStep?.(2);
-    const normalized = items
-      .map((it) => geckoItemToProperty(it))
-      .filter((p): p is MockProperty => p !== null);
-    // Also flag any item from the main PLP that matches the building / address.
-    if (priorizarEdificio) {
-      normalized.forEach((p) => {
-        if (matchEdificio(p, edificio)) mesmoCondominioIds.add(p.id);
-      });
-    }
-    if (usarEndereco) {
-      normalized.forEach((p) => {
-        if (matchEndereco(p, enderecoRaw)) mesmoEnderecoIds.add(p.id);
-      });
-    }
-    funilBusca.push({ etapa: "Retornados pela API", total: items.length });
-    funilBusca.push({ etapa: "Com dados completos", total: normalized.length });
-
+    // ---- Local filter predicates ----
     const bairrosAlvo = [bairro, ...bairrosProximos].filter(Boolean).map(normalizeText);
     const tipoNorm = normalizeText(tipo);
-
     const matchesType = (p: MockProperty) => {
       if (!tipoNorm) return true;
       const hay = normalizeText(`${p.titulo} ${p.descricao}`);
@@ -226,12 +88,129 @@ export async function runStudy(
       quartosMin === 0 && quartosMax === 0
         ? true
         : p.quartos >= quartosMin - tol && p.quartos <= quartosMax + tol;
+    const strictLocal = (p: MockProperty) =>
+      matchesType(p) && inBairro(p) && quartosOk(p, 0) && areaInRange(p, 0) && priceInRange(p, 0);
+
+    // Adaptive pagination — stop when shouldStop(collected) is true OR page is empty.
+    const adaptivePaginate = async (
+      params: PlpParams,
+      shouldStop: (collected: GeckoItem[]) => boolean,
+    ): Promise<{ items: GeckoItem[]; pages: number; errorMessage?: string }> => {
+      const all: GeckoItem[] = [];
+      const seen = new Set<string>();
+      let pages = 0;
+      let firstError: string | undefined;
+      for (let page = 1; page <= maxPages; page++) {
+        try {
+          plpCalls++;
+          const res = await geckoPlp({ data: { ...params, page } });
+          pages++;
+          if (!res.ok) {
+            if (!firstError) firstError = res.errorMessage || res.errorCode || `HTTP_${res.status}`;
+            if (page === 1) break;
+            continue;
+          }
+          const items = res.data?.items ?? [];
+          if (items.length === 0) break;
+          for (const it of items) {
+            const key = (it as any).url || (it as any).id || JSON.stringify(it).slice(0, 64);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            all.push(it);
+          }
+          if (shouldStop(all)) break;
+        } catch (e) {
+          if (!firstError) firstError = (e as Error).message;
+          if (page === 1) break;
+        }
+      }
+      return { items: all, pages, errorMessage: firstError };
+    };
+
+    // ---- Layer 1: same building ----
+    let condoMatches: MockProperty[] = [];
+    if (priorizarEdificio) {
+      try {
+        const res = await adaptivePaginate(
+          { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${edificio} ${bairro}`.trim(), propertyType },
+          (collected) => collected
+            .map((it) => geckoItemToProperty(it))
+            .filter((p): p is MockProperty => p !== null)
+            .filter((p) => matchEdificio(p, edificio)).length >= TARGET,
+        );
+        condoMatches = res.items
+          .map((it) => geckoItemToProperty(it))
+          .filter((p): p is MockProperty => p !== null)
+          .filter((p) => matchEdificio(p, edificio));
+        condoMatches.forEach((p) => mesmoCondominioIds.add(p.id));
+        funilBusca.push({ etapa: `Mesmo condomínio (${res.pages} pág.)`, total: condoMatches.length });
+      } catch { /* best-effort */ }
+    }
+
+    // ---- Layer 2: same street (skip if condo already covers target) ----
+    let enderecoMatches: MockProperty[] = [];
+    if (usarEndereco && condoMatches.length < TARGET) {
+      try {
+        const res = await adaptivePaginate(
+          { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${enderecoRaw} ${bairro}`.trim(), propertyType },
+          (collected) => {
+            const matched = collected
+              .map((it) => geckoItemToProperty(it))
+              .filter((p): p is MockProperty => p !== null)
+              .filter((p) => matchEndereco(p, enderecoRaw)).length;
+            return matched + condoMatches.length >= TARGET;
+          },
+        );
+        enderecoMatches = res.items
+          .map((it) => geckoItemToProperty(it))
+          .filter((p): p is MockProperty => p !== null)
+          .filter((p) => matchEndereco(p, enderecoRaw));
+        enderecoMatches.forEach((p) => mesmoEnderecoIds.add(p.id));
+        funilBusca.push({ etapa: `Mesmo endereço (${res.pages} pág.)`, total: enderecoMatches.length });
+      } catch { /* best-effort */ }
+    }
+
+    // ---- Layer 3: neighborhood — PLP wide, local filter ----
+    const anchorsCount = condoMatches.length + enderecoMatches.length;
+    let mainItems: GeckoItem[] = [];
+    let mainPages = 0;
+    let mainError: string | undefined;
+    if (anchorsCount < TARGET) {
+      const res = await adaptivePaginate(
+        { city: cidade, state: estado.toUpperCase(), businessType, keyword, propertyType },
+        (collected) => {
+          const strict = collected
+            .map((it) => geckoItemToProperty(it))
+            .filter((p): p is MockProperty => p !== null)
+            .filter(strictLocal).length;
+          return strict + anchorsCount >= TARGET;
+        },
+      );
+      mainItems = res.items;
+      mainPages = res.pages;
+      mainError = res.errorMessage;
+    }
+
+    if (mainItems.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {
+      throw new Error(mainError || "Nenhum imóvel encontrado");
+    }
+
+    onStep?.(2);
+    const normalized = mainItems
+      .map((it) => geckoItemToProperty(it))
+      .filter((p): p is MockProperty => p !== null);
+    if (priorizarEdificio) {
+      normalized.forEach((p) => { if (matchEdificio(p, edificio)) mesmoCondominioIds.add(p.id); });
+    }
+    if (usarEndereco) {
+      normalized.forEach((p) => { if (matchEndereco(p, enderecoRaw)) mesmoEnderecoIds.add(p.id); });
+    }
+    if (mainPages > 0) funilBusca.push({ etapa: `Páginas consultadas (bairro)`, total: mainPages });
+    funilBusca.push({ etapa: "Retornados pela API", total: mainItems.length });
+    funilBusca.push({ etapa: "Com dados completos", total: normalized.length });
 
     type Layer = { label: string; fn: (p: MockProperty) => boolean };
-    const strict: Layer = {
-      label: "Filtro estrito (critérios definidos)",
-      fn: (p) => matchesType(p) && inBairro(p) && quartosOk(p, 0) && areaInRange(p, 0) && priceInRange(p, 0),
-    };
+    const strict: Layer = { label: "Filtro estrito (critérios definidos)", fn: strictLocal };
     const layers: Layer[] = autoExpand
       ? [
           strict,
@@ -252,12 +231,10 @@ export async function runStudy(
 
     let chosen: MockProperty[] = [];
     let chosenLayer = layers[0].label;
-    // If priority building has ≥3 matches, use only those — no fallback to bairro.
     if (priorizarEdificio && condoMatches.length >= 3) {
       chosen = condoMatches;
       chosenLayer = "Apenas imóveis do mesmo condomínio";
     } else if (enderecoMatches.length >= 3 && condoMatches.length < 3) {
-      // Endereço tem cobertura suficiente — usa só endereço + âncoras de condomínio na frente.
       const seen = new Set(enderecoMatches.map((p) => p.id));
       const anchors = condoMatches.filter((p) => !seen.has(p.id));
       chosen = [...anchors, ...enderecoMatches];
@@ -273,7 +250,6 @@ export async function runStudy(
         chosen = sub;
         chosenLayer = layer.label;
       }
-      // Prepend condo anchors then endereço anchors (deduped) so they rank first.
       if (condoMatches.length > 0 || enderecoMatches.length > 0) {
         const seen = new Set(chosen.map((p) => p.id));
         const condoAnchors = condoMatches.filter((p) => !seen.has(p.id));
@@ -304,11 +280,14 @@ export async function runStudy(
       warningMsg = `Critério ampliado para encontrar comparáveis: ${chosenLayer}.`;
     }
 
-    // Enrich top 6 via PDP in parallel.
-    const top = properties.slice(0, 6).filter((p) => p.url);
+    // PDP only for top 3 comparables missing condominium data.
+    const top = properties
+      .slice(0, 3)
+      .filter((p) => p.url && (!p.condominio || p.condominio === 0));
     await Promise.allSettled(
       top.map(async (p) => {
         try {
+          pdpCalls++;
           const pdp = await geckoPdp({ data: { url: p.url } });
           if (pdp.ok && pdp.data && typeof pdp.data === "object") {
             const d = pdp.data as Record<string, any>;
@@ -316,9 +295,7 @@ export async function runStudy(
             if (typeof d.iptu === "number") p.iptu = d.iptu;
             if (Array.isArray(d.amenities)) p.diferenciais = d.amenities;
           }
-        } catch {
-          /* ignore */
-        }
+        } catch { /* ignore */ }
       }),
     );
   } catch (err) {
@@ -339,16 +316,15 @@ export async function runStudy(
 
   onStep?.(3);
   const result = generateStudy(input, properties);
-  // Re-flag mesmoCondominio on the final comparables (engine may reorder/slice).
   if (mesmoCondominioIds.size > 0) {
-    result.comparaveis.forEach((c) => {
-      if (mesmoCondominioIds.has(c.id)) c.mesmoCondominio = true;
-    });
+    result.comparaveis.forEach((c) => { if (mesmoCondominioIds.has(c.id)) c.mesmoCondominio = true; });
   }
   if (mesmoEnderecoIds.size > 0) {
-    result.comparaveis.forEach((c) => {
-      if (mesmoEnderecoIds.has(c.id)) c.mesmoEndereco = true;
-    });
+    result.comparaveis.forEach((c) => { if (mesmoEnderecoIds.has(c.id)) c.mesmoEndereco = true; });
+  }
+  if (!fellBack) {
+    criteriosAplicados.push(`Requisições: ${plpCalls} PLP + ${pdpCalls} PDP = ${plpCalls + pdpCalls}`);
+    funilBusca.push({ etapa: `Requisições GeckoAPI (PLP+PDP)`, total: plpCalls + pdpCalls });
   }
   if (criteriosAplicados.length) result.criteriosAplicados = criteriosAplicados;
   if (funilBusca.length) result.funilBusca = funilBusca;
@@ -373,32 +349,22 @@ export async function runStudy(
   return { result, warning: warningMsg, fellBack };
 }
 
-/**
- * Returns true if the property's title/description/address mentions the building name.
- * Strips generic stopwords and requires every significant token to be present.
- */
+/** Building-name match: strip generic tokens, require all significant tokens present. */
 function matchEdificio(p: MockProperty, nome: string): boolean {
   const STOP = new Set(["edificio", "ed", "residencial", "condominio", "cond", "torre", "bloco"]);
-  const tokens = normalizeText(nome)
-    .split(/\s+/)
-    .filter((t) => t.length >= 3 && !STOP.has(t));
+  const tokens = normalizeText(nome).split(/\s+/).filter((t) => t.length >= 3 && !STOP.has(t));
   if (tokens.length === 0) return false;
   const hay = normalizeText(`${p.titulo} ${p.descricao} ${p.bairro}`);
   return tokens.every((t) => hay.includes(t));
 }
 
-/**
- * Returns true if the property's title/description/address mentions the street name.
- * Strips address stopwords and requires every significant token to be present.
- */
+/** Street-name match: strip address stopwords, require all significant tokens present. */
 function matchEndereco(p: MockProperty, endereco: string): boolean {
   const STOP = new Set([
     "rua", "r", "avenida", "av", "travessa", "tv", "alameda", "al",
     "estrada", "rodovia", "rod", "praca", "praça", "largo", "via",
   ]);
-  const tokens = normalizeText(endereco)
-    .split(/\s+/)
-    .filter((t) => t.length >= 3 && !STOP.has(t));
+  const tokens = normalizeText(endereco).split(/\s+/).filter((t) => t.length >= 3 && !STOP.has(t));
   if (tokens.length === 0) return false;
   const hay = normalizeText(`${p.titulo} ${p.descricao} ${p.bairro}`);
   return tokens.every((t) => hay.includes(t));
