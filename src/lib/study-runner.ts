@@ -82,6 +82,7 @@ export async function runStudy(
   const funilBusca: { etapa: string; total: number }[] = [];
   let warningMsg: string | null = null;
   const mesmoCondominioIds = new Set<string>();
+  const mesmoEnderecoIds = new Set<string>();
 
   // Effective parameters (overrides win over input).
   const finalidade = overrides.finalidade ?? input.finalidade;
@@ -100,6 +101,8 @@ export async function runStudy(
   const autoExpand = overrides.autoExpand ?? true;
   const edificio = (overrides.edificio ?? input.edificio ?? "").trim();
   const priorizarEdificio = (overrides.priorizarEdificio ?? !!edificio) && !!edificio;
+  const enderecoRaw = (input.endereco ?? "").trim();
+  const usarEndereco = enderecoRaw.replace(/\s+/g, " ").length >= 4;
   const maxPages = Math.min(3, Math.max(1, overrides.maxPages ?? 3));
 
   try {
@@ -135,6 +138,31 @@ export async function runStudy(
       }
     }
 
+    // Layer 0.5 (optional): same-street search by address. Runs after building
+    // and before the broader neighborhood PLP.
+    let enderecoMatches: MockProperty[] = [];
+    if (usarEndereco) {
+      try {
+        const addrFetch = await fetchPlpPages({
+          city: cidade,
+          state: estado.toUpperCase(),
+          businessType,
+          keyword: `${enderecoRaw} ${bairro}`.trim(),
+          propertyType,
+        }, maxPages);
+        if (addrFetch.items.length || addrFetch.pagesFetched > 0) {
+          const addrNorm = addrFetch.items
+            .map((it) => geckoItemToProperty(it))
+            .filter((p): p is MockProperty => p !== null);
+          enderecoMatches = addrNorm.filter((p) => matchEndereco(p, enderecoRaw));
+          enderecoMatches.forEach((p) => mesmoEnderecoIds.add(p.id));
+          funilBusca.push({ etapa: `Mesmo endereço (${addrFetch.pagesFetched} pág.)`, total: enderecoMatches.length });
+        }
+      } catch {
+        /* ignore — layer is best-effort */
+      }
+    }
+
     const mainFetch = await fetchPlpPages({
       city: cidade,
       state: estado.toUpperCase(),
@@ -150,21 +178,30 @@ export async function runStudy(
     }, maxPages);
 
     if (!mainFetch.ok && mainFetch.items.length === 0) {
-      throw new Error(mainFetch.errorMessage || "Falha GeckoAPI");
+      if (condoMatches.length === 0 && enderecoMatches.length === 0) {
+        throw new Error(mainFetch.errorMessage || "Falha GeckoAPI");
+      }
     }
 
     const items: GeckoItem[] = mainFetch.items;
     funilBusca.push({ etapa: `Páginas consultadas (bairro)`, total: mainFetch.pagesFetched });
-    if (items.length === 0 && condoMatches.length === 0) throw new Error("Nenhum imóvel encontrado");
+    if (items.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {
+      throw new Error("Nenhum imóvel encontrado");
+    }
 
     onStep?.(2);
     const normalized = items
       .map((it) => geckoItemToProperty(it))
       .filter((p): p is MockProperty => p !== null);
-    // Also flag any item from the main PLP that matches the building name.
+    // Also flag any item from the main PLP that matches the building / address.
     if (priorizarEdificio) {
       normalized.forEach((p) => {
         if (matchEdificio(p, edificio)) mesmoCondominioIds.add(p.id);
+      });
+    }
+    if (usarEndereco) {
+      normalized.forEach((p) => {
+        if (matchEndereco(p, enderecoRaw)) mesmoEnderecoIds.add(p.id);
       });
     }
     funilBusca.push({ etapa: "Retornados pela API", total: items.length });
@@ -219,6 +256,12 @@ export async function runStudy(
     if (priorizarEdificio && condoMatches.length >= 3) {
       chosen = condoMatches;
       chosenLayer = "Apenas imóveis do mesmo condomínio";
+    } else if (enderecoMatches.length >= 3 && condoMatches.length < 3) {
+      // Endereço tem cobertura suficiente — usa só endereço + âncoras de condomínio na frente.
+      const seen = new Set(enderecoMatches.map((p) => p.id));
+      const anchors = condoMatches.filter((p) => !seen.has(p.id));
+      chosen = [...anchors, ...enderecoMatches];
+      chosenLayer = "Apenas imóveis do mesmo endereço";
     } else {
       for (const layer of layers) {
         const sub = normalized.filter(layer.fn);
@@ -230,11 +273,13 @@ export async function runStudy(
         chosen = sub;
         chosenLayer = layer.label;
       }
-      // Prepend condo anchors (deduped) so they always appear and rank first.
-      if (priorizarEdificio && condoMatches.length > 0) {
+      // Prepend condo anchors then endereço anchors (deduped) so they rank first.
+      if (condoMatches.length > 0 || enderecoMatches.length > 0) {
         const seen = new Set(chosen.map((p) => p.id));
-        const anchors = condoMatches.filter((p) => !seen.has(p.id));
-        chosen = [...anchors, ...chosen];
+        const condoAnchors = condoMatches.filter((p) => !seen.has(p.id));
+        condoAnchors.forEach((p) => seen.add(p.id));
+        const addrAnchors = enderecoMatches.filter((p) => !seen.has(p.id));
+        chosen = [...condoAnchors, ...addrAnchors, ...chosen];
       }
     }
 
@@ -300,15 +345,24 @@ export async function runStudy(
       if (mesmoCondominioIds.has(c.id)) c.mesmoCondominio = true;
     });
   }
+  if (mesmoEnderecoIds.size > 0) {
+    result.comparaveis.forEach((c) => {
+      if (mesmoEnderecoIds.has(c.id)) c.mesmoEndereco = true;
+    });
+  }
   if (criteriosAplicados.length) result.criteriosAplicados = criteriosAplicados;
   if (funilBusca.length) result.funilBusca = funilBusca;
   result.overridesAplicados = overrides;
   const noCondo = priorizarEdificio ? result.comparaveis.filter((c) => c.mesmoCondominio).length : 0;
+  const noEnd = usarEndereco ? result.comparaveis.filter((c) => c.mesmoEndereco && !c.mesmoCondominio).length : 0;
   if (priorizarEdificio && !fellBack) {
     const prefix = noCondo > 0
       ? `${noCondo} de ${result.comparaveis.length} comparáveis estão no mesmo condomínio. `
       : `Nenhum imóvel do edifício "${edificio}" foi encontrado — busca ampliada para o bairro. `;
     result.diagnostico = prefix + result.diagnostico;
+  }
+  if (usarEndereco && !fellBack && noEnd > 0) {
+    result.diagnostico = `${noEnd} comparável(is) no mesmo endereço. ` + result.diagnostico;
   }
   if (fellBack) {
     result.diagnostico = `[Dados de demonstração] ${result.diagnostico}`;
@@ -330,5 +384,22 @@ function matchEdificio(p: MockProperty, nome: string): boolean {
     .filter((t) => t.length >= 3 && !STOP.has(t));
   if (tokens.length === 0) return false;
   const hay = normalizeText(`${p.titulo} ${p.descricao} ${p.bairro}`);
+  return tokens.every((t) => hay.includes(t));
+}
+
+/**
+ * Returns true if the property's title/description/address mentions the street name.
+ * Strips address stopwords and requires every significant token to be present.
+ */
+function matchEndereco(p: MockProperty, endereco: string): boolean {
+  const STOP = new Set([
+    "rua", "r", "avenida", "av", "travessa", "tv", "alameda", "al",
+    "estrada", "rodovia", "rod", "praca", "praça", "largo", "via",
+  ]);
+  const tokens = normalizeText(endereco)
+    .split(/\s+/)
+    .filter((t) => t.length >= 3 && !STOP.has(t));
+  if (tokens.length === 0) return false;
+  const hay = normalizeText(`${p.titulo} ${p.descricao} ${p.endereco ?? ""} ${p.bairro}`);
   return tokens.every((t) => hay.includes(t));
 }

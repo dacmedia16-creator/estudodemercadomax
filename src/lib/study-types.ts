@@ -31,6 +31,7 @@ export interface ComparableProperty extends MockProperty {
   precoM2: number;
   similaridade: number;
   mesmoCondominio?: boolean;
+  mesmoEndereco?: boolean;
 }
 
 export interface StudyResult {
