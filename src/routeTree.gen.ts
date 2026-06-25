@@ -9,38 +9,168 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppRelatoriosRouteImport } from './routes/app.relatorios'
+import { Route as AppNovoEstudoRouteImport } from './routes/app.novo-estudo'
+import { Route as AppExemploRouteImport } from './routes/app.exemplo'
+import { Route as AppEstudosRouteImport } from './routes/app.estudos'
+import { Route as AppConfiguracoesRouteImport } from './routes/app.configuracoes'
+import { Route as AppComparativosRouteImport } from './routes/app.comparativos'
+import { Route as AppCarregandoRouteImport } from './routes/app.carregando'
+import { Route as AppRelatorioIdRouteImport } from './routes/app.relatorio.$id'
 
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRelatoriosRoute = AppRelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNovoEstudoRoute = AppNovoEstudoRouteImport.update({
+  id: '/novo-estudo',
+  path: '/novo-estudo',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExemploRoute = AppExemploRouteImport.update({
+  id: '/exemplo',
+  path: '/exemplo',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEstudosRoute = AppEstudosRouteImport.update({
+  id: '/estudos',
+  path: '/estudos',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppConfiguracoesRoute = AppConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppComparativosRoute = AppComparativosRouteImport.update({
+  id: '/comparativos',
+  path: '/comparativos',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCarregandoRoute = AppCarregandoRouteImport.update({
+  id: '/carregando',
+  path: '/carregando',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRelatorioIdRoute = AppRelatorioIdRouteImport.update({
+  id: '/relatorio/$id',
+  path: '/relatorio/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/app/carregando': typeof AppCarregandoRoute
+  '/app/comparativos': typeof AppComparativosRoute
+  '/app/configuracoes': typeof AppConfiguracoesRoute
+  '/app/estudos': typeof AppEstudosRoute
+  '/app/exemplo': typeof AppExemploRoute
+  '/app/novo-estudo': typeof AppNovoEstudoRoute
+  '/app/relatorios': typeof AppRelatoriosRoute
+  '/app/': typeof AppIndexRoute
+  '/app/relatorio/$id': typeof AppRelatorioIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app/carregando': typeof AppCarregandoRoute
+  '/app/comparativos': typeof AppComparativosRoute
+  '/app/configuracoes': typeof AppConfiguracoesRoute
+  '/app/estudos': typeof AppEstudosRoute
+  '/app/exemplo': typeof AppExemploRoute
+  '/app/novo-estudo': typeof AppNovoEstudoRoute
+  '/app/relatorios': typeof AppRelatoriosRoute
+  '/app': typeof AppIndexRoute
+  '/app/relatorio/$id': typeof AppRelatorioIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/app/carregando': typeof AppCarregandoRoute
+  '/app/comparativos': typeof AppComparativosRoute
+  '/app/configuracoes': typeof AppConfiguracoesRoute
+  '/app/estudos': typeof AppEstudosRoute
+  '/app/exemplo': typeof AppExemploRoute
+  '/app/novo-estudo': typeof AppNovoEstudoRoute
+  '/app/relatorios': typeof AppRelatoriosRoute
+  '/app/': typeof AppIndexRoute
+  '/app/relatorio/$id': typeof AppRelatorioIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/app/carregando'
+    | '/app/comparativos'
+    | '/app/configuracoes'
+    | '/app/estudos'
+    | '/app/exemplo'
+    | '/app/novo-estudo'
+    | '/app/relatorios'
+    | '/app/'
+    | '/app/relatorio/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/app/carregando'
+    | '/app/comparativos'
+    | '/app/configuracoes'
+    | '/app/estudos'
+    | '/app/exemplo'
+    | '/app/novo-estudo'
+    | '/app/relatorios'
+    | '/app'
+    | '/app/relatorio/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/app/carregando'
+    | '/app/comparativos'
+    | '/app/configuracoes'
+    | '/app/estudos'
+    | '/app/exemplo'
+    | '/app/novo-estudo'
+    | '/app/relatorios'
+    | '/app/'
+    | '/app/relatorio/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +178,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/relatorios': {
+      id: '/app/relatorios'
+      path: '/relatorios'
+      fullPath: '/app/relatorios'
+      preLoaderRoute: typeof AppRelatoriosRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/novo-estudo': {
+      id: '/app/novo-estudo'
+      path: '/novo-estudo'
+      fullPath: '/app/novo-estudo'
+      preLoaderRoute: typeof AppNovoEstudoRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/exemplo': {
+      id: '/app/exemplo'
+      path: '/exemplo'
+      fullPath: '/app/exemplo'
+      preLoaderRoute: typeof AppExemploRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/estudos': {
+      id: '/app/estudos'
+      path: '/estudos'
+      fullPath: '/app/estudos'
+      preLoaderRoute: typeof AppEstudosRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/configuracoes': {
+      id: '/app/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/app/configuracoes'
+      preLoaderRoute: typeof AppConfiguracoesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/comparativos': {
+      id: '/app/comparativos'
+      path: '/comparativos'
+      fullPath: '/app/comparativos'
+      preLoaderRoute: typeof AppComparativosRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/carregando': {
+      id: '/app/carregando'
+      path: '/carregando'
+      fullPath: '/app/carregando'
+      preLoaderRoute: typeof AppCarregandoRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/relatorio/$id': {
+      id: '/app/relatorio/$id'
+      path: '/relatorio/$id'
+      fullPath: '/app/relatorio/$id'
+      preLoaderRoute: typeof AppRelatorioIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppCarregandoRoute: typeof AppCarregandoRoute
+  AppComparativosRoute: typeof AppComparativosRoute
+  AppConfiguracoesRoute: typeof AppConfiguracoesRoute
+  AppEstudosRoute: typeof AppEstudosRoute
+  AppExemploRoute: typeof AppExemploRoute
+  AppNovoEstudoRoute: typeof AppNovoEstudoRoute
+  AppRelatoriosRoute: typeof AppRelatoriosRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppRelatorioIdRoute: typeof AppRelatorioIdRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppCarregandoRoute: AppCarregandoRoute,
+  AppComparativosRoute: AppComparativosRoute,
+  AppConfiguracoesRoute: AppConfiguracoesRoute,
+  AppEstudosRoute: AppEstudosRoute,
+  AppExemploRoute: AppExemploRoute,
+  AppNovoEstudoRoute: AppNovoEstudoRoute,
+  AppRelatoriosRoute: AppRelatoriosRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppRelatorioIdRoute: AppRelatorioIdRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
