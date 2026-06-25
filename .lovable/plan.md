@@ -1,64 +1,53 @@
-# Otimizar busca GeckoAPI: menos crédito + mais imóveis
+# Busca livre estilo Google para estudos
 
-## Diagnóstico
+## Objetivo
 
-Hoje cada estudo gasta até **9 PLP + 6 PDP = 15 requisições**. Dois problemas combinados:
+Adicionar uma barra de pesquisa única onde o usuário digita uma descrição em linguagem natural (ex.: "apartamento 3 quartos 2 vagas Água Verde Curitiba até 700 mil com piscina") e o sistema entende, busca na GeckoAPI e gera o estudo — sem precisar preencher o formulário de 4 etapas.
 
-1. **PLP devolve pouco** porque mandamos filtros estruturados (`bedrooms`, `priceMin/Max`, `areaMin/Max`) — o Zap corta no servidor antes da gente filtrar localmente.
-2. **PLP gasta demais** porque rodamos 3 camadas (edifício + endereço + bairro) × 3 páginas + 6 PDPs, sempre, mesmo quando a página 1 já basta.
+## UX
 
-## Solução: pipeline adaptativo (sem novos controles na UI)
+- **Onde aparece:** novo bloco no topo de `/app` (dashboard) e no topo de `/app/novo-estudo`, com tabs **"Busca rápida"** (novo padrão) e **"Formulário detalhado"** (fluxo atual preservado).
+- **Componente:** input grande com ícone de lupa, placeholder com exemplo rotativo, botão "Analisar". Abaixo, chips clicáveis com exemplos prontos ("apto 2q Batel aluguel", "casa 3 suítes Santa Felicidade até 1.2mi").
+- **Feedback antes de rodar:** ao submeter, mostra um card "Entendi assim:" com os campos extraídos (tipo, finalidade, cidade, bairro, quartos, faixa de preço, diferenciais) e dois botões: **Confirmar e analisar** / **Ajustar campos** (abre o formulário pré-preenchido na etapa 1). Isso evita gastar créditos numa interpretação errada.
 
-### Mudança 1 — PLP ampla, filtro local
+## Como interpretar o texto
 
-Em `src/lib/study-runner.ts`, parar de enviar filtros estruturados na PLP. Manter só `city`, `state`, `businessType`, `propertyType`, `keyword`, `page`. Todo o filtro de quartos/área/preço passa a acontecer **localmente** (já fazemos isso nas camadas `strict → expandida`). Resultado: cada página devolve 20–30 anúncios em vez de 2–5.
+Pipeline em duas camadas, na ordem:
 
-### Mudança 2 — Parada antecipada por suficiência
+1. **Parser local (grátis, instantâneo)** em `src/lib/query-parser.ts`:
+   - Regex/heurísticas para: quartos (`3q`, `3 quartos`, `três quartos`), suítes, vagas, banheiros, área (`80m2`, `80 m²`), preço (`700k`, `R$ 700.000`, `até 1.2mi`, `entre 500 e 800 mil`), finalidade (palavras "aluguel/locação" vs "venda/comprar"), tipo (apartamento/casa/cobertura/studio/kitnet/sobrado/sala/terreno), diferenciais (piscina, academia, churrasqueira, varanda, mobiliado, pet, etc).
+   - Cidade/estado/bairro: lista local de cidades+UF do Brasil (compacta, ~500 maiores) + heurística "após `em` ou `no/na`". Se identificar CEP, chama ViaCEP (já temos).
+   - Cobre 70-80% dos casos sem chamar IA.
 
-Introduzir um alvo `TARGET_COMPARABLES = 8`. Após cada página de cada camada, normalizar + aplicar filtro estrito e checar:
+2. **Fallback IA (Lovable AI Gateway)** quando o parser local não conseguir tipo+cidade+(quartos OU área OU preço):
+   - `createServerFn` `parseQuery` em `src/lib/query-parser.functions.ts` usando `generateText` + `Output.object` com schema enxuto (mesmo shape do `StudyInput`).
+   - Modelo: `google/gemini-3-flash-preview` (barato e rápido).
+   - Prompt curto pedindo extração estrita; campos não identificados ficam `null` e a UI pede pra completar.
 
-- Se já temos `≥ TARGET` comparáveis estritos → **parar** (não busca próxima página nem próxima camada).
-- Se temos `≥ 4` e estamos na página 2+ → parar a camada atual, ir pra próxima só se faltar âncora de edifício/endereço.
-- Página vazia → parar a camada (já existe).
+A keyword final da GeckoAPI vira `"{tipo} {bairro}"` (igual hoje) — o texto livre só alimenta a extração, não vai cru pra API.
 
-### Mudança 3 — Camadas sob demanda
+## Reaproveitamento
 
-Ordem nova das camadas, executadas **uma de cada vez** até atingir alvo:
+- Resultado do parser é convertido pra `StudyInput` existente e passa por **exatamente o mesmo `study-runner`** (PLP+PDP, camadas edifício/endereço/bairro, pós-filtro). Zero mudança no pipeline de busca.
+- Painel "Ajustar critérios" no relatório continua funcionando igual.
 
-```text
-1. Edifício (se preenchido) — 1 página primeiro; só pagina 2/3 se a 1 trouxe match e ainda falta âncora
-2. Endereço (se preenchido) — mesma regra
-3. Bairro — 1 página; pagina 2/3 só se filtro estrito local não atingiu TARGET
-```
+## Arquivos
 
-Camadas 1 e 2 **não rodam** se já temos âncoras suficientes da anterior. Hoje rodam sempre em sequência.
+- `src/lib/query-parser.ts` — parser local (regex + dicionários).
+- `src/lib/query-parser.functions.ts` — server fn de fallback IA.
+- `src/lib/ai-gateway.server.ts` — provider helper Lovable AI (se ainda não existe).
+- `src/components/busca-rapida.tsx` — input + chips + card "Entendi assim".
+- `src/routes/app.index.tsx` e `src/routes/app.novo-estudo.tsx` — montam o componente + tabs.
+- `src/routes/app.carregando.tsx` — sem mudança (recebe o `StudyInput` via sessionStorage como hoje).
 
-### Mudança 4 — PDP sob demanda
+## Custos
 
-Reduzir PDP de **6 fixos → até 3**, e só dispara em comparáveis cujo `condominio === 0` E que estão no top 3 do ranking de similaridade. Se a PLP já trouxe condomínio/área completos, **zero PDP**. Estudo típico passa a usar 0–3 PDP em vez de 6.
-
-### Mudança 5 — Contador de requisições no relatório
-
-Adicionar ao `funilBusca` uma linha final **"Requisições GeckoAPI: X PLP + Y PDP = Z"**, calculada no runner. Sem nova UI — aparece no bloco "Critérios da busca" que já existe.
-
-## Resultado esperado
-
-| Cenário | Hoje | Depois |
-|---|---|---|
-| Estudo simples (só bairro, página 1 já basta) | ~7 req | **1–2 req** |
-| Estudo médio (bairro, precisa 2 páginas) | ~9 req | **2–4 req** |
-| Estudo completo (edifício+endereço+bairro, dados ruins) | 15 req | **6–8 req** |
-| Comparáveis típicos por estudo | 4–8 | **10–15** |
-
-Redução média estimada: **60–70% de crédito** + ~2× mais comparáveis no relatório (porque a PLP ampla devolve mais anúncios pra filtragem local escolher).
-
-## Arquivos alterados
-
-- `src/lib/study-runner.ts` — toda a lógica de camadas, parada antecipada, PLP sem filtros estruturados, contador.
-- `src/routes/app.relatorio.$id.tsx` — exibir a linha "Requisições GeckoAPI" no funil (renderização já genérica).
+- Parser local: grátis.
+- Fallback IA: ~1 chamada Gemini Flash por busca quando o parser falha (texto curto, custo desprezível em créditos Lovable AI).
+- GeckoAPI: mesmo consumo do fluxo atual — o card de confirmação evita queimar créditos em interpretação errada.
 
 ## Fora de escopo
 
-- Sem novos toggles no painel "Ajustar critérios" (você pediu automático).
-- Sem cache entre reexecuções (próximo passo se ainda assim ficar caro).
-- Sem mudança em `gecko.functions.ts` nem na UI do formulário.
+- Autocomplete enquanto digita (poderia ser próximo passo).
+- Histórico de buscas livres (já temos histórico de estudos).
+- Busca semântica em estudos salvos.
