@@ -63,6 +63,20 @@ function NovoEstudo() {
     portais: ["Zap Imóveis"],
   });
 
+  // Seed Chaves na Mão a partir do flag global (default ligado)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const v = localStorage.getItem("portal.chavesnamao");
+    const enabled = v === null ? true : v === "true";
+    setData((d) => {
+      const cur = d.portais ?? [];
+      const has = cur.includes("Chaves na Mão");
+      if (enabled && !has) return { ...d, portais: [...cur, "Chaves na Mão"] };
+      if (!enabled && has) return { ...d, portais: cur.filter((x) => x !== "Chaves na Mão") };
+      return d;
+    });
+  }, []);
+
   // Hidrata do prefill (vindo da busca rápida "Ajustar campos")
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -86,7 +100,11 @@ function NovoEstudo() {
 
   const togglePortal = (p: string) => {
     const cur = data.portais ?? [];
-    update("portais", cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]);
+    const next = cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p];
+    update("portais", next);
+    if (p === "Chaves na Mão" && typeof window !== "undefined") {
+      localStorage.setItem("portal.chavesnamao", String(next.includes(p)));
+    }
   };
 
   const formatCep = (raw: string) => {
