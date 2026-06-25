@@ -400,6 +400,6 @@ function matchEndereco(p: MockProperty, endereco: string): boolean {
     .split(/\s+/)
     .filter((t) => t.length >= 3 && !STOP.has(t));
   if (tokens.length === 0) return false;
-  const hay = normalizeText(`${p.titulo} ${p.descricao} ${p.endereco ?? ""} ${p.bairro}`);
+  const hay = normalizeText(`${p.titulo} ${p.descricao} ${p.bairro}`);
   return tokens.every((t) => hay.includes(t));
 }
