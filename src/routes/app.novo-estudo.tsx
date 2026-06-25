@@ -25,10 +25,10 @@ const DIFERENCIAIS = [
 ];
 const PORTAIS = [
   { nome: "Zap Imóveis", ativo: true },
+  { nome: "Chaves na Mão", ativo: true },
   { nome: "Viva Real", ativo: false },
   { nome: "OLX", ativo: false },
   { nome: "Imovelweb", ativo: false },
-  { nome: "Chaves na Mão", ativo: false },
 ];
 
 const STEPS = [
