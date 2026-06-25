@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Building2, KeyRound, Globe, Bell, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { geckoStatus, geckoTest } from "@/lib/gecko.functions";
+import { geckoStatus, geckoTest, geckoTestPlp } from "@/lib/gecko.functions";
 
 export const Route = createFileRoute("/app/configuracoes")({
   component: Configuracoes,
@@ -21,6 +21,10 @@ function Configuracoes() {
   const [testTarget, setTestTarget] = useState<"zapimoveis.com.br" | "chavesnamao.com.br">("zapimoveis.com.br");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
+  const [plpKeyword, setPlpKeyword] = useState("apartamento 3 quartos");
+  const [plpCity, setPlpCity] = useState("Curitiba");
+  const [plpTesting, setPlpTesting] = useState(false);
+  const [plpResult, setPlpResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
   const [chavesOn, setChavesOn] = useState<boolean>(() => {
     if (typeof localStorage === "undefined") return false;
     const v = localStorage.getItem("portal.chavesnamao");
@@ -63,6 +67,29 @@ function Configuracoes() {
       toast.error("Erro ao testar GeckoAPI");
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleTestPlp = async () => {
+    setPlpTesting(true);
+    setPlpResult(null);
+    try {
+      const res = await geckoTestPlp({ data: { target: testTarget, city: plpCity, keyword: plpKeyword, businessType: "sale" } });
+      if (res.ok) {
+        const d = res.data as any;
+        const items = d?.items ?? [];
+        const first = items[0] ?? null;
+        const sample = `Itens recebidos: ${items.length}\n${first ? `Primeiro item — chaves:\n${Object.keys(first).join(", ")}\n\nJSON:\n${JSON.stringify(first, null, 2).slice(0, 1500)}` : "Nenhum item retornado."}`;
+        setPlpResult({ ok: true, message: `Conexão OK — HTTP ${res.status}`, sample });
+        toast.success(`PLP ${testTarget} retornou ${items.length} itens`);
+      } else {
+        setPlpResult({ ok: false, message: `${res.errorCode ?? "ERRO"} — ${res.errorMessage ?? "Falha"}` });
+        toast.error("Falha no teste PLP");
+      }
+    } catch (e) {
+      setPlpResult({ ok: false, message: (e as Error).message });
+    } finally {
+      setPlpTesting(false);
     }
   };
 
@@ -151,6 +178,29 @@ function Configuracoes() {
             <div className={`mt-3 rounded-lg border p-3 text-xs ${testResult.ok ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
               <div className="font-semibold">{testResult.ok ? "✓" : "✗"} {testResult.message}</div>
               {testResult.sample && <pre className="mt-2 whitespace-pre-wrap text-muted-foreground">{testResult.sample}</pre>}
+            </div>
+          )}
+        </div>
+
+        <Separator className="my-6" />
+
+        <div>
+          <h4 className="flex items-center gap-2 text-sm font-semibold"><Zap className="h-4 w-4 text-primary" /> Testar PLP (listagem)</h4>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Dispara uma busca real no portal selecionado acima e mostra o JSON cru do primeiro item — útil para validar o shape de cada portal.
+          </p>
+          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+            <Input value={plpCity} onChange={(e) => setPlpCity(e.target.value)} placeholder="Cidade (ex: Curitiba)" />
+            <Input value={plpKeyword} onChange={(e) => setPlpKeyword(e.target.value)} placeholder="Keyword (ex: apartamento 3 quartos)" />
+            <Button onClick={handleTestPlp} disabled={plpTesting || (!plpCity && !plpKeyword)} className="gap-2">
+              {plpTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              Testar PLP
+            </Button>
+          </div>
+          {plpResult && (
+            <div className={`mt-3 rounded-lg border p-3 text-xs ${plpResult.ok ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
+              <div className="font-semibold">{plpResult.ok ? "✓" : "✗"} {plpResult.message}</div>
+              {plpResult.sample && <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap text-muted-foreground">{plpResult.sample}</pre>}
             </div>
           )}
         </div>
