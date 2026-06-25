@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import type { GeckoCallResult, GeckoPdpResponse, GeckoPlpResponse } from "./gecko-types";
+import type { GeckoCallResult, GeckoPlpData, JsonValue } from "./gecko-types";
 
 const ENDPOINT = "https://api.geckoapi.com.br/v1/extract";
 
@@ -44,7 +44,6 @@ async function callGecko<T>(body: Record<string, unknown>, tokenOverride?: strin
       status: res.status,
       errorCode: json?.errorCode || `HTTP_${res.status}`,
       errorMessage: json?.message || json?.error || `Erro HTTP ${res.status}`,
-      raw: json,
     };
   }
 
@@ -53,7 +52,6 @@ async function callGecko<T>(body: Record<string, unknown>, tokenOverride?: strin
     status: res.status,
     notFound: !!json?.notFound,
     data: (json?.data ?? null) as T | null,
-    raw: json,
   };
 }
 
@@ -83,7 +81,7 @@ export const geckoPlp = createServerFn({ method: "POST" })
       ...data,
     };
     Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
-    return callGecko<GeckoPlpResponse["data"]>(body);
+    return callGecko<GeckoPlpData>(body);
   });
 
 const pdpInput = z.object({ url: z.string().url() });
@@ -91,7 +89,7 @@ const pdpInput = z.object({ url: z.string().url() });
 export const geckoPdp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => pdpInput.parse(d))
   .handler(async ({ data }) => {
-    return callGecko<GeckoPdpResponse["data"]>({
+    return callGecko<JsonValue>({
       target: "zapimoveis.com.br",
       type: "pdp",
       url: data.url,
@@ -103,7 +101,7 @@ const testInput = z.object({ url: z.string().url(), token: z.string().optional()
 export const geckoTest = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => testInput.parse(d))
   .handler(async ({ data }) => {
-    return callGecko<GeckoPdpResponse["data"]>(
+    return callGecko<JsonValue>(
       { target: "zapimoveis.com.br", type: "pdp", url: data.url },
       data.token,
     );
