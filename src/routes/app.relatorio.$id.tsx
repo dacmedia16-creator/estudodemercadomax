@@ -254,7 +254,12 @@ function ReportPage() {
               {sorted.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell><Badge variant="secondary" className="text-[10px]">{c.portal}</Badge></TableCell>
-                  <TableCell className="max-w-[260px] truncate font-medium">{c.titulo}</TableCell>
+                  <TableCell className="max-w-[260px] font-medium">
+                    <div className="truncate">{c.titulo}</div>
+                    {c.mesmoCondominio && (
+                      <Badge className="mt-1 bg-primary text-primary-foreground text-[9px]">Mesmo prédio</Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{c.bairro}</TableCell>
                   <TableCell className="text-right">{c.areaUtil}m²</TableCell>
                   <TableCell className="text-right">{c.quartos}</TableCell>
