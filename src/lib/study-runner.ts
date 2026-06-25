@@ -192,7 +192,7 @@ export async function runStudy(
     }
 
     if (mainItems.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {
-      throw new Error(mainError || "Nenhum imóvel encontrado");
+      throw new Error(mainError || "Nenhum imóvel encontrado para a busca informada");
     }
 
     onStep?.(2);

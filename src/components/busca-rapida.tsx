@@ -29,7 +29,6 @@ export function BuscaRapida({ onEditar }: Props) {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<StudyInput | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
-  const [blockers, setBlockers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [aiUsed, setAiUsed] = useState(false);
 
@@ -42,7 +41,6 @@ export function BuscaRapida({ onEditar }: Props) {
       const local = parseQueryLocal(text);
       let merged = local.partial;
       let miss = local.missing;
-      let block = local.blockers;
 
       // Fallback IA quando faltam campos essenciais
       if (local.confidence !== "high") {
@@ -67,17 +65,16 @@ export function BuscaRapida({ onEditar }: Props) {
             diferenciais: ai.diferenciais && ai.diferenciais.length ? ai.diferenciais : merged.diferenciais,
           };
           miss = [];
-          block = [];
           if (!merged.tipo) miss.push("tipo");
           if (!merged.cidade) miss.push("cidade");
           if (!merged.bairro) miss.push("bairro");
-          if (!merged.cidade) block.push("cidade");
         }
       }
 
       setPreview(mergeWithDefaults(merged));
       setMissing(miss);
-      setBlockers(block);
+      // Busca livre: salva frase original como keyword override pro runner
+      sessionStorage.setItem("rip:pending-keyword", text.trim());
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -87,7 +84,6 @@ export function BuscaRapida({ onEditar }: Props) {
 
   const confirmar = () => {
     if (!preview) return;
-    if (blockers.length > 0) return;
     sessionStorage.setItem("rip:pending", JSON.stringify(preview));
     navigate({ to: "/app/carregando" });
   };
@@ -104,7 +100,6 @@ export function BuscaRapida({ onEditar }: Props) {
   const updatePreview = <K extends keyof StudyInput>(k: K, v: StudyInput[K]) => {
     setPreview((p) => (p ? { ...p, [k]: v } : p));
     setMissing((m) => m.filter((f) => f !== String(k)));
-    setBlockers((b) => b.filter((f) => f !== String(k)));
   };
 
   return (
@@ -173,7 +168,6 @@ export function BuscaRapida({ onEditar }: Props) {
               value={preview.cidade}
               placeholder="ex: Curitiba"
               onChange={(v) => updatePreview("cidade", v)}
-              required
             />
             <Editable
               label="Bairro"
@@ -194,27 +188,20 @@ export function BuscaRapida({ onEditar }: Props) {
             </div>
           )}
 
-          {blockers.length > 0 ? (
-            <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-muted-foreground">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
-              <span>Preencha a <strong>cidade</strong> para continuar.</span>
-            </div>
-          ) : missing.length > 0 ? (
+          {missing.length > 0 && (
             <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-xs text-muted-foreground">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
               <span>
-                {missing.includes("bairro")
-                  ? "Sem bairro a busca será mais ampla. Adicione um bairro para resultados mais precisos."
-                  : <>Faltou identificar: <strong>{missing.join(", ")}</strong>. Edite acima ou clique em "Ajustar campos".</>}
+                Busca livre — sem {missing.join(", ")} usaremos sua frase como palavra-chave. Edite acima para refinar.
               </span>
             </div>
-          ) : null}
+          )}
 
           <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Button variant="outline" size="sm" onClick={editar} className="gap-2">
               <Pencil className="h-4 w-4" /> Ajustar campos
             </Button>
-            <Button size="sm" onClick={confirmar} disabled={blockers.length > 0} className="gap-2">
+            <Button size="sm" onClick={confirmar} className="gap-2">
               <Check className="h-4 w-4" /> Confirmar e analisar
             </Button>
           </div>
