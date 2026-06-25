@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, ArrowRight, Check, MapPin, Home, Sparkles, Globe, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { StudyInput } from "@/lib/study-types";
+import { BuscaRapida } from "@/components/busca-rapida";
 
 export const Route = createFileRoute("/app/novo-estudo")({
   component: NovoEstudo,
@@ -38,6 +40,7 @@ const STEPS = [
 
 function NovoEstudo() {
   const navigate = useNavigate();
+  const [tab, setTab] = useState<"rapida" | "form">("rapida");
   const [step, setStep] = useState(1);
   const [cep, setCep] = useState("");
   const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "ok" | "notfound" | "error">("idle");
@@ -59,6 +62,20 @@ function NovoEstudo() {
     diferenciais: ["Piscina", "Churrasqueira", "Sacada"],
     portais: ["Zap Imóveis"],
   });
+
+  // Hidrata do prefill (vindo da busca rápida "Ajustar campos")
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = sessionStorage.getItem("rip:prefill");
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as Partial<StudyInput>;
+        setData((d) => ({ ...d, ...parsed }));
+        setTab("form");
+      } catch { /* ignore */ }
+      sessionStorage.removeItem("rip:prefill");
+    }
+  }, []);
 
   const update = <K extends keyof StudyInput>(k: K, v: StudyInput[K]) => setData((d) => ({ ...d, [k]: v }));
 
@@ -111,7 +128,24 @@ function NovoEstudo() {
     <div className="mx-auto max-w-5xl px-6 py-8">
       <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">Novo estudo</div>
       <h1 className="text-3xl font-bold tracking-tight">Vamos analisar seu imóvel</h1>
-      <p className="mt-2 text-muted-foreground">Preencha em 4 etapas. Você pode revisar antes de gerar.</p>
+      <p className="mt-2 text-muted-foreground">Descreva em uma frase ou preencha o formulário detalhado.</p>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "rapida" | "form")} className="mt-6">
+        <TabsList>
+          <TabsTrigger value="rapida" className="gap-2"><Sparkles className="h-4 w-4" /> Busca rápida</TabsTrigger>
+          <TabsTrigger value="form" className="gap-2"><Home className="h-4 w-4" /> Formulário detalhado</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="rapida" className="mt-6">
+          <BuscaRapida
+            onEditar={(input) => {
+              setData(input);
+              setTab("form");
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="form" className="mt-6">
 
       {/* Stepper */}
       <div className="mt-8 flex items-center gap-2 overflow-x-auto pb-2">
@@ -314,6 +348,8 @@ function NovoEstudo() {
           )}
         </div>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
