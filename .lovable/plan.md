@@ -1,45 +1,46 @@
-## Problema
+## Painel de ajuste de critérios + regeneração do relatório
 
-Os comparáveis vindos da GeckoAPI estão "passando" no estudo mesmo quando não batem com o imóvel informado. Três causas:
+Adicionar, no topo do relatório, um painel "Critérios da busca" editável que permite reexecutar a análise com novos filtros sem refazer o formulário inteiro.
 
-1. **Adapter mascara dados ausentes** — quando o regex não acha quartos/área na descrição, o `gecko-adapter` preenche com os valores do próprio usuário (`fallbackQuartos`, `fallbackAreaUtil`). Resultado: qualquer imóvel "vira" compatível.
-2. **Sem filtro pós-busca** — a Gecko devolve a PLP do Zap, que costuma ignorar parte dos filtros (especialmente bairro e tipo). O código aceita tudo o que voltou sem revalidar.
-3. **Keyword fraca / sem `propertyType`** — hoje mandamos `"<tipo> <quartos> quartos"` como `keyword`, mas não enviamos bairro nem o `propertyType` (apartment/house), que é o que o Zap realmente respeita.
+### Comportamento
 
-## Plano
+- Bloco atual "Critérios da busca" (somente leitura) vira **collapsible editável**.
+- Campos editáveis:
+  - Keyword (texto livre, default = `tipo + bairro`)
+  - Cidade / Estado
+  - Bairro principal + bairros próximos (chips)
+  - Quartos (min / max)
+  - Área útil (min / max, m²)
+  - Faixa de preço (min / max, R$)
+  - Tipo de imóvel (select)
+  - Finalidade (Venda/Aluguel)
+  - Toggle "Expandir automaticamente se < 4 resultados" (default ON; quando OFF, usa só os filtros estritos definidos)
+- Botões: **Reexecutar busca** (primário) e **Restaurar critérios originais**.
+- Ao reexecutar:
+  - Mostra estado de loading inline no painel (sem sair da página).
+  - Chama o mesmo orquestrador PLP+PDP usado em `app.carregando.tsx`, agora com critérios manuais.
+  - Substitui o `StudyResult` atual (mesmo `id`), atualiza `studyStore`, e re-renderiza gráficos/tabela/diagnóstico.
+  - Em falha (token ausente / 0 resultados / erro de rede): toast com motivo, mantém relatório anterior intacto.
+- Histórico simples: pequeno badge "Revisão Nº" incrementado a cada reexecução (apenas em memória/estudo).
 
-### 1. `src/lib/gecko-adapter.ts` — não inventar dados
-- Ler primeiro campos estruturados do item Gecko (`bedrooms`, `bathrooms`, `parkingSpaces`, `usableAreas`, `propertyType`, `address.*`); cair no regex da descrição só como segundo recurso.
-- Se quartos ou área continuarem desconhecidos → retornar `null` (descarta o imóvel) em vez de copiar o input do usuário.
-- Expor `propertyType` normalizado ("Apartamento" / "Casa" / etc.) em um novo campo opcional no `MockProperty` (ou guardar no título) para o filtro usar.
+### Implementação técnica
 
-### 2. `src/routes/app.carregando.tsx` — busca + filtragem em camadas
-- Montar `keyword` com **bairro + tipo** (ex.: `"apartamento Batel"`) em vez de "X quartos".
-- Enviar `propertyType` para a Gecko quando o tipo do form for mapeável (Apartamento → `apartment`, Casa → `house`, etc.).
-- Depois de receber a PLP, aplicar **filtro estrito** antes de passar para o estudo:
-  - tipo do imóvel == tipo informado (quando o item tiver tipo);
-  - `quartos == input.quartos`;
-  - `areaUtil` dentro de ±30% do informado;
-  - `preco` dentro de ±40% do informado;
-  - `bairro` em `[bairro, ...bairrosProximos]` (case-insensitive) **ou** mesma cidade se nenhum bairro vier preenchido.
-- **Fallback escalonado** se sobrarem menos de 4 comparáveis:
-  1. relaxa quartos para ±1;
-  2. relaxa bairro para a cidade inteira;
-  3. relaxa área/preço para ±50%.
-  Cada nível registra um aviso ("Filtro ampliado para…") exibido no banner amarelo da tela de carregamento e prefixado no `diagnostico` do estudo.
-- Se ainda assim sobrar 0 → cair em dados de demonstração (comportamento atual), mas com mensagem clara: "Nenhum imóvel compatível encontrado para os critérios informados."
+1. **Extrair orquestrador** de `src/routes/app.carregando.tsx` para `src/lib/study-runner.ts`:
+   - `runStudy(input, overrides?)` retorna `StudyResult`.
+   - `overrides` opcional: `{ keyword?, priceMin?, priceMax?, areaMin?, areaMax?, bedroomsMin?, bedroomsMax?, cidade?, estado?, bairro?, autoExpand?: boolean }`.
+   - `app.carregando.tsx` passa a apenas chamar `runStudy(input)`.
+2. **Atualizar `StudyResult`** (`src/lib/study-types.ts`):
+   - Adicionar `overridesAplicados?: SearchOverrides` e `revisao?: number`.
+3. **Novo componente** `src/components/criterios-editor.tsx`:
+   - Painel collapsible (shadcn `Collapsible` + `Card`) com os campos acima.
+   - Estado local controlado; ao submeter chama callback `onRerun(overrides)`.
+4. **Integrar em `src/routes/app.relatorio.$id.tsx`**:
+   - Substituir o bloco 3.5 atual pelo novo `CriteriosEditor`.
+   - `handleRerun` chama `runStudy(study.input, overrides)`, atualiza state + `studyStore.save`, incrementa `revisao`.
+   - Mantém o mini-funil (`funilBusca`) visível abaixo do editor.
+5. **Defaults inteligentes** ao abrir o editor: preencher campos com os valores efetivamente usados na última execução (derivados de `criteriosAplicados` + `input`), não os do formulário original — para o usuário ajustar a partir do que de fato rodou.
 
-### 3. `src/lib/study-engine.ts` — confiar no filtro externo
-- Quando `properties` vier do Gecko, **não** misturar com mock; apenas calcular comparáveis sobre o que chegou já filtrado.
-- Adicionar ao `StudyResult` um campo `criteriosAplicados: string[]` (ex.: `["Bairro: Batel", "Quartos: 3", "Área: 80–120 m²"]`) para o relatório mostrar transparência.
+### Fora do escopo
 
-### 4. Relatório (`src/routes/app.relatorio.$id.tsx`)
-- Mostrar um pequeno bloco "Critérios da busca" acima da tabela de comparáveis com os filtros aplicados e quantos imóveis sobraram em cada etapa do funil (ex.: "42 retornados → 11 após filtro estrito → 11 analisados").
-
-### Detalhe técnico
-
-- Mapa `tipoUI → propertyType` em um helper novo dentro de `gecko-adapter.ts`.
-- Normalização de bairro: `.normalize("NFD").replace(/\p{Diacritic}/gu,"").toLowerCase().trim()` para comparar com o que a Gecko devolve.
-- Os PDPs continuam só para enriquecer condomínio/IPTU/amenities dos top 6 — sem mudar.
-
-Sem alteração no schema do `StudyInput`, no fluxo de Configurações nem na lógica de fallback do token.
+- Salvar múltiplas revisões como estudos separados (atual: sobrescreve).
+- Editar diferenciais / dados do imóvel analisado (continua só pelo formulário).
