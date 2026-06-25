@@ -4,6 +4,14 @@ export interface GeckoItem {
   url?: string;
   business?: string;
   listingType?: string;
+  propertyType?: string;
+  unitType?: string;
+  bedrooms?: number | number[];
+  bathrooms?: number | number[];
+  parkingSpaces?: number | number[];
+  suites?: number | number[];
+  usableAreas?: number | number[];
+  totalAreas?: number | number[];
   description?: string;
   address?: {
     city?: string;

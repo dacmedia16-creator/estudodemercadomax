@@ -27,9 +27,10 @@ function similarity(input: StudyInput, p: MockProperty): number {
 
 export function generateStudy(input: StudyInput, properties?: MockProperty[]): StudyResult {
   const allBairros = [input.bairro, ...input.bairrosProximos];
-  const source = properties && properties.length > 0 ? properties : mockProperties;
+  const usingExternal = !!(properties && properties.length > 0);
+  const source = usingExternal ? properties! : mockProperties;
   const filtered = source
-    .filter((p) => properties ? true : allBairros.includes(p.bairro) || p.cidade === input.cidade)
+    .filter((p) => (usingExternal ? true : allBairros.includes(p.bairro) || p.cidade === input.cidade))
     .map<ComparableProperty>((p) => ({
       ...p,
       precoM2: Math.round(p.preco / p.areaUtil),

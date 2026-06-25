@@ -143,6 +143,36 @@ function ReportPage() {
         <p className="text-base leading-relaxed text-foreground">{study.diagnostico}</p>
       </Card>
 
+      {/* Block 3.5: critérios da busca */}
+      {(study.criteriosAplicados?.length || study.funilBusca?.length) ? (
+        <Card className="mt-6 border-border/60 p-6">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Critérios da busca
+          </div>
+          {study.criteriosAplicados?.length ? (
+            <div className="flex flex-wrap gap-2">
+              {study.criteriosAplicados.map((c) => (
+                <Badge key={c} variant="secondary" className="text-[11px] font-normal">
+                  {c}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+          {study.funilBusca?.length ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {study.funilBusca.map((f, i) => (
+                <span key={f.etapa} className="flex items-center gap-2">
+                  <span>
+                    <span className="font-semibold text-foreground">{f.total}</span> {f.etapa.toLowerCase()}
+                  </span>
+                  {i < (study.funilBusca?.length ?? 0) - 1 && <span className="opacity-50">→</span>}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+
       {/* Block 5: graficos */}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card className="border-border/60 p-6">

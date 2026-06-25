@@ -51,4 +51,6 @@ export interface StudyResult {
   tituloSugerido: string;
   descricaoSugerida: string;
   argumentoProprietario: string;
+  criteriosAplicados?: string[];
+  funilBusca?: { etapa: string; total: number }[];
 }

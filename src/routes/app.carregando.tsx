@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Check, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
-import { geckoItemToProperty } from "@/lib/gecko-adapter";
+import { geckoItemToProperty, mapTipoToPropertyType, normalizeText } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
 import { studyStore } from "@/lib/study-store";
 import type { StudyInput } from "@/lib/study-types";
@@ -44,11 +44,15 @@ function Loading() {
     (async () => {
       let properties: MockProperty[] = [];
       let fellBack = false;
+      let criteriosAplicados: string[] = [];
+      let funilBusca: { etapa: string; total: number }[] = [];
+      let warningMsg: string | null = null;
 
       try {
         setStep(1);
         const businessType: "sale" | "rent" = input.finalidade === "Aluguel" ? "rent" : "sale";
-        const keyword = `${input.tipo.toLowerCase()} ${input.quartos} quartos`.trim();
+        const keyword = `${input.tipo.toLowerCase()} ${input.bairro}`.trim();
+        const propertyType = mapTipoToPropertyType(input.tipo);
         const priceMin = Math.round(input.valorPretendido * 0.7);
         const priceMax = Math.round(input.valorPretendido * 1.3);
         const areaMin = Math.round(input.areaUtil * 0.75);
@@ -60,6 +64,7 @@ function Loading() {
             state: input.estado.toUpperCase(),
             businessType,
             keyword,
+            propertyType,
             bedrooms: input.quartos > 0 ? [input.quartos] : undefined,
             parkingSpots: input.vagas > 0 ? [input.vagas] : undefined,
             priceMin,
@@ -80,9 +85,89 @@ function Loading() {
         }
 
         setStep(2);
-        properties = items
-          .map((it) => geckoItemToProperty(it, input.areaUtil, input.quartos))
+        const normalized = items
+          .map((it) => geckoItemToProperty(it))
           .filter((p): p is MockProperty => p !== null);
+        funilBusca.push({ etapa: "Retornados pela API", total: items.length });
+        funilBusca.push({ etapa: "Com dados completos", total: normalized.length });
+
+        // Post-filter in escalating layers — keep tightest set that yields ≥ 4 comparables.
+        const bairrosAlvo = [input.bairro, ...input.bairrosProximos]
+          .filter(Boolean)
+          .map(normalizeText);
+        const tipoNorm = normalizeText(input.tipo);
+
+        const matchesType = (p: MockProperty) => {
+          if (!tipoNorm) return true;
+          const hay = normalizeText(`${p.titulo} ${p.descricao}`);
+          return hay.includes(tipoNorm);
+        };
+        const inBairro = (p: MockProperty) =>
+          bairrosAlvo.length === 0 || bairrosAlvo.includes(normalizeText(p.bairro));
+        const inCidade = (p: MockProperty) =>
+          normalizeText(p.cidade) === normalizeText(input.cidade);
+        const areaOk = (p: MockProperty, tol: number) =>
+          Math.abs(p.areaUtil - input.areaUtil) / Math.max(input.areaUtil, 1) <= tol;
+        const precoOk = (p: MockProperty, tol: number) =>
+          Math.abs(p.preco - input.valorPretendido) / Math.max(input.valorPretendido, 1) <= tol;
+        const quartosOk = (p: MockProperty, tol: number) =>
+          input.quartos === 0 || Math.abs(p.quartos - input.quartos) <= tol;
+
+        type Layer = { label: string; fn: (p: MockProperty) => boolean };
+        const layers: Layer[] = [
+          {
+            label: "Filtro estrito (tipo, bairro, quartos, área ±30%, preço ±40%)",
+            fn: (p) =>
+              matchesType(p) && inBairro(p) && quartosOk(p, 0) && areaOk(p, 0.3) && precoOk(p, 0.4),
+          },
+          {
+            label: "Quartos ampliados (±1)",
+            fn: (p) =>
+              matchesType(p) && inBairro(p) && quartosOk(p, 1) && areaOk(p, 0.3) && precoOk(p, 0.4),
+          },
+          {
+            label: "Sem restrição de bairro (cidade inteira)",
+            fn: (p) =>
+              matchesType(p) && inCidade(p) && quartosOk(p, 1) && areaOk(p, 0.4) && precoOk(p, 0.5),
+          },
+          {
+            label: "Faixa ampla (área/preço ±50%)",
+            fn: (p) => inCidade(p) && quartosOk(p, 1) && areaOk(p, 0.5) && precoOk(p, 0.5),
+          },
+        ];
+
+        let chosen: MockProperty[] = [];
+        let chosenLayer = layers[0].label;
+        for (const layer of layers) {
+          const sub = normalized.filter(layer.fn);
+          if (sub.length >= 4) {
+            chosen = sub;
+            chosenLayer = layer.label;
+            break;
+          }
+          chosen = sub;
+          chosenLayer = layer.label;
+        }
+
+        funilBusca.push({ etapa: chosenLayer, total: chosen.length });
+
+        if (chosen.length === 0) {
+          throw new Error("Nenhum imóvel compatível com os critérios informados");
+        }
+
+        properties = chosen;
+        criteriosAplicados = [
+          `Tipo: ${input.tipo}`,
+          `Finalidade: ${input.finalidade}`,
+          bairrosAlvo.length ? `Bairro: ${input.bairro}${input.bairrosProximos.length ? " + adjacentes" : ""}` : `Cidade: ${input.cidade}`,
+          `Quartos: ${input.quartos}`,
+          `Área: ${areaMin}–${areaMax} m²`,
+          `Preço: até ${priceMax.toLocaleString("pt-BR")}`,
+        ];
+        if (chosenLayer !== layers[0].label) {
+          warningMsg = `Critério ampliado para encontrar comparáveis: ${chosenLayer}.`;
+          setWarning(warningMsg);
+        }
 
         // Enrich top 6 via PDP in parallel — non-blocking on individual failures
         const top = properties.slice(0, 6).filter((p) => p.url);
@@ -121,8 +206,12 @@ function Loading() {
 
       setStep(3);
       const result = generateStudy(input, properties);
+      if (criteriosAplicados.length) result.criteriosAplicados = criteriosAplicados;
+      if (funilBusca.length) result.funilBusca = funilBusca;
       if (fellBack) {
         result.diagnostico = `[Dados de demonstração] ${result.diagnostico}`;
+      } else if (warningMsg) {
+        result.diagnostico = `[${warningMsg}] ${result.diagnostico}`;
       }
       studyStore.save(result);
       sessionStorage.removeItem("rip:pending");

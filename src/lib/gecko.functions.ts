@@ -60,6 +60,7 @@ const plpInput = z.object({
   state: z.string().length(2),
   businessType: z.enum(["sale", "rent"]),
   keyword: z.string().optional(),
+  propertyType: z.string().optional(),
   bedrooms: z.array(z.number().int()).optional(),
   bathrooms: z.array(z.number().int()).optional(),
   parkingSpots: z.array(z.number().int()).optional(),
