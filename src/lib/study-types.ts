@@ -53,4 +53,23 @@ export interface StudyResult {
   argumentoProprietario: string;
   criteriosAplicados?: string[];
   funilBusca?: { etapa: string; total: number }[];
+  overridesAplicados?: SearchOverrides;
+  revisao?: number;
+}
+
+export interface SearchOverrides {
+  keyword?: string;
+  cidade?: string;
+  estado?: string;
+  bairro?: string;
+  bairrosProximos?: string[];
+  tipo?: string;
+  finalidade?: "Venda" | "Aluguel";
+  quartosMin?: number;
+  quartosMax?: number;
+  areaMin?: number;
+  areaMax?: number;
+  priceMin?: number;
+  priceMax?: number;
+  autoExpand?: boolean;
 }
