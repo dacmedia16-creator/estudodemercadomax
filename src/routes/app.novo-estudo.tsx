@@ -343,6 +343,9 @@ function NovoEstudo() {
                 );
               })}
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Também configurável em <span className="font-medium text-foreground">Configurações → Portais ativos</span>.
+            </p>
             <Card className="mt-6 border-warning/30 bg-warning/5 p-4 text-sm">
               <p className="text-muted-foreground">
                 <span className="font-semibold text-foreground">Pronto para gerar?</span> Vamos buscar imóveis comparáveis e montar seu relatório completo em segundos.
