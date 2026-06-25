@@ -1,20 +1,58 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Building2, KeyRound, Globe, Bell } from "lucide-react";
+import { Building2, KeyRound, Globe, Bell, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { geckoStatus, geckoTest } from "@/lib/gecko.functions";
 
 export const Route = createFileRoute("/app/configuracoes")({
   component: Configuracoes,
 });
 
 function Configuracoes() {
-  const [apiKey, setApiKey] = useState("");
+  const [tokenConfigured, setTokenConfigured] = useState<boolean | null>(null);
+  const [endpoint, setEndpoint] = useState("https://api.geckoapi.com.br/v1/extract");
+  const [testUrl, setTestUrl] = useState("https://www.zapimoveis.com.br/imovel/aluguel-apartamento-4-quartos-com-piscina-agua-verde-curitiba-pr-158m2-id-2795564422/");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
+
+  useEffect(() => {
+    geckoStatus().then((s) => {
+      setTokenConfigured(s.configured);
+      setEndpoint(s.endpoint);
+    }).catch(() => setTokenConfigured(false));
+  }, []);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await geckoTest({ data: { url: testUrl } });
+      if (res.ok) {
+        const d = res.data as Record<string, any> | null;
+        const sample = d
+          ? `Título: ${d.title ?? d.description ?? "—"}\nPreço: ${d.price ?? d.prices?.mainValue ?? "—"}\nBairro: ${d.address?.neighborhood ?? "—"}`
+          : res.notFound
+          ? "Resposta 200 com notFound: true (URL não encontrada na origem)"
+          : "Sem dados";
+        setTestResult({ ok: true, message: `Conexão OK — HTTP ${res.status}`, sample });
+        toast.success("Conexão GeckoAPI funcionando!");
+      } else {
+        setTestResult({ ok: false, message: `${res.errorCode ?? "ERRO"} — ${res.errorMessage ?? "Falha"}` });
+        toast.error("Falha no teste da GeckoAPI");
+      }
+    } catch (e) {
+      setTestResult({ ok: false, message: (e as Error).message });
+      toast.error("Erro ao testar GeckoAPI");
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
@@ -36,17 +74,59 @@ function Configuracoes() {
       </Card>
 
       <Card className="mt-6 border-border/60 p-6">
-        <SectionTitle icon={KeyRound} title="Integração com GeckoAPI" badge="Avançado" />
+        <SectionTitle icon={KeyRound} title="Configurações técnicas — GeckoAPI" badge="Avançado" />
         <p className="mt-2 text-sm text-muted-foreground">
-          A coleta de dados dos portais usa a GeckoAPI nos modos PLP (página de listagem) e PDP (página de detalhe).
-          Informe sua chave para ativar a busca real — sem chave, o sistema usa dados de demonstração.
+          A coleta usa a GeckoAPI nos modos PLP (página de listagem) e PDP (página de detalhe).
+          O token fica protegido como segredo do projeto — sem token, o sistema usa dados de demonstração.
         </p>
+
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <FieldInput label="Endpoint" defaultValue="https://api.geckoapi.com.br/v1/extract" />
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Token de autenticação</Label>
-            <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Bearer SEU_TOKEN" />
+            <Label className="text-sm font-medium">Endpoint</Label>
+            <Input value={endpoint} readOnly className="bg-muted/40" />
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Status do token</Label>
+            <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-card px-3 text-sm">
+              {tokenConfigured === null ? (
+                <><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> Verificando...</>
+              ) : tokenConfigured ? (
+                <><CheckCircle2 className="h-4 w-4 text-primary" /> <span className="font-medium">Configurado</span></>
+              ) : (
+                <><XCircle className="h-4 w-4 text-destructive" /> <span className="font-medium">Não configurado</span></>
+              )}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Portal ativo</Label>
+            <Input value="Zap Imóveis (zapimoveis.com.br)" readOnly className="bg-muted/40" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Tipo de extração padrão</Label>
+            <Input value="PLP + PDP (enriquecimento)" readOnly className="bg-muted/40" />
+          </div>
+        </div>
+
+        <Separator className="my-6" />
+
+        <div>
+          <h4 className="flex items-center gap-2 text-sm font-semibold"><Zap className="h-4 w-4 text-primary" /> Testar API</h4>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Cole uma URL pública de imóvel do Zap Imóveis para validar a integração via PDP.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Input value={testUrl} onChange={(e) => setTestUrl(e.target.value)} placeholder="https://www.zapimoveis.com.br/imovel/..." />
+            <Button onClick={handleTest} disabled={testing || !testUrl} className="gap-2">
+              {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              Testar
+            </Button>
+          </div>
+          {testResult && (
+            <div className={`mt-3 rounded-lg border p-3 text-xs ${testResult.ok ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}>
+              <div className="font-semibold">{testResult.ok ? "✓" : "✗"} {testResult.message}</div>
+              {testResult.sample && <pre className="mt-2 whitespace-pre-wrap text-muted-foreground">{testResult.sample}</pre>}
+            </div>
+          )}
         </div>
       </Card>
 

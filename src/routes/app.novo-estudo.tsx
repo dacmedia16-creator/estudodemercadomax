@@ -9,8 +9,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, ArrowRight, Check, MapPin, Home, Sparkles, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { generateStudy } from "@/lib/study-engine";
-import { studyStore } from "@/lib/study-store";
 import type { StudyInput } from "@/lib/study-types";
 
 export const Route = createFileRoute("/app/novo-estudo")({
@@ -76,12 +74,6 @@ function NovoEstudo() {
     const input = data as StudyInput;
     sessionStorage.setItem("rip:pending", JSON.stringify(input));
     navigate({ to: "/app/carregando" });
-    // Generate after a delay handled in loading screen
-    setTimeout(() => {
-      const result = generateStudy(input);
-      studyStore.save(result);
-      sessionStorage.setItem("rip:lastId", result.id);
-    }, 100);
   };
 
   return (
