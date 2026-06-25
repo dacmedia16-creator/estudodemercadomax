@@ -50,7 +50,7 @@ function extractNumber(text: string, patterns: RegExp[]): number | null {
  * Returns null when essential fields (price, quartos or areaUtil) cannot be determined.
  * Does NOT fall back to user-supplied values — that would mask mismatches.
  */
-export function geckoItemToProperty(item: GeckoItem): MockProperty | null {
+export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóveis"): MockProperty | null {
   const preco = item.prices?.mainValue ?? 0;
   if (!preco) return null;
 
@@ -86,7 +86,7 @@ export function geckoItemToProperty(item: GeckoItem): MockProperty | null {
 
   return {
     id: item.id ?? crypto.randomUUID(),
-    portal: "Zap Imóveis",
+    portal,
     titulo: desc.slice(0, 80) || `Imóvel em ${item.address?.neighborhood ?? ""}`,
     url: item.url ?? "",
     bairro: item.address?.neighborhood ?? "—",

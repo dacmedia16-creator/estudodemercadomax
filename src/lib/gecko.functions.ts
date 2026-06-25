@@ -4,6 +4,9 @@ import type { GeckoCallResult, GeckoPlpData, JsonValue } from "./gecko-types";
 
 const ENDPOINT = "https://api.geckoapi.com.br/v1/extract";
 
+const TARGETS = ["zapimoveis.com.br", "chavesnamao.com.br"] as const;
+type Target = (typeof TARGETS)[number];
+
 async function callGecko<T>(body: Record<string, unknown>, tokenOverride?: string): Promise<GeckoCallResult<T>> {
   const token = tokenOverride || process.env.GECKOAPI_TOKEN;
   if (!token) {
@@ -56,6 +59,7 @@ async function callGecko<T>(body: Record<string, unknown>, tokenOverride?: strin
 }
 
 const plpInput = z.object({
+  target: z.enum(TARGETS).optional().default("zapimoveis.com.br"),
   city: z.string().optional().default(""),
   state: z.string().optional().default(""),
   businessType: z.enum(["sale", "rent"]),
@@ -76,7 +80,7 @@ const plpInput = z.object({
 export const geckoPlp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => plpInput.parse(d))
   .handler(async ({ data }) => {
-    const { city, state, keyword, ...rest } = data;
+    const { city, state, keyword, target, ...rest } = data;
     const hasCity = !!city && city.trim().length > 0;
     const hasState = !!state && state.trim().length === 2;
     const hasKeyword = !!keyword && keyword.trim().length > 0;
@@ -84,7 +88,7 @@ export const geckoPlp = createServerFn({ method: "POST" })
       return { ok: false as const, status: 0, errorCode: "MISSING_QUERY", errorMessage: "Informe ao menos uma cidade ou palavra-chave para buscar." };
     }
     const body: Record<string, unknown> = {
-      target: "zapimoveis.com.br",
+      target,
       type: "plp",
       ...rest,
     };
@@ -95,25 +99,32 @@ export const geckoPlp = createServerFn({ method: "POST" })
     return callGecko<GeckoPlpData>(body);
   });
 
-const pdpInput = z.object({ url: z.string().url() });
+const pdpInput = z.object({
+  url: z.string().url(),
+  target: z.enum(TARGETS).optional().default("zapimoveis.com.br"),
+});
 
 export const geckoPdp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => pdpInput.parse(d))
   .handler(async ({ data }) => {
     return callGecko<JsonValue>({
-      target: "zapimoveis.com.br",
+      target: data.target,
       type: "pdp",
       url: data.url,
     });
   });
 
-const testInput = z.object({ url: z.string().url(), token: z.string().optional() });
+const testInput = z.object({
+  url: z.string().url(),
+  token: z.string().optional(),
+  target: z.enum(TARGETS).optional().default("zapimoveis.com.br"),
+});
 
 export const geckoTest = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => testInput.parse(d))
   .handler(async ({ data }) => {
     return callGecko<JsonValue>(
-      { target: "zapimoveis.com.br", type: "pdp", url: data.url },
+      { target: data.target, type: "pdp", url: data.url },
       data.token,
     );
   });
