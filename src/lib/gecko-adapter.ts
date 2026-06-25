@@ -137,7 +137,7 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
       : "";
 
   const url: string = item.url ?? anyItem.link ?? anyItem.permalink ?? "";
-  const id: string = item.id ?? anyItem.listingId ?? anyItem.code ?? url || crypto.randomUUID();
+  const id: string = (item.id ?? anyItem.listingId ?? anyItem.code ?? url) || crypto.randomUUID();
 
   return {
     id,
