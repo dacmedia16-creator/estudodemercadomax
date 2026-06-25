@@ -21,6 +21,16 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/relatorio/$id")({
   component: ReportPage,
+  errorComponent: ({ error, reset }) => (
+    <div className="mx-auto max-w-2xl px-6 py-20 text-center">
+      <h2 className="text-xl font-semibold">Não foi possível abrir o relatório</h2>
+      <p className="mt-2 text-sm text-muted-foreground">{(error as Error)?.message ?? "Erro inesperado."}</p>
+      <div className="mt-6 flex justify-center gap-2">
+        <Button variant="outline" onClick={() => reset()}>Tentar novamente</Button>
+        <Link to="/app/novo-estudo"><Button>Novo estudo</Button></Link>
+      </div>
+    </div>
+  ),
 });
 
 type SortKey = "menor-preco" | "maior-similaridade" | "maior-area" | "menor-precom2";
