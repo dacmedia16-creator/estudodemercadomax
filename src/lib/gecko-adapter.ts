@@ -50,18 +50,47 @@ function extractNumber(text: string, patterns: RegExp[]): number | null {
  * Returns null when essential fields (price, quartos or areaUtil) cannot be determined.
  * Does NOT fall back to user-supplied values — that would mask mismatches.
  */
-export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóveis"): MockProperty | null {
-  const preco = item.prices?.mainValue ?? 0;
-  if (!preco) return null;
+function parsePrice(v: unknown): number {
+  if (typeof v === "number" && isFinite(v) && v > 0) return v;
+  if (typeof v === "string") {
+    // "R$ 5.990.000" / "5990000" / "R$ 1.250,00"
+    const cleaned = v.replace(/[R$\s.]/g, "").replace(",", ".");
+    const n = Number(cleaned);
+    if (isFinite(n) && n > 0) return n;
+  }
+  return 0;
+}
 
-  const desc = item.description ?? "";
+export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóveis"): MockProperty | null {
+  const anyItem = item as unknown as Record<string, any>;
+  const desc: string = item.description ?? anyItem.title ?? anyItem.name ?? "";
+
+  // Price — tolerant across portals (Zap nests under prices.mainValue;
+  // Chaves na Mão often returns price/priceValue/sale.price as number or BR string).
+  const preco =
+    parsePrice(item.prices?.mainValue) ||
+    parsePrice(anyItem.price) ||
+    parsePrice(anyItem.priceValue) ||
+    parsePrice(anyItem.salePrice) ||
+    parsePrice(anyItem.rentPrice) ||
+    parsePrice(anyItem.prices?.[0]?.value) ||
+    parsePrice(anyItem.sale?.price) ||
+    parsePrice(anyItem.rent?.price) ||
+    extractNumber(desc, [/R\$\s*([\d.,]+)/i]) ||
+    0;
+  if (!preco) return null;
 
   const quartosRaw =
     firstNumber(item.bedrooms) ??
+    firstNumber(anyItem.rooms) ??
+    firstNumber(anyItem.dormitories) ??
     extractNumber(desc, [/(\d+)\s*quartos?/i, /(\d+)\s*dorm/i]);
   const areaUtilRaw =
     firstNumber(item.usableAreas) ??
     firstNumber(item.totalAreas) ??
+    firstNumber(anyItem.area) ??
+    firstNumber(anyItem.privateArea) ??
+    firstNumber(anyItem.usableArea) ??
     extractNumber(desc, [/(\d+(?:[.,]\d+)?)\s*m[²2]/i]);
 
   // Keep the item even without quartos/area on the PLP — the local filter
@@ -73,25 +102,51 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
 
   const suites =
     firstNumber(item.suites) ??
+    firstNumber(anyItem.suite) ??
     extractNumber(desc, [/(\d+)\s*su[íi]tes?/i]) ??
     0;
   const banheiros =
     firstNumber(item.bathrooms) ??
+    firstNumber(anyItem.bathroom) ??
     extractNumber(desc, [/(\d+)\s*banheiros?/i, /(\d+)\s*wc/i]) ??
     Math.max(1, quartos - 1 || 1);
   const vagas =
     firstNumber(item.parkingSpaces) ??
+    firstNumber(anyItem.garage) ??
+    firstNumber(anyItem.parking) ??
     extractNumber(desc, [/(\d+)\s*vagas?/i, /(\d+)\s*garagens?/i]) ??
     0;
 
+  const bairro: string =
+    item.address?.neighborhood ?? anyItem.neighborhood ?? anyItem.bairro ?? "—";
+  const cidade: string =
+    item.address?.city ?? anyItem.city ?? anyItem.cidade ?? "—";
+  const estado: string =
+    item.address?.state ?? anyItem.state ?? anyItem.uf ?? anyItem.estado ?? "—";
+
+  const rawImage: string =
+    item.images?.[0]?.url ??
+    anyItem.image ??
+    anyItem.thumbnail ??
+    anyItem.cover ??
+    (Array.isArray(anyItem.photos) ? anyItem.photos[0]?.url ?? anyItem.photos[0] : "") ??
+    "";
+  const imagem =
+    typeof rawImage === "string"
+      ? rawImage.replace("{action}", "fit-in").replace("{width}", "800").replace("{height}", "600")
+      : "";
+
+  const url: string = item.url ?? anyItem.link ?? anyItem.permalink ?? "";
+  const id: string = item.id ?? anyItem.listingId ?? anyItem.code ?? url || crypto.randomUUID();
+
   return {
-    id: item.id ?? crypto.randomUUID(),
+    id,
     portal,
-    titulo: desc.slice(0, 80) || `Imóvel em ${item.address?.neighborhood ?? ""}`,
-    url: item.url ?? "",
-    bairro: item.address?.neighborhood ?? "—",
-    cidade: item.address?.city ?? "—",
-    estado: item.address?.state ?? "—",
+    titulo: (desc || `Imóvel em ${bairro}`).slice(0, 80),
+    url,
+    bairro,
+    cidade,
+    estado,
     preco,
     condominio: 0,
     iptu: 0,
@@ -101,9 +156,9 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     banheiros,
     vagas,
     descricao: desc,
-    anunciante: item.advertiser?.name ?? "—",
-    diferenciais: item.amenities ?? [],
-    imagem: item.images?.[0]?.url?.replace("{action}", "fit-in").replace("{width}", "800").replace("{height}", "600") ?? "",
+    anunciante: item.advertiser?.name ?? anyItem.advertiser ?? anyItem.agency ?? "—",
+    diferenciais: item.amenities ?? anyItem.features ?? [],
+    imagem,
     dataColeta: new Date().toISOString().slice(0, 10),
     incomplete,
   };
