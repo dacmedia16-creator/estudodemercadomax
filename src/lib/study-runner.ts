@@ -10,6 +10,10 @@ const PORTAL_TARGETS = {
   "chavesnamao.com.br": "Chaves na Mão",
 } as const;
 type PortalTarget = keyof typeof PORTAL_TARGETS;
+const PORTAL_NAME_TO_TARGET: Record<string, PortalTarget> = {
+  "Zap Imóveis": "zapimoveis.com.br",
+  "Chaves na Mão": "chavesnamao.com.br",
+};
 
 export function isChavesEnabled(): boolean {
   try {
@@ -78,10 +82,21 @@ export async function runStudy(
   let pdpCalls = 0;
   let descartadosIncompletos = 0;
   const targets = activeTargets(input);
-  const perPortal: Record<string, { recebidos: number; aproveitados: number; descartados: number }> = {};
-  for (const t of targets) perPortal[t] = { recebidos: 0, aproveitados: 0, descartados: 0 };
+  type LayerKey = "condominio" | "endereco" | "bairro";
+  const perPortal: Record<string, Record<LayerKey, { recebidos: number; aproveitados: number; descartados: number }>> = {};
+  for (const t of targets) {
+    perPortal[t] = {
+      condominio: { recebidos: 0, aproveitados: 0, descartados: 0 },
+      endereco: { recebidos: 0, aproveitados: 0, descartados: 0 },
+      bairro: { recebidos: 0, aproveitados: 0, descartados: 0 },
+    };
+  }
+  // Persisted across all adaptivePaginate() calls — if a portal exhausts
+  // on layer 1, layers 2/3 don't burn credits hitting it again.
+  const exhaustedGlobal = new Set<PortalTarget>();
+  const totalResultsPerTarget: Record<string, number> = {};
+  for (const t of targets) totalResultsPerTarget[t] = 0;
   const loggedShape = new Set<string>();
-  let totalResultsUpstream = 0;
   const plpNotFoundPerTarget: Record<string, number> = {};
   for (const t of targets) plpNotFoundPerTarget[t] = 0;
   let geoLat: number | undefined;
@@ -144,29 +159,27 @@ export async function runStudy(
     const adaptivePaginate = async (
       params: PlpParams,
       shouldStop: (collected: MockProperty[]) => boolean,
+      layerKey: LayerKey,
     ): Promise<{ properties: MockProperty[]; pages: number; errorMessage?: string }> => {
       const all: MockProperty[] = [];
       const seen = new Set<string>();
       let pages = 0;
       let firstError: string | undefined;
-      // Track per-target last seen `nextPage` so we can stop paginating a
-      // portal that already exhausted its results (saves credits).
-      const exhausted = new Set<PortalTarget>();
       for (let page = 1; page <= maxPages; page++) {
-        const remaining = targets.filter((t) => !exhausted.has(t));
+        const remaining = targets.filter((t) => !exhaustedGlobal.has(t));
         if (remaining.length === 0) break;
         const calls = await Promise.all(
           remaining.map(async (t) => {
             plpCalls++;
             try {
               // Per-portal params: Chaves na Mão doesn't speak Zap's
-              // PLP vocabulary (bedrooms/price/area/lat/lng/radius) and
-              // is picky about state codes. Strip those for Chaves.
+              // PLP vocabulary (bedrooms/price/area/lat/lng/radius).
+              // Keep state (UF) — Chaves URLs need it (/imoveis/SP/...).
               const portalParams: PlpParams =
                 t === "chavesnamao.com.br"
                   ? {
                       city: params.city,
-                      state: "", // Chaves ignores/breaks on UF code
+                      state: params.state,
                       businessType: params.businessType,
                       keyword: params.keyword,
                     }
@@ -188,12 +201,12 @@ export async function runStudy(
           }
           if (res.notFound) {
             plpNotFoundPerTarget[t] = (plpNotFoundPerTarget[t] ?? 0) + 1;
-            exhausted.add(t);
+            exhaustedGlobal.add(t);
             continue;
           }
           const rawData = (res.data ?? {}) as any;
           if (typeof rawData.totalResults === "number") {
-            totalResultsUpstream = Math.max(totalResultsUpstream, rawData.totalResults);
+            totalResultsPerTarget[t] = Math.max(totalResultsPerTarget[t] ?? 0, rawData.totalResults);
           }
           // Tolerate alternative payload shapes (Chaves na Mão may return
           // `results`/`properties`/`ads` instead of `items`).
@@ -210,13 +223,13 @@ export async function runStudy(
           const hasNextField = "nextPage" in rawData || "hasNextPage" in rawData;
           const nextIsFalsy = rawData.nextPage == null || rawData.hasNextPage === false;
           if (items.length === 0 || (hasNextField && nextIsFalsy)) {
-            if (items.length === 0) exhausted.add(t);
-            else if (hasNextField && nextIsFalsy) exhausted.add(t);
+            if (items.length === 0) exhaustedGlobal.add(t);
+            else if (hasNextField && nextIsFalsy) exhaustedGlobal.add(t);
           }
           if (items.length === 0) continue;
           anyItems = true;
           const portalName = PORTAL_TARGETS[t];
-          perPortal[t].recebidos += items.length;
+          perPortal[t][layerKey].recebidos += items.length;
           if (!loggedShape.has(t) && items[0]) {
             loggedShape.add(t);
             try {
@@ -233,9 +246,9 @@ export async function runStudy(
             const p = geckoItemToProperty(it, portalName);
             if (p) {
               all.push(p);
-              perPortal[t].aproveitados++;
+              perPortal[t][layerKey].aproveitados++;
             } else {
-              perPortal[t].descartados++;
+              perPortal[t][layerKey].descartados++;
             }
           }
         }
@@ -253,6 +266,7 @@ export async function runStudy(
         const res = await adaptivePaginate(
           { city: cidade, state: estado.toUpperCase(), businessType, keyword: edificio, propertyType },
           (collected) => collected.filter((p) => matchEdificio(p, edificio)).length >= TARGET,
+          "condominio",
         );
         condoMatches = res.properties
           .filter((p) => matchEdificio(p, edificio))
@@ -282,6 +296,7 @@ export async function runStudy(
             const matched = collected.filter((p) => matchEndereco(p, enderecoRaw)).length;
             return matched + condoMatches.length >= TARGET;
           },
+          "endereco",
         );
         enderecoMatches = res.properties.filter((p) => matchEndereco(p, enderecoRaw));
         enderecoMatches.forEach((p) => mesmoEnderecoIds.add(p.id));
@@ -342,6 +357,7 @@ export async function runStudy(
           const strict = collected.filter(buscaLivre ? matchesType : strictLocal).length;
           return strict + anchorsCount >= TARGET;
         },
+        "bairro",
       );
       mainProperties = res.properties;
       mainPages = res.pages;
@@ -383,7 +399,12 @@ export async function runStudy(
         funilBusca.push({ etapa: `Fora do raio (${radiusKm} km) — removidos`, total: removidosRaio });
       }
     }
-    if (totalResultsUpstream > 0) funilBusca.push({ etapa: `Total disponível no portal (totalResults)`, total: totalResultsUpstream });
+    for (const t of targets) {
+      const tr = totalResultsPerTarget[t] ?? 0;
+      if (tr > 0) {
+        funilBusca.push({ etapa: `${PORTAL_TARGETS[t]}: total disponível no portal`, total: tr });
+      }
+    }
     funilBusca.push({ etapa: "Retornados pela API", total: mainProperties.length });
     funilBusca.push({ etapa: "Com dados completos", total: normalizedComplete.length });
     if (descartadosIncompletos > 0) {
@@ -393,6 +414,9 @@ export async function runStudy(
       const nf = plpNotFoundPerTarget[t] ?? 0;
       if (nf > 0) {
         funilBusca.push({ etapa: `${PORTAL_TARGETS[t]}: PLP notFound (cidade/UF não reconhecida)`, total: nf });
+      }
+      if (exhaustedGlobal.has(t)) {
+        funilBusca.push({ etapa: `${PORTAL_TARGETS[t]}: portal esgotado (sem mais páginas)`, total: 1 });
       }
     }
     const agregados = mainProperties.filter((p) => (p.agregadoCount ?? 0) > 0).length;
@@ -482,7 +506,8 @@ export async function runStudy(
       top.map(async (p) => {
         try {
           pdpCalls++;
-          const pdp = await geckoPdp({ data: { url: p.url } });
+          const pdpTarget = PORTAL_NAME_TO_TARGET[p.portal] ?? "zapimoveis.com.br";
+          const pdp = await geckoPdp({ data: { url: p.url, target: pdpTarget } });
           if (pdp.ok && pdp.notFound) {
             p.removido = true;
             pdpNotFound++;
@@ -529,11 +554,19 @@ export async function runStudy(
     criteriosAplicados.push(`Requisições: ${plpCalls} PLP + ${pdpCalls} PDP = ${plpCalls + pdpCalls}`);
     funilBusca.push({ etapa: `Requisições GeckoAPI (PLP+PDP)`, total: plpCalls + pdpCalls });
     for (const t of targets) {
-      const stats = perPortal[t];
+      const byLayer = perPortal[t];
+      const recebidos = byLayer.condominio.recebidos + byLayer.endereco.recebidos + byLayer.bairro.recebidos;
+      const aproveitados = byLayer.condominio.aproveitados + byLayer.endereco.aproveitados + byLayer.bairro.aproveitados;
+      const descartados = byLayer.condominio.descartados + byLayer.endereco.descartados + byLayer.bairro.descartados;
       const label = PORTAL_TARGETS[t];
+      const parts: string[] = [];
+      if (byLayer.condominio.recebidos) parts.push(`cond:${byLayer.condominio.recebidos}`);
+      if (byLayer.endereco.recebidos) parts.push(`end:${byLayer.endereco.recebidos}`);
+      if (byLayer.bairro.recebidos) parts.push(`bairro:${byLayer.bairro.recebidos}`);
+      const breakdown = parts.length ? ` [${parts.join(", ")}]` : "";
       funilBusca.push({
-        etapa: `${label}: ${stats.recebidos} recebidos / ${stats.aproveitados} aproveitados${stats.descartados ? ` / ${stats.descartados} descartados` : ""}`,
-        total: stats.aproveitados,
+        etapa: `${label}: ${recebidos} recebidos / ${aproveitados} aproveitados${descartados ? ` / ${descartados} descartados` : ""}${breakdown}`,
+        total: aproveitados,
       });
     }
     criteriosAplicados.push(`Portais consultados: ${targets.map((t) => PORTAL_TARGETS[t]).join(", ")}`);
