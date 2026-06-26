@@ -44,6 +44,7 @@ function NovoEstudo() {
   const [step, setStep] = useState(1);
   const [cep, setCep] = useState("");
   const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "ok" | "notfound" | "error">("idle");
+  const [radiusKm, setRadiusKm] = useState<number>(2);
   const [data, setData] = useState<Partial<StudyInput>>({
     finalidade: "Venda",
     tipo: "Apartamento",
