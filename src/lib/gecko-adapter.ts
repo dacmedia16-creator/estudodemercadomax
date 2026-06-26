@@ -45,6 +45,43 @@ export function mapTipoToChavesAlias(tipo: string): string | undefined {
 }
 
 /**
+ * Mapeamento dos rótulos de "Diferenciais" da UI para os códigos de
+ * amenities aceitos pelo Zap PLP. Rótulos sem código nativo
+ * (Vista livre, Próximo a escolas/metrô, Reformado, Novo) ficam apenas
+ * no scoring local — retornamos undefined para esses.
+ */
+const ZAP_AMENITY_MAP: Record<string, string> = {
+  piscina: "POOL",
+  academia: "GYM",
+  churrasqueira: "BARBECUE_GRILL",
+  sacada: "BALCONY",
+  "varanda gourmet": "GOURMET_BALCONY",
+  mobiliado: "FURNISHED",
+  "aceita pet": "PETS_ALLOWED",
+  "portaria 24h": "CONCIERGE_24H",
+  elevador: "ELEVATOR",
+};
+
+/** Diferenciais "estruturais" — únicos elegíveis para filtro Hard local. */
+export const STRUCTURAL_DIFERENCIAIS = new Set<string>([
+  "piscina", "academia", "churrasqueira", "sacada", "varanda gourmet",
+  "mobiliado", "portaria 24h", "elevador", "aceita pet",
+]);
+
+export function isStructuralDiferencial(label: string): boolean {
+  return STRUCTURAL_DIFERENCIAIS.has(normalizeText(label));
+}
+
+export function mapDiferenciaisToZapAmenities(labels: string[]): string[] {
+  const out = new Set<string>();
+  for (const l of labels) {
+    const code = ZAP_AMENITY_MAP[normalizeText(l)];
+    if (code) out.add(code);
+  }
+  return Array.from(out);
+}
+
+/**
  * Tipo families — usadas para descartar comparáveis incompatíveis (ex.: "Casa
  * de condomínio" entrando num estudo de "Apartamento"). Cada família tem
  * tokens positivos (qualquer um basta para classificar) e tokens negativos
