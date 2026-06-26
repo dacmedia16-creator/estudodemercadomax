@@ -164,7 +164,7 @@
 @media print {
   @page {
     size: A4;
-    margin: 14mm 12mm;
+    margin: 8mm 9mm;
   }
 
   html, body {
@@ -172,6 +172,8 @@
     color: #111 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    font-size: 9pt !important;
+    line-height: 1.25 !important;
   }
 
   /* Esconde shell do app (sidebar + header sticky) e qualquer marcador no-print */
@@ -190,18 +192,19 @@
   /* Conteúdo principal ocupa toda a página */
   main { padding: 0 !important; }
 
-  /* Cards: sem sombra, borda leve, evita quebrar no meio */
+  /* Force any container to flow naturally — no page breaks */
+  .print-break-before,
   [data-slot="card"],
-  .print-section {
+  .print-section,
+  .print-onepager,
+  .print-onepager * {
+    break-before: auto !important;
+    break-after: auto !important;
+    break-inside: avoid !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+    page-break-inside: avoid !important;
     box-shadow: none !important;
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  /* Quebra de página explícita */
-  .print-break-before {
-    break-before: page;
-    page-break-before: always;
   }
 
   /* Gráficos Recharts não imprimem bem */
@@ -210,27 +213,92 @@
     display: none !important;
   }
 
-  /* Tabela mais compacta no PDF */
-  table { font-size: 10pt; }
-  th, td { padding: 6px 8px !important; }
+  /* One-pager: compact grid */
+  .print-onepager {
+    display: block;
+    width: 100%;
+    color: #111;
+  }
+  .print-onepager .op-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1.5pt solid var(--primary);
+    padding-bottom: 4pt;
+    margin-bottom: 6pt;
+  }
+  .print-onepager .op-title { font-size: 14pt; font-weight: 800; letter-spacing: -0.01em; }
+  .print-onepager .op-sub { font-size: 8.5pt; color: #555; margin-top: 1pt; }
+  .print-onepager .op-hero {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 8pt;
+    margin: 6pt 0;
+  }
+  .print-onepager .op-hero-main {
+    border: 1.5pt solid var(--primary);
+    border-radius: 6pt;
+    padding: 8pt 10pt;
+    background: color-mix(in oklab, var(--primary) 6%, white);
+  }
+  .print-onepager .op-hero-main .lbl { font-size: 8pt; font-weight: 700; letter-spacing: 0.12em; color: var(--primary); text-transform: uppercase; }
+  .print-onepager .op-hero-value { font-size: 26pt; line-height: 1.05; font-weight: 800; color: var(--primary); letter-spacing: -0.02em; margin-top: 2pt; }
+  .print-onepager .op-hero-meta { font-size: 8pt; color: #555; margin-top: 3pt; }
+  .print-onepager .op-hero-side {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 6pt;
+  }
+  .print-onepager .op-pill {
+    border: 0.75pt solid #ccc;
+    border-radius: 5pt;
+    padding: 5pt 7pt;
+  }
+  .print-onepager .op-pill .lbl { font-size: 7pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #666; }
+  .print-onepager .op-pill .val { font-size: 12pt; font-weight: 700; margin-top: 1pt; }
 
-  /* Tipografia geral mais sóbria */
-  h1 { font-size: 22pt !important; }
-  h2 { font-size: 16pt !important; }
+  .print-onepager .op-section-title {
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--primary); margin: 6pt 0 3pt;
+  }
+  .print-onepager .op-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6pt; }
+  .print-onepager .op-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6pt; }
+  .print-onepager .op-cell {
+    border: 0.5pt solid #ddd;
+    border-radius: 4pt;
+    padding: 4pt 6pt;
+    font-size: 8.5pt;
+  }
+  .print-onepager .op-cell b { font-size: 9pt; }
 
-  /* Hero de impressão */
-  .print-hero-value {
-    font-size: 40pt !important;
-    line-height: 1.05 !important;
-    font-weight: 800 !important;
-    letter-spacing: -0.02em;
+  .print-onepager table { width: 100%; border-collapse: collapse; font-size: 8pt; }
+  .print-onepager th, .print-onepager td {
+    border-bottom: 0.5pt solid #ddd;
+    padding: 2.5pt 4pt;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .print-onepager th { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: #555; }
+  .print-onepager td.num, .print-onepager th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .print-onepager ul { margin: 0; padding-left: 12pt; }
+  .print-onepager li { font-size: 8pt; margin-bottom: 1.5pt; }
+
+  .print-onepager .op-footer {
+    margin-top: 6pt;
+    padding-top: 4pt;
+    border-top: 0.5pt solid #ccc;
+    font-size: 7.5pt;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
   }
 
-  /* Garante que cores de destaque (primary/success/warning) saiam no PDF */
-  .bg-primary, .bg-primary\/5, .bg-primary\/10,
-  .bg-success\/5, .bg-warning\/5,
-  .text-primary, .text-success, .text-warning-foreground,
-  .border-primary, .border-primary\/40 {
+  /* Hide screen content while printing */
+  .print-hide-on-print { display: none !important; }
+
+  /* Garante que cores de destaque saiam no PDF */
+  .print-onepager * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }

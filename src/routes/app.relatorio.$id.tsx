@@ -112,7 +112,11 @@ function ReportPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-8">
+    <>
+      {/* One-pager exclusivo do PDF (A4, página única) */}
+      <PrintOnePager study={study} sorted={sorted} />
+
+      <div className="mx-auto max-w-7xl px-6 py-8 print-hide-on-print">
       {/* Header (oculto no PDF) */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div>
@@ -135,9 +139,6 @@ function ReportPage() {
           <Link to="/app/novo-estudo"><Button size="sm" className="gap-2"><Plus className="h-4 w-4" /> Novo estudo</Button></Link>
         </div>
       </div>
-
-      {/* Capa do PDF — só aparece na impressão */}
-      <PrintCover study={study} />
 
       {/* Block 1: resumo */}
       <Card className="border-border/60 p-6 print-section">
@@ -460,67 +461,135 @@ function ReportPage() {
         </div>
       </Card>
 
-      {/* Rodapé exclusivo do PDF */}
-      <div className="mt-8 hidden border-t border-border pt-3 text-[10pt] text-muted-foreground print:block">
-        Radar Imobiliário Pro · gerado em {new Date(study.createdAt).toLocaleString("pt-BR")}
-        {typeof study.revisao === "number" && study.revisao > 0 ? ` · revisão ${study.revisao}` : ""}
       </div>
-    </div>
+    </>
   );
 }
 
-/** Capa do PDF — só aparece em @media print. Destaca o valor recomendado de venda. */
-function PrintCover({ study }: { study: StudyResult }) {
+/** One-pager A4 — só aparece em @media print. Tudo em uma única folha. */
+function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyResult["comparaveis"] }) {
   const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
   const { input } = study;
+  const top = sorted.slice(0, 6);
+  const fortes = study.pontosFortes.slice(0, 4);
+  const atencao = study.pontosAtencao.slice(0, 4);
   return (
-    <section className="mb-6 hidden print:block">
-      <div className="flex items-center justify-between border-b border-border pb-2 text-[10pt] text-muted-foreground">
-        <div className="font-semibold tracking-wider uppercase text-primary">Radar Imobiliário Pro</div>
-        <div>{new Date(study.createdAt).toLocaleDateString("pt-BR")}</div>
-      </div>
-
-      <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground">
-        {input.tipo} em {input.bairro}, {input.cidade}/{input.estado}
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {input.areaUtil} m² · {input.quartos} dorm{input.suites > 0 ? ` (${input.suites} suíte${input.suites > 1 ? "s" : ""})` : ""} · {input.vagas} vaga{input.vagas !== 1 ? "s" : ""} · {input.finalidade}
-      </p>
-
-      <div className="mt-5 rounded-2xl border-2 border-primary bg-primary/5 p-7 text-center">
-        <div className="text-[10pt] font-semibold uppercase tracking-[0.18em] text-primary">
-          Valor recomendado para venda
-        </div>
-        <div className="print-hero-value mt-2 text-primary">{formatBRL(acm.valorSugerido)}</div>
-        <div className="mt-3 text-xs text-muted-foreground">
-          Baseado em {study.comparaveis.length} comparáveis · média de mercado {formatBRL(study.precoM2Medio)}/m²
-        </div>
-
-        <div className="mt-5 grid grid-cols-2 gap-4 border-t border-primary/30 pt-4">
-          <div>
-            <div className="text-[9pt] font-semibold uppercase tracking-wider text-muted-foreground">
-              Mínimo de fechamento
-            </div>
-            <div className="mt-1 text-xl font-bold tabular-nums text-foreground">
-              {formatBRL(acm.valorMinimoFechamento)}
-            </div>
+    <section className="print-onepager hidden print:block">
+      <div className="op-header">
+        <div>
+          <div className="op-title">{input.tipo} em {input.bairro}, {input.cidade}/{input.estado}</div>
+          <div className="op-sub">
+            {input.areaUtil} m² · {input.quartos} dorm{input.suites > 0 ? ` (${input.suites} suíte${input.suites > 1 ? "s" : ""})` : ""} · {input.vagas} vaga{input.vagas !== 1 ? "s" : ""} · {input.finalidade}
           </div>
-          <div>
-            <div className="text-[9pt] font-semibold uppercase tracking-wider text-muted-foreground">
-              Máximo de publicação
-            </div>
-            <div className="mt-1 text-xl font-bold tabular-nums text-primary">
-              {formatBRL(acm.valorMaximoPublicacao)}
-            </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: "9pt", fontWeight: 700, color: "var(--primary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Radar Imobiliário Pro</div>
+          <div style={{ fontSize: "7.5pt", color: "#666" }}>
+            {new Date(study.createdAt).toLocaleDateString("pt-BR")}
+            {typeof study.revisao === "number" && study.revisao > 0 ? ` · rev. ${study.revisao}` : ""}
           </div>
         </div>
       </div>
 
-      <div className="mt-5 rounded-lg border border-border p-4">
-        <div className="text-[10pt] font-semibold uppercase tracking-wider text-muted-foreground">
-          Status vs. mercado: <span className="text-foreground">{study.status}</span>
+      {/* HERO: valor recomendado em destaque + mín/máx */}
+      <div className="op-hero">
+        <div className="op-hero-main">
+          <div className="lbl">Valor recomendado para venda</div>
+          <div className="op-hero-value">{formatBRL(acm.valorSugerido)}</div>
+          <div className="op-hero-meta">
+            {study.comparaveis.length} comparáveis · média {formatBRL(study.precoM2Medio)}/m² · status: <b>{study.status}</b>
+          </div>
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-foreground">{study.diagnostico}</p>
+        <div className="op-hero-side">
+          <div className="op-pill" style={{ borderColor: "var(--primary)" }}>
+            <div className="lbl">Mínimo de fechamento</div>
+            <div className="val">{formatBRL(acm.valorMinimoFechamento)}</div>
+          </div>
+          <div className="op-pill" style={{ borderColor: "var(--primary)" }}>
+            <div className="lbl">Máximo de publicação</div>
+            <div className="val" style={{ color: "var(--primary)" }}>{formatBRL(acm.valorMaximoPublicacao)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Resumo ACM */}
+      <div className="op-section-title">Resumo ACM</div>
+      <div className="op-row3">
+        <div className="op-cell">
+          <b>Imóvel</b><br />
+          Valor pretendido: {formatBRL(input.valorPretendido)}<br />
+          R$/m² pretendido: {formatBRL(study.precoM2Pretendido)}<br />
+          Cond.: {formatBRL(input.condominio)}
+        </div>
+        <div className="op-cell">
+          <b>Mercado</b><br />
+          Médio: {formatBRL(study.precoMedio)}<br />
+          Faixa: {formatBRL(study.faixaMin)} – {formatBRL(study.faixaMax)}<br />
+          Min/Max: {formatBRL(study.menorPreco)} / {formatBRL(study.maiorPreco)}
+        </div>
+        <div className="op-cell">
+          <b>Diagnóstico</b><br />
+          <span style={{ fontSize: "7.5pt", lineHeight: 1.3 }}>{study.diagnostico}</span>
+        </div>
+      </div>
+
+      {/* Comparáveis */}
+      <div className="op-section-title">Top comparáveis</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Portal</th>
+            <th>Endereço / título</th>
+            <th className="num">m²</th>
+            <th className="num">Qtos</th>
+            <th className="num">Preço</th>
+            <th className="num">R$/m²</th>
+            <th className="num">Sim.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {top.map((c) => (
+            <tr key={c.id}>
+              <td>{c.portal}</td>
+              <td style={{ maxWidth: "180pt" }}>
+                <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.titulo}</div>
+                <div style={{ fontSize: "7pt", color: "#666" }}>{c.bairro}</div>
+              </td>
+              <td className="num">{c.areaUtil}</td>
+              <td className="num">{c.quartos}</td>
+              <td className="num"><b>{formatBRL(c.preco)}</b></td>
+              <td className="num">{formatBRL(c.precoM2)}</td>
+              <td className="num">{c.similaridade}%</td>
+            </tr>
+          ))}
+          {top.length === 0 && (
+            <tr><td colSpan={7} style={{ textAlign: "center", color: "#888" }}>Nenhum comparável encontrado.</td></tr>
+          )}
+        </tbody>
+      </table>
+
+      {/* Pontos fortes / atenção */}
+      <div className="op-row2" style={{ marginTop: "6pt" }}>
+        <div className="op-cell">
+          <b style={{ color: "var(--success, #15803d)" }}>Pontos fortes</b>
+          <ul>{fortes.map((p) => <li key={p}>{p}</li>)}</ul>
+        </div>
+        <div className="op-cell">
+          <b style={{ color: "#b45309" }}>Pontos de atenção</b>
+          <ul>{atencao.map((p) => <li key={p}>{p}</li>)}</ul>
+        </div>
+      </div>
+
+      {/* Sugestão comercial – uma linha */}
+      <div className="op-section-title">Sugestão comercial</div>
+      <div className="op-cell" style={{ fontSize: "8pt" }}>
+        <b>Título:</b> {study.tituloSugerido}<br />
+        <b>Argumento:</b> {study.argumentoProprietario}
+      </div>
+
+      <div className="op-footer">
+        <span>Radar Imobiliário Pro · estudo {study.id.slice(0, 8)}</span>
+        <span>Gerado em {new Date(study.createdAt).toLocaleString("pt-BR")}</span>
       </div>
     </section>
   );
