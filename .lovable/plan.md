@@ -1,52 +1,60 @@
+## Por que o Chaves na Mão não trouxe nada
 
-## Estudo: GeckoAPI Zap Imóveis PLP
+Olhando `src/lib/study-runner.ts` + `src/lib/gecko.functions.ts`, o runner dispara **a mesma requisição para os dois portais em paralelo**, e essa requisição está montada para o Zap:
 
-Você só pediu pra estudar — abaixo o resumo do doc + o que dá pra melhorar no código atual quando quiser implementar. **Nada será alterado até você aprovar.**
+1. **`state` em UF maiúscula** (`"SP"`, `"PR"`…). O Chaves frequentemente espera nome por extenso ou ignora o filtro; quando não reconhece, responde `notFound: true` e o portal é marcado como `exhausted` na 1ª página (não tenta mais).
+2. **Filtros nativos do PLP** (`bedrooms`, `priceMin/Max`, `areaMin/Max`, `latitude/longitude`, `radius`) — todos são vocabulário do Zap. No Chaves esses campos costumam zerar o resultado.
+3. **`keyword` formatada pro Zap** (ex.: `"apartamento agua-verde"` slugificada) — no Chaves a busca é mais sensível a texto livre.
+4. **Shape de resposta**: hoje só lemos `res.data.items`. Se o Chaves devolver sob outra chave (`results`, `properties`, `ads`), o runner trata como 0 itens **sem avisar** (`recebidos` fica 0 e não vai pro funil).
+5. **`nextPage` ausente** no Chaves → portal vira `exhausted` após página 1, mesmo se tiver mais resultados.
 
-### O que o endpoint oferece
+Hoje nada disso aparece no funil — o relatório só mostra os dados do Zap.
 
-`POST /v1/extract` com `target: "zapimoveis.com.br"`, `type: "plp"`.
+## Plano (1 PR)
 
-**Inputs úteis que já podemos mandar (mas hoje NÃO mandamos):**
+### 1. Validar o shape real do Chaves
+- Usar o "Testar PLP" em `/app/configuracoes` (já existe) com `target=chavesnamao.com.br` e logar `Object.keys(data)` + `Object.keys(items[0])` no console.
+- Confirmar: nome do array (`items` vs `results`), nome dos campos de preço/área/quartos, formato de `state`, e se existe `nextPage` ou `hasNextPage`.
 
-| Campo | O que faz | Status no nosso código |
-|---|---|---|
-| `bedrooms: int[]` | Filtra quartos no upstream | ❌ Aceito no Zod, **não enviado** pelo `study-runner` |
-| `bathrooms: int[]` | Filtra banheiros | ❌ Não enviado |
-| `parkingSpots: int[]` | Filtra vagas | ❌ Não enviado |
-| `priceMin` / `priceMax` | Faixa de preço no upstream | ❌ Não enviado |
-| `areaMin` / `areaMax` | Faixa de área (m²) | ❌ Não enviado |
-| `latitude` + `longitude` | Raio de 2 km ao redor do ponto | ❌ Não usado (mesmo quando temos lat/lng do CEP/PDP) |
+### 2. Separar parâmetros por portal em `study-runner.ts`
+Trocar o `adaptivePaginate` para montar o body **por target** em vez de spread igual pros dois:
 
-Hoje o runner faz PLP "wide" e filtra tudo localmente, o que **gasta créditos** trazendo páginas cheias de anúncios fora da faixa. Mandar esses filtros nativos reduziria descartes e o número de páginas necessárias.
-
-### Output (campos que valem aproveitar)
-
+```ts
+const buildParams = (t: PortalTarget): PlpParams => {
+  if (t === "zapimoveis.com.br") return { ...zapParams };
+  // Chaves: mandar só o essencial
+  return {
+    city: params.city,
+    state: "", // ou nome por extenso — confirmar no passo 1
+    businessType: params.businessType,
+    keyword: params.keyword,
+    // sem bedrooms/price/area/lat/lng/radius
+  };
+};
 ```
-data.totalResults       → quantos resultados existem (decisão de parar paginação)
-data.nextPage           → null/ausente = última página (parar sem chamar mais)
-data.items[].address.latitude/longitude   → mapa + raio
-data.items[].prices.mainValue + period    → já usamos
-data.items[].amenities[] / stamps[]       → enriquece tabela
-data.items[].advertiser.{id,name}         → já agrupamos no relatório
-data.items[].childrenCount                → card agregado (vários anúncios juntos) — hoje tratamos como 1 só
+
+### 3. Adapter tolerante a `items` alternativo
+Em `gecko.functions.ts` (ou no runner), normalizar:
+```ts
+const items = res.data?.items ?? res.data?.results ?? res.data?.properties ?? [];
 ```
 
-**Limitação importante:** PLP **não** retorna `bedrooms`/`usableAreas` por item — por isso o adapter depende de regex na `description`. Por isso enviar `bedrooms`/`areaMin/Max` ao upstream é a **única forma barata** de pré-filtrar sem PDP.
+### 4. Expor o Chaves no funil
+Adicionar uma linha por portal em `funilBusca`:
+- `"Chaves na Mão — recebidos / aproveitados / descartados"`
+- E logar `plpNotFoundCount` por portal (hoje é global).
 
-### `notFound: true`
+Assim, mesmo que ainda venha 0, o usuário vê **por que** (notFound, items vazio, descartados sem preço…).
 
-PLP também pode retornar `200` com `data: null` + `notFound: true` (cidade/UF que o Zap não reconhece). Hoje tratamos como "0 itens" e seguimos — está OK, mas vale logar como aviso explícito.
+### 5. Não marcar `exhausted` quando `nextPage` for indefinido **mas vier itens**
+Hoje: `if (res.data?.nextPage == null) exhausted.add(t)`. Mudar para só marcar exausto se `items.length === 0` **ou** `nextPage` explicitamente vier `null`/`false`. Se vier `undefined` + itens, tentar próxima página.
 
-### Oportunidades concretas (lista de implementação futura)
+### 6. Teste rápido pós-fix
+Rodar um estudo em Curitiba/Água Verde, confirmar no funil:
+- `Zap — recebidos > 0`
+- `Chaves — recebidos > 0`
+- ambos com `aproveitados` no relatório.
 
-1. **Mandar filtros nativos no PLP** (`bedrooms`, `areaMin/Max`, `priceMin/Max`) — corta páginas inúteis e ~30-50% menos PDPs descartados.
-2. **Usar `latitude`/`longitude` quando disponível** (do CEP via ViaCEP/geocoder ou do primeiro PDP) — raio de 2 km substitui as camadas frágeis de "mesmo endereço".
-3. **Parar paginação por `nextPage == null`** em vez de só pelo TARGET — economiza 1 chamada por layer no fim das listas curtas.
-4. **Expor `totalResults` no funil** — feedback útil ("achamos 824 anúncios, analisamos 24").
-5. **Logar `notFound: true` separadamente** no funil/warning.
-6. **Tratar `childrenCount > 0`** como badge "Anúncio agregado" e, opcionalmente, fazer 1 PDP extra para abrir os filhos.
-
-### Conclusão
-
-A integração atual está funcional mas **subutiliza o PLP** — manda só city/state/keyword e filtra tudo no cliente. Os ganhos maiores vêm de #1 (filtros nativos) e #2 (lat/lng). Quando quiser implementar, me diga quais itens entram e eu monto um plano com o passo a passo de código.
+## Fora de escopo
+- Não mexer no relatório/UI além de adicionar as linhas no funil.
+- Não mudar a lógica de camadas (condomínio/endereço/bairro) — só corrige a coleta.
