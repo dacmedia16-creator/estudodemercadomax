@@ -29,11 +29,11 @@ export function isChavesEnabled(): boolean {
 
 export function isOlxEnabled(): boolean {
   try {
-    if (typeof localStorage === "undefined") return false;
+    if (typeof localStorage === "undefined") return true;
     const v = localStorage.getItem("portal.olx");
-    if (v === null) return false; // default OFF — opt-in
+    if (v === null) return true; // default ON
     return v === "1" || v === "true";
-  } catch { return false; }
+  } catch { return true; }
 }
 
 function activeTargets(input?: StudyInput): PortalTarget[] {
@@ -716,6 +716,12 @@ export async function runStudy(
         if (recebidos > 0 && selecionados === 0) {
           funilBusca.push({
             etapa: `${PORTAL_TARGETS[t]}: ${recebidos} recebidos, mas TODOS removidos no filtro local (área/preço/quartos/raio)`,
+            total: 0,
+          });
+        }
+        if (recebidos === 0 && selecionados === 0) {
+          funilBusca.push({
+            etapa: `${PORTAL_TARGETS[t]}: consultado, 0 resultados retornados pelo portal`,
             total: 0,
           });
         }
