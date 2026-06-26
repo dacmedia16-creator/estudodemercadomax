@@ -263,6 +263,8 @@ export async function runStudy(
                       businessType: params.businessType,
                       neighborhood: params.neighborhood,
                       propertyTypes: params.propertyTypes,
+                      // Chaves também aceita `amenities` (mesma chave).
+                      amenities: params.amenities,
                       // Chaves limits to 1 value per filter — pick the first.
                       bedrooms: params.bedrooms?.length ? [params.bedrooms[0]] : undefined,
                       bathrooms: params.bathrooms?.length ? [params.bathrooms[0]] : undefined,
