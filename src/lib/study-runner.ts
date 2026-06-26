@@ -478,6 +478,26 @@ export async function runStudy(
       const bedroomsList = !buscaLivre && quartosMin > 0
         ? Array.from(new Set([quartosMin, quartosMax].filter((n) => n > 0)))
         : undefined;
+      // ---- Diferenciais nativos (amenities) ----
+      const fieldModesEff: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(overrides.fieldModes ?? {}) };
+      const allAmenities = mapDiferenciaisToZapAmenities(input.diferenciais ?? []);
+      let amenitiesToSend: string[] | undefined;
+      if (fieldModesEff.diferenciais === "hard" && allAmenities.length > 0) {
+        amenitiesToSend = allAmenities;
+      } else if (fieldModesEff.diferenciais === "soft" && allAmenities.length >= 3) {
+        // Envia apenas os 2 amenities mais "decisivos" — guia a busca sem ser restritivo.
+        const priority = ["POOL", "GYM", "FURNISHED", "GOURMET_BALCONY", "BARBECUE_GRILL"];
+        const sorted = [...allAmenities].sort(
+          (a, b) => (priority.indexOf(a) === -1 ? 99 : priority.indexOf(a)) - (priority.indexOf(b) === -1 ? 99 : priority.indexOf(b)),
+        );
+        amenitiesToSend = sorted.slice(0, 2);
+      }
+      if (amenitiesToSend && amenitiesToSend.length) {
+        funilBusca.push({
+          etapa: `Diferenciais enviados ao PLP (${fieldModesEff.diferenciais}): ${amenitiesToSend.join(", ")}`,
+          total: amenitiesToSend.length,
+        });
+      }
       const res = await adaptivePaginate(
         {
           city: buscaLivre ? "" : cidade,
@@ -490,6 +510,7 @@ export async function runStudy(
             const a = mapTipoToChavesAlias(tipo);
             return a ? [a] : undefined;
           })(),
+          amenities: amenitiesToSend,
           bedrooms: bedroomsList,
           priceMin: !buscaLivre && priceMin > 0 ? Math.round(priceMin) : undefined,
           priceMax: !buscaLivre && priceMax > 0 ? Math.round(priceMax) : undefined,
@@ -508,6 +529,38 @@ export async function runStudy(
       mainProperties = res.properties;
       mainPages = res.pages;
       mainError = res.errorMessage;
+      // ---- Fallback: se enviamos amenities e a camada bairro voltou vazia,
+      // refaz SEM amenities (aplica o filtro só localmente). Evita perder
+      // anúncios que não declaram amenities no Zap.
+      if (amenitiesToSend && amenitiesToSend.length && mainProperties.length === 0 && !buscaLivre) {
+        const retry = await adaptivePaginate(
+          {
+            city: cidade,
+            state: estado.toUpperCase(),
+            businessType,
+            keyword,
+            propertyType,
+            neighborhood: bairro || undefined,
+            propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+            bedrooms: bedroomsList,
+            priceMin: priceMin > 0 ? Math.round(priceMin) : undefined,
+            priceMax: priceMax > 0 ? Math.round(priceMax) : undefined,
+            areaMin: areaMin > 0 ? Math.round(areaMin) : undefined,
+            areaMax: areaMax > 0 ? Math.round(areaMax) : undefined,
+            latitude: geoLat,
+            longitude: geoLng,
+            radius: geoLat && geoLng ? radiusKm : undefined,
+          },
+          (collected) => collected.filter(strictLocal).length + anchorsCount >= TARGET,
+          "bairro",
+        );
+        if (retry.properties.length > 0) {
+          const seen = new Set(mainProperties.map((p) => p.id));
+          for (const p of retry.properties) if (!seen.has(p.id)) mainProperties.push(p);
+          mainPages += retry.pages;
+          funilBusca.push({ etapa: `Fallback sem amenities: +${retry.properties.length} resultados`, total: retry.properties.length });
+        }
+      }
       // ---- Retry Zap-only with relaxed filters if it returned nothing ----
       const zapTarget: PortalTarget = "zapimoveis.com.br";
       const zapWasActive = targets.includes(zapTarget) && !exhaustedGlobal.has(zapTarget);
