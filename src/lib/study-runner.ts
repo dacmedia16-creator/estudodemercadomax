@@ -132,7 +132,14 @@ export async function runStudy(
   const autoExpand = overrides.autoExpand ?? true;
   const edificio = (overrides.edificio ?? input.edificio ?? "").trim();
   const priorizarEdificio = (overrides.priorizarEdificio ?? !!edificio) && !!edificio;
-  const enderecoRaw = (input.endereco ?? "").trim();
+  // Combine endereço + número (se ambos vieram do form em campos separados,
+  // o número vira parte do endereço completo para o matcher).
+  const enderecoBase = (input.endereco ?? "").trim();
+  const numeroBase = (input.numero ?? "").trim();
+  const jaTemNumero = /\b\d{1,6}\b/.test(enderecoBase);
+  const enderecoRaw = numeroBase && !jaTemNumero
+    ? `${enderecoBase}, ${numeroBase}`.trim()
+    : enderecoBase;
   const usarEndereco = enderecoRaw.replace(/\s+/g, " ").length >= 4;
   const maxPages = Math.min(3, Math.max(1, overrides.maxPages ?? 3));
   const radiusKm = Math.min(5, Math.max(1, overrides.radiusKm ?? 2));
@@ -594,6 +601,29 @@ export async function runStudy(
     }
 
     funilBusca.push({ etapa: chosenLayer, total: chosen.length });
+    // Por portal — mostra exatamente quantos do Zap e Chaves entraram no
+    // conjunto final, para diagnosticar "sumiço" silencioso.
+    {
+      const porPortal = new Map<string, number>();
+      for (const p of chosen) porPortal.set(p.portal, (porPortal.get(p.portal) ?? 0) + 1);
+      for (const [portal, n] of porPortal) {
+        funilBusca.push({ etapa: `Selecionados de ${portal}`, total: n });
+      }
+      // Avisa quando um portal trouxe dados mas foi totalmente filtrado.
+      for (const t of targets) {
+        const recebidos =
+          (perPortal[t]?.condominio.aproveitados ?? 0) +
+          (perPortal[t]?.endereco.aproveitados ?? 0) +
+          (perPortal[t]?.bairro.aproveitados ?? 0);
+        const selecionados = porPortal.get(PORTAL_TARGETS[t]) ?? 0;
+        if (recebidos > 0 && selecionados === 0) {
+          funilBusca.push({
+            etapa: `${PORTAL_TARGETS[t]}: ${recebidos} recebidos, mas TODOS removidos no filtro local (área/preço/quartos/raio)`,
+            total: 0,
+          });
+        }
+      }
+    }
     if (chosen.length === 0) throw new Error("Nenhum imóvel compatível com os critérios informados");
 
     properties = chosen;

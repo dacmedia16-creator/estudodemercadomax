@@ -12,7 +12,11 @@ function similarity(input: StudyInput, p: MockProperty): number {
   };
   w(20, p.bairro === input.bairro ? 1 : input.bairrosProximos.includes(p.bairro) ? 0.6 : 0.1);
   w(10, p.cidade === input.cidade ? 1 : 0);
-  w(15, 1 - Math.min(Math.abs(p.areaUtil - input.areaUtil) / Math.max(input.areaUtil, 1), 1));
+  // Area gets the highest weight — "mesmo tamanho" é o critério mais pedido.
+  // Bônus extra quando a diferença é menor que 5% (basicamente o mesmo imóvel em metragem).
+  const areaDiffPct = p.areaUtil > 0 ? Math.abs(p.areaUtil - input.areaUtil) / Math.max(input.areaUtil, 1) : 1;
+  const areaScore = Math.max(0, 1 - areaDiffPct) + (areaDiffPct <= 0.05 ? 0.15 : 0);
+  w(30, Math.min(1, areaScore));
   w(15, p.quartos === input.quartos ? 1 : Math.max(0, 1 - Math.abs(p.quartos - input.quartos) * 0.3));
   w(8, p.vagas === input.vagas ? 1 : Math.max(0, 1 - Math.abs(p.vagas - input.vagas) * 0.4));
   w(7, p.suites === input.suites ? 1 : 0.5);
@@ -36,11 +40,35 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
       precoM2: Math.round(p.preco / p.areaUtil),
       similaridade: similarity(input, p),
     }))
-    .sort((a, b) => b.similaridade - a.similaridade)
-    .slice(0, 10);
+    .sort((a, b) => b.similaridade - a.similaridade);
 
-  const precos = filtered.map((p) => p.preco);
-  const precosM2 = filtered.map((p) => p.precoM2);
+  // Portal interleaving: when more than one portal returned results, ensure
+  // each portal contributes to the top 10 instead of one portal dominating.
+  const top10 = (() => {
+    if (!usingExternal || filtered.length <= 10) return filtered.slice(0, 10);
+    const byPortal = new Map<string, ComparableProperty[]>();
+    for (const p of filtered) {
+      const k = p.portal || "—";
+      if (!byPortal.has(k)) byPortal.set(k, []);
+      byPortal.get(k)!.push(p);
+    }
+    if (byPortal.size <= 1) return filtered.slice(0, 10);
+    const out: ComparableProperty[] = [];
+    const queues = Array.from(byPortal.values());
+    while (out.length < 10) {
+      let added = false;
+      for (const q of queues) {
+        if (out.length >= 10) break;
+        const next = q.shift();
+        if (next) { out.push(next); added = true; }
+      }
+      if (!added) break;
+    }
+    return out.sort((a, b) => b.similaridade - a.similaridade);
+  })();
+
+  const precos = top10.map((p) => p.preco);
+  const precosM2 = top10.map((p) => p.precoM2);
   const precoMedio = precos.length ? Math.round(avg(precos)) : 0;
   const precoM2Medio = precosM2.length ? Math.round(avg(precosM2)) : 0;
   const menorPreco = precos.length ? Math.min(...precos) : 0;
@@ -55,17 +83,17 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
 
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
-  const diagnostico = filtered.length === 0
+  const diagnostico = top10.length === 0
     ? `Nenhum imóvel compatível foi encontrado nesta busca. Tente ampliar os critérios (área, preço, bairros próximos) no painel "Ajustar critérios" abaixo.`
     : status === "Acima da média"
-      ? `Com base nos ${filtered.length} imóveis encontrados em ${input.bairro} e região, este imóvel está posicionado acima da média de mercado. Para aumentar a competitividade, recomenda-se trabalhar uma faixa entre ${fmt(faixaMin)} e ${fmt(faixaMax)}, destacando metragem, localização e diferenciais.`
+      ? `Com base nos ${top10.length} imóveis encontrados em ${input.bairro} e região, este imóvel está posicionado acima da média de mercado. Para aumentar a competitividade, recomenda-se trabalhar uma faixa entre ${fmt(faixaMin)} e ${fmt(faixaMax)}, destacando metragem, localização e diferenciais.`
       : status === "Abaixo da média"
       ? `Seu imóvel está abaixo da média de mercado em ${input.bairro}. Há espaço para reajuste de valor — a faixa recomendada vai de ${fmt(faixaMin)} a ${fmt(faixaMax)}, o que pode aumentar a margem sem comprometer a velocidade de venda.`
       : `Seu imóvel está bem posicionado em relação ao mercado de ${input.bairro}. A faixa competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Reforce os diferenciais para acelerar a negociação.`;
 
   const pontosFortes: string[] = [];
-  const avgArea = filtered.length ? avg(filtered.map((p) => p.areaUtil)) : input.areaUtil;
-  const avgQuartos = filtered.length ? avg(filtered.map((p) => p.quartos)) : input.quartos;
+  const avgArea = top10.length ? avg(top10.map((p) => p.areaUtil)) : input.areaUtil;
+  const avgQuartos = top10.length ? avg(top10.map((p) => p.quartos)) : input.quartos;
   if (input.areaUtil >= avgArea) pontosFortes.push("Metragem acima da média da região");
   if (input.quartos >= avgQuartos) pontosFortes.push("Quantidade de quartos competitiva");
   if (input.diferenciais.length >= 4) pontosFortes.push("Boa quantidade de diferenciais");
@@ -89,7 +117,7 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     input,
-    comparaveis: filtered,
+    comparaveis: top10,
     precoMedio,
     precoM2Medio,
     menorPreco,
