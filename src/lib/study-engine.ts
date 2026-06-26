@@ -67,8 +67,8 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
     return out.sort((a, b) => b.similaridade - a.similaridade);
   })();
 
-  const precos = filtered.map((p) => p.preco);
-  const precosM2 = filtered.map((p) => p.precoM2);
+  const precos = top10.map((p) => p.preco);
+  const precosM2 = top10.map((p) => p.precoM2);
   const precoMedio = precos.length ? Math.round(avg(precos)) : 0;
   const precoM2Medio = precosM2.length ? Math.round(avg(precosM2)) : 0;
   const menorPreco = precos.length ? Math.min(...precos) : 0;
@@ -83,17 +83,17 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
 
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
-  const diagnostico = filtered.length === 0
+  const diagnostico = top10.length === 0
     ? `Nenhum imóvel compatível foi encontrado nesta busca. Tente ampliar os critérios (área, preço, bairros próximos) no painel "Ajustar critérios" abaixo.`
     : status === "Acima da média"
-      ? `Com base nos ${filtered.length} imóveis encontrados em ${input.bairro} e região, este imóvel está posicionado acima da média de mercado. Para aumentar a competitividade, recomenda-se trabalhar uma faixa entre ${fmt(faixaMin)} e ${fmt(faixaMax)}, destacando metragem, localização e diferenciais.`
+      ? `Com base nos ${top10.length} imóveis encontrados em ${input.bairro} e região, este imóvel está posicionado acima da média de mercado. Para aumentar a competitividade, recomenda-se trabalhar uma faixa entre ${fmt(faixaMin)} e ${fmt(faixaMax)}, destacando metragem, localização e diferenciais.`
       : status === "Abaixo da média"
       ? `Seu imóvel está abaixo da média de mercado em ${input.bairro}. Há espaço para reajuste de valor — a faixa recomendada vai de ${fmt(faixaMin)} a ${fmt(faixaMax)}, o que pode aumentar a margem sem comprometer a velocidade de venda.`
       : `Seu imóvel está bem posicionado em relação ao mercado de ${input.bairro}. A faixa competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Reforce os diferenciais para acelerar a negociação.`;
 
   const pontosFortes: string[] = [];
-  const avgArea = filtered.length ? avg(filtered.map((p) => p.areaUtil)) : input.areaUtil;
-  const avgQuartos = filtered.length ? avg(filtered.map((p) => p.quartos)) : input.quartos;
+  const avgArea = top10.length ? avg(top10.map((p) => p.areaUtil)) : input.areaUtil;
+  const avgQuartos = top10.length ? avg(top10.map((p) => p.quartos)) : input.quartos;
   if (input.areaUtil >= avgArea) pontosFortes.push("Metragem acima da média da região");
   if (input.quartos >= avgQuartos) pontosFortes.push("Quantidade de quartos competitiva");
   if (input.diferenciais.length >= 4) pontosFortes.push("Boa quantidade de diferenciais");
@@ -117,7 +117,7 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     input,
-    comparaveis: filtered,
+    comparaveis: top10,
     precoMedio,
     precoM2Medio,
     menorPreco,
