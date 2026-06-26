@@ -1,6 +1,6 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
-import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily } from "@/lib/gecko-adapter";
+import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily, mapDiferenciaisToZapAmenities, isStructuralDiferencial } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
 import { DEFAULT_FIELD_MODES } from "@/lib/study-types";
@@ -89,6 +89,7 @@ type PlpParams = {
   propertyType?: string;
   neighborhood?: string;
   propertyTypes?: string[];
+  amenities?: string[];
   bedrooms?: number[];
   bathrooms?: number[];
   parkingSpots?: number[];
@@ -262,6 +263,8 @@ export async function runStudy(
                       businessType: params.businessType,
                       neighborhood: params.neighborhood,
                       propertyTypes: params.propertyTypes,
+                      // Chaves também aceita `amenities` (mesma chave).
+                      amenities: params.amenities,
                       // Chaves limits to 1 value per filter — pick the first.
                       bedrooms: params.bedrooms?.length ? [params.bedrooms[0]] : undefined,
                       bathrooms: params.bathrooms?.length ? [params.bathrooms[0]] : undefined,
@@ -475,6 +478,26 @@ export async function runStudy(
       const bedroomsList = !buscaLivre && quartosMin > 0
         ? Array.from(new Set([quartosMin, quartosMax].filter((n) => n > 0)))
         : undefined;
+      // ---- Diferenciais nativos (amenities) ----
+      const fieldModesEff: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(overrides.fieldModes ?? {}) };
+      const allAmenities = mapDiferenciaisToZapAmenities(input.diferenciais ?? []);
+      let amenitiesToSend: string[] | undefined;
+      if (fieldModesEff.diferenciais === "hard" && allAmenities.length > 0) {
+        amenitiesToSend = allAmenities;
+      } else if (fieldModesEff.diferenciais === "soft" && allAmenities.length >= 3) {
+        // Envia apenas os 2 amenities mais "decisivos" — guia a busca sem ser restritivo.
+        const priority = ["POOL", "GYM", "FURNISHED", "GOURMET_BALCONY", "BARBECUE_GRILL"];
+        const sorted = [...allAmenities].sort(
+          (a, b) => (priority.indexOf(a) === -1 ? 99 : priority.indexOf(a)) - (priority.indexOf(b) === -1 ? 99 : priority.indexOf(b)),
+        );
+        amenitiesToSend = sorted.slice(0, 2);
+      }
+      if (amenitiesToSend && amenitiesToSend.length) {
+        funilBusca.push({
+          etapa: `Diferenciais enviados ao PLP (${fieldModesEff.diferenciais}): ${amenitiesToSend.join(", ")}`,
+          total: amenitiesToSend.length,
+        });
+      }
       const res = await adaptivePaginate(
         {
           city: buscaLivre ? "" : cidade,
@@ -487,6 +510,7 @@ export async function runStudy(
             const a = mapTipoToChavesAlias(tipo);
             return a ? [a] : undefined;
           })(),
+          amenities: amenitiesToSend,
           bedrooms: bedroomsList,
           priceMin: !buscaLivre && priceMin > 0 ? Math.round(priceMin) : undefined,
           priceMax: !buscaLivre && priceMax > 0 ? Math.round(priceMax) : undefined,
@@ -505,6 +529,38 @@ export async function runStudy(
       mainProperties = res.properties;
       mainPages = res.pages;
       mainError = res.errorMessage;
+      // ---- Fallback: se enviamos amenities e a camada bairro voltou vazia,
+      // refaz SEM amenities (aplica o filtro só localmente). Evita perder
+      // anúncios que não declaram amenities no Zap.
+      if (amenitiesToSend && amenitiesToSend.length && mainProperties.length === 0 && !buscaLivre) {
+        const retry = await adaptivePaginate(
+          {
+            city: cidade,
+            state: estado.toUpperCase(),
+            businessType,
+            keyword,
+            propertyType,
+            neighborhood: bairro || undefined,
+            propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+            bedrooms: bedroomsList,
+            priceMin: priceMin > 0 ? Math.round(priceMin) : undefined,
+            priceMax: priceMax > 0 ? Math.round(priceMax) : undefined,
+            areaMin: areaMin > 0 ? Math.round(areaMin) : undefined,
+            areaMax: areaMax > 0 ? Math.round(areaMax) : undefined,
+            latitude: geoLat,
+            longitude: geoLng,
+            radius: geoLat && geoLng ? radiusKm : undefined,
+          },
+          (collected) => collected.filter(strictLocal).length + anchorsCount >= TARGET,
+          "bairro",
+        );
+        if (retry.properties.length > 0) {
+          const seen = new Set(mainProperties.map((p) => p.id));
+          for (const p of retry.properties) if (!seen.has(p.id)) mainProperties.push(p);
+          mainPages += retry.pages;
+          funilBusca.push({ etapa: `Fallback sem amenities: +${retry.properties.length} resultados`, total: retry.properties.length });
+        }
+      }
       // ---- Retry Zap-only with relaxed filters if it returned nothing ----
       const zapTarget: PortalTarget = "zapimoveis.com.br";
       const zapWasActive = targets.includes(zapTarget) && !exhaustedGlobal.has(zapTarget);
@@ -701,12 +757,24 @@ export async function runStudy(
         hardChecks.push({ key: "iptu", label: `IPTU obrigatório (até ${Math.round(limite)})`, pass: (p) => typeof p.iptu !== "number" || p.iptu === 0 || p.iptu <= limite });
       }
       if (modes.diferenciais === "hard" && input.diferenciais.length > 0) {
-        const min = Math.ceil(input.diferenciais.length * 0.5);
-        hardChecks.push({
-          key: "diferenciais",
-          label: `Diferenciais obrigatório (≥${min} de ${input.diferenciais.length})`,
-          pass: (p) => input.diferenciais.filter((d) => p.diferenciais.includes(d)).length >= min,
-        });
+        // Só exige os diferenciais ESTRUTURAIS (Piscina, Academia, etc.).
+        // Itens subjetivos ("Vista livre", "Próximo ao metrô", "Reformado",
+        // "Novo") raramente aparecem na lista de amenities do anúncio e
+        // derrubariam comparáveis legítimos.
+        const required = input.diferenciais.filter(isStructuralDiferencial);
+        if (required.length > 0) {
+          const min = Math.max(1, Math.ceil(required.length * 0.5));
+          const reqNorm = required.map((d) => d.toLowerCase());
+          hardChecks.push({
+            key: "diferenciais",
+            label: `Diferenciais obrigatório (≥${min} de ${required.length} estruturais)`,
+            pass: (p) => {
+              const have = (p.diferenciais ?? []).map((d) => d.toLowerCase());
+              const hits = reqNorm.filter((d) => have.some((h) => h.includes(d) || d.includes(h))).length;
+              return hits >= min;
+            },
+          });
+        }
       }
       for (const check of hardChecks) {
         const before = chosen.length;

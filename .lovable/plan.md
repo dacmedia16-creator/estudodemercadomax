@@ -1,44 +1,47 @@
-## Diagnóstico
-Olhei o `src/lib/study-runner.ts`. As **camadas 1 (mesmo condomínio) e 2 (mesmo endereço)** só aplicam `matchEdificio` / `matchEndereco` — **pulam o filtro de tipo**. Quando o sistema prioriza essas camadas (caso do estudo da imagem — quase todos os resultados estão marcados "Mesmo prédio"), qualquer "Casa de condomínio", "Sobrado" etc. publicado dentro do mesmo condomínio/endereço entra como comparável de "Apartamento".
+# Usar diferenciais como filtro real na busca
 
-Também existem dois reforços que falharam:
-- O `propertyType` enviado ao Zap PLP serve só como filtro nativo; **se o portal não respeita, nada local descarta**.
-- O `matchesType` usado nas camadas seguintes verifica só se a palavra "apartamento" aparece no `titulo/descricao`. Vários anúncios de Zap/Chaves/OLX não trazem essa palavra explícita, então o fallback ainda deixa casas passarem.
+## Situação atual
+Os diferenciais marcados no formulário (Piscina, Academia, Churrasqueira, Portaria 24h, etc.) **não são enviados** para o Zap PLP. Eles só são usados depois:
+- **Soft** → somam pontos na similaridade.
+- **Hard** → exigem que ≥50% dos diferenciais estejam presentes no anúncio retornado.
+- **Ignore** → não fazem nada.
 
-Resultado: o estudo de Apartamento misturou "Casa de condomínio à venda…", "Casa de condomínio para comprar…", "Casa de condomínio para alugar…" do Zap.
+Isso desperdiça oportunidade: o Zap aceita `amenities` no PLP e poderia filtrar na fonte, trazendo comparáveis mais aderentes sem gastar requisições extras.
 
-## Correção (apenas frontend / lógica, sem mexer em UI)
+## O que vou mudar
 
-### 1. `src/lib/gecko-adapter.ts`
-- Exportar um helper `isSameTipoFamily(propertyOrTitle, tipoDesejado)` que considera:
-  - O campo estruturado do PLP (`propertyType`, `unitTypes`, `listingType`) quando disponível.
-  - Palavras-chave do título normalizado: famílias `apartamento` (apartamento, apto, cobertura, flat, studio, kitnet, loft) **excluindo** `casa`, `sobrado`, `casa de condomínio`, `chácara`, `sítio`, `terreno`, `comercial`, `sala`, etc.
-  - Família `casa` (casa, sobrado, casa de condomínio, casa térrea) excluindo apartamento/cobertura.
-  - Demais tipos por correspondência direta.
-- Anotar no `MockProperty` (já existe `propertyType` opcional via gecko) — só ler, não criar campo novo.
+### 1. Mapeamento dos diferenciais para o vocabulário do Zap
+Criar `mapDiferenciaisToZapAmenities()` em `src/lib/gecko-adapter.ts` traduzindo os rótulos da UI para os códigos aceitos pela API (ex.: "Piscina" → `POOL`, "Academia" → `GYM`, "Churrasqueira" → `BARBECUE_GRILL`, "Portaria 24h" → `GATED_COMMUNITY`/`CONCIERGE_24H`, "Sacada" → `BALCONY`, "Elevador" → `ELEVATOR`, "Mobiliado" → `FURNISHED`, etc.). Rótulos sem equivalente (ex.: "Vista livre", "Próximo ao metrô") continuam apenas no scoring local.
 
-### 2. `src/lib/study-runner.ts`
-- Substituir `matchesType` pelo novo `isSameTipoFamily` em todos os lugares (camadas 3/cidade/livre).
-- **Aplicar o filtro de tipo nas camadas 1 e 2**:
-  - `condoMatches = res.properties.filter((p) => matchEdificio(p, edificio) && isSameTipoFamily(p, tipo))`
-  - `enderecoMatches = res.properties.filter((p) => matchEndereco(p, enderecoRaw) && isSameTipoFamily(p, tipo))`
-- Logar no funil quantos foram **removidos por tipo incompatível** em cada camada:
-  - `funilBusca.push({ etapa: "Removidos por tipo (mesmo prédio)", total: N })` quando `N > 0`.
-- Adicionar um **hard filter final** sobre `chosen` (após as camadas escolhidas e antes dos hard filters dos campos extras):
-  ```
-  const before = chosen.length;
-  chosen = chosen.filter((p) => isSameTipoFamily(p, tipo));
-  const removed = before - chosen.length;
-  if (removed > 0) funilBusca.push({ etapa: `Tipo incompatível (${tipo}) — removidos`, total: removed });
-  ```
-- Manter `propertyType`/`propertyTypes` já enviados ao Zap/Chaves (filtro nativo continua, é só backup).
+### 2. Envio condicional para o Zap PLP
+Em `src/lib/study-runner.ts`, ao montar o payload PLP do Zap:
+- Se o modo do campo `diferenciais` for **hard** → enviar `amenities` com **todos** os mapeados (filtro estrito na fonte).
+- Se for **soft** → enviar só os 2–3 diferenciais mais "decisivos" (Piscina, Academia, Mobiliado) quando o usuário marcou ≥3 itens, para guiar a busca sem ser restritivo demais. Configurável.
+- Se for **ignore** → não enviar.
+- OLX e Chaves: não enviar (o adapter deles não usa `amenities`); seguem só com filtragem local.
 
-### 3. (Opcional, mantém o relatório transparente)
-- O bloco "Critérios da busca" no relatório já mostra o `tipo`. Sem mudança de UI necessária — o funil novo já comunica o descarte.
+### 3. Fallback automático quando o filtro nativo zera resultados
+Se uma camada (prédio/endereço/bairro) voltar vazia **com** `amenities` enviado, refazer a mesma camada **sem** `amenities` e aplicar o filtro localmente. Isso evita perder comparáveis quando o anúncio simplesmente não declara as amenities no Zap.
+
+### 4. Filtro local mais tolerante para o modo Hard
+Hoje exigimos ≥50% dos diferenciais. Problema: muitos anúncios não preenchem a lista completa. Mudar para:
+- Exigir só os diferenciais **estruturais** marcados como Hard (Piscina, Academia, Churrasqueira, Mobiliado, Portaria 24h, Elevador).
+- Ignorar diferenciais "subjetivos" no Hard (Vista livre, Próximo ao metrô/escolas, Reformado, Novo) — esses só pontuam no Soft.
+
+### 5. Visibilidade no funil e no relatório
+- Adicionar linha no funil: `"Zap PLP com amenities: [Piscina, Academia] → X resultados"` e, se houver fallback, `"Fallback sem amenities: +Y resultados"`.
+- No bloco "Critérios da busca" do relatório, listar quais diferenciais foram enviados nativamente vs. aplicados só localmente.
+
+### 6. Editor de critérios
+No `CriteriosEditor`, mostrar os diferenciais com seus modos (Ignorar/Soft/Hard) e permitir reexecutar o estudo alterando isso.
+
+## Arquivos afetados
+- `src/lib/gecko-adapter.ts` — novo `mapDiferenciaisToZapAmenities`.
+- `src/lib/study-runner.ts` — envio condicional, fallback, filtro local revisado, log no funil.
+- `src/components/criterios-editor.tsx` — exibir e editar modos dos diferenciais.
+- `src/routes/app.relatorio.$id.tsx` — exibir no bloco de critérios.
 
 ## Fora do escopo
-- Não tocar em layout, ACM, slides, exportação PDF ou no fluxo do form.
-- Não alterar a chamada da Gecko nem adicionar nova requisição.
-
-## Validação
-Reexecutar o estudo do print (Apartamento 78m² · Parque Morumbi). Esperado: as 4 linhas "Casa de condomínio…" do Zap desaparecem; o funil mostra `Removidos por tipo (mesmo prédio): N` e/ou `Tipo incompatível (Apartamento) — removidos: N`. Resto dos OLX/Zap (apartamentos) continua na tabela.
+- Não muda o consumo de créditos (mesma quantidade de chamadas, no pior caso +1 fallback por camada vazia).
+- Não muda OLX nem Chaves na Mão (mantêm filtragem só local).
+- Não altera o scoring de similaridade pós-busca (Soft continua funcionando como hoje).
