@@ -8,7 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, RotateCcw, Search, Loader2, AlertTriangle, Building2 } from "lucide-react";
-import type { StudyInput, SearchOverrides, StudyResult } from "@/lib/study-types";
+import type { StudyInput, SearchOverrides, StudyResult, FieldKey, FieldMode } from "@/lib/study-types";
+import { FIELD_KEYS, FIELD_LABELS, DEFAULT_FIELD_MODES } from "@/lib/study-types";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -22,7 +23,10 @@ interface Props {
 const TIPOS = ["Apartamento", "Casa", "Cobertura", "Sobrado", "Studio", "Kitnet", "Sala", "Terreno"];
 
 /** Builds the form's starting state from the last execution's overrides, falling back to derived defaults. */
-function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<SearchOverrides, "bairrosProximos">> & { bairrosProximos: string[] } {
+function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<SearchOverrides, "bairrosProximos" | "fieldModes">> & {
+  bairrosProximos: string[];
+  fieldModes: Record<FieldKey, FieldMode>;
+} {
   const o = study.overridesAplicados ?? {};
   return {
     keyword: o.keyword ?? `${input.tipo.toLowerCase()} ${input.bairro}`.trim(),
@@ -43,6 +47,7 @@ function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<Searc
     priorizarEdificio: o.priorizarEdificio ?? !!(input.edificio && input.edificio.trim()),
     maxPages: o.maxPages ?? 3,
     radiusKm: o.radiusKm ?? 2,
+    fieldModes: { ...DEFAULT_FIELD_MODES, ...(o.fieldModes ?? {}) },
   };
 }
 
@@ -86,6 +91,7 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
       priorizarEdificio: form.priorizarEdificio,
       maxPages: Number(form.maxPages),
       radiusKm: Number(form.radiusKm),
+      fieldModes: form.fieldModes,
     });
   };
 
@@ -263,6 +269,44 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
                 onCheckedChange={(v) => set("priorizarEdificio", v)}
                 disabled={!form.edificio.trim()}
               />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium">Campos extras (preferências)</div>
+                <div className="text-xs text-muted-foreground">
+                  Escolha como cada campo extra influencia a busca.
+                  <span className="ml-1"><strong>Ignorar</strong>: só no relatório. <strong>Preferência</strong>: pesa na similaridade. <strong>Obrigatório</strong>: elimina quem não bate.</span>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => set("fieldModes", { ...DEFAULT_FIELD_MODES })}
+              >
+                Padrão
+              </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {FIELD_KEYS.map((k) => (
+                <div key={k} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2">
+                  <span className="text-sm">{FIELD_LABELS[k]}</span>
+                  <Select
+                    value={form.fieldModes[k]}
+                    onValueChange={(v) => set("fieldModes", { ...form.fieldModes, [k]: v as FieldMode })}
+                  >
+                    <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ignore">Ignorar</SelectItem>
+                      <SelectItem value="soft">Preferência</SelectItem>
+                      <SelectItem value="hard">Obrigatório</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
             </div>
           </div>
 
