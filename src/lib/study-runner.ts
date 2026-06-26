@@ -324,6 +324,16 @@ export async function runStudy(
     }
 
     onStep?.(2);
+    // Apply user-controlled radius filter (when geocoding succeeded).
+    let removidosRaio = 0;
+    if (geoLat && geoLng) {
+      const before = mainProperties.length;
+      mainProperties = mainProperties.filter((p) => {
+        if (typeof p.latitude !== "number" || typeof p.longitude !== "number") return true;
+        return haversineKm(geoLat!, geoLng!, p.latitude, p.longitude) <= radiusKm;
+      });
+      removidosRaio = before - mainProperties.length;
+    }
     const normalized = mainProperties;
     descartadosIncompletos = normalized.filter((p) => p.incomplete).length;
     // For the strict/expanded layers, only keep items with real area+quartos.
@@ -336,20 +346,12 @@ export async function runStudy(
     }
     if (mainPages > 0) funilBusca.push({ etapa: `Páginas consultadas (bairro)`, total: mainPages });
     if (geoLat && geoLng) {
-      const removidosRaio = mainProperties.filter((p) => {
-        if (typeof p.latitude !== "number" || typeof p.longitude !== "number") return false;
-        return haversineKm(geoLat!, geoLng!, p.latitude, p.longitude) > radiusKm;
-      }).length;
       funilBusca.push({
         etapa: `Geocoding ativo (raio ${radiusKm} km${geoLabel ? ` · ${geoLabel.split(",").slice(0, 2).join(",")}` : ""})`,
         total: 1,
       });
       if (removidosRaio > 0) {
         funilBusca.push({ etapa: `Fora do raio (${radiusKm} km) — removidos`, total: removidosRaio });
-        mainProperties = mainProperties.filter((p) => {
-          if (typeof p.latitude !== "number" || typeof p.longitude !== "number") return true;
-          return haversineKm(geoLat!, geoLng!, p.latitude, p.longitude) <= radiusKm;
-        });
       }
     }
     if (totalResultsUpstream > 0) funilBusca.push({ etapa: `Total disponível no portal (totalResults)`, total: totalResultsUpstream });
