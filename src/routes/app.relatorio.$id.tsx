@@ -332,6 +332,34 @@ function ReportPage() {
         </div>
       </Card>
 
+      {/* Top anunciantes da região */}
+      {(() => {
+        const counts = new Map<string, number>();
+        sorted.forEach((c) => {
+          const name = (c.anunciante || "").trim();
+          if (!name || name === "—") return;
+          counts.set(name, (counts.get(name) ?? 0) + 1);
+        });
+        const top = Array.from(counts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5);
+        if (top.length === 0) return null;
+        return (
+          <Card className="mt-6 border-border/60 p-6">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Anunciantes mais ativos nos comparáveis
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {top.map(([name, n]) => (
+                <Badge key={name} variant="secondary" className="text-xs">
+                  {name} <span className="ml-1 opacity-70">· {n}</span>
+                </Badge>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
+
       {/* Block 6: concorrentes diretos */}
       <div className="mt-6">
         <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Concorrentes diretos</div>
