@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, ArrowRight, Check, MapPin, Home, Sparkles, Globe, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { StudyInput } from "@/lib/study-types";
+import type { FieldKey, FieldMode } from "@/lib/study-types";
+import { FIELD_KEYS, FIELD_LABELS, DEFAULT_FIELD_MODES } from "@/lib/study-types";
 import { BuscaRapida } from "@/components/busca-rapida";
 
 export const Route = createFileRoute("/app/novo-estudo")({
@@ -45,6 +47,7 @@ function NovoEstudo() {
   const [cep, setCep] = useState("");
   const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "ok" | "notfound" | "error">("idle");
   const [radiusKm, setRadiusKm] = useState<number>(2);
+  const [fieldModes, setFieldModes] = useState<Record<FieldKey, FieldMode>>({ ...DEFAULT_FIELD_MODES });
   const [data, setData] = useState<Partial<StudyInput>>({
     finalidade: "Venda",
     tipo: "Apartamento",
@@ -142,6 +145,7 @@ function NovoEstudo() {
     const input = data as StudyInput;
     sessionStorage.setItem("rip:pending", JSON.stringify(input));
     sessionStorage.setItem("rip:pending-radius", String(radiusKm));
+    sessionStorage.setItem("rip:pending-fieldmodes", JSON.stringify(fieldModes));
     navigate({ to: "/app/carregando" });
   };
 
@@ -263,6 +267,7 @@ function NovoEstudo() {
         )}
 
         {step === 2 && (
+          <div className="space-y-6">
           <div className="grid gap-5 md:grid-cols-3">
             <Field label="Área útil (m²)"><NumberInput v={data.areaUtil} onV={(v) => update("areaUtil", v)} /></Field>
             <Field label="Área total (m²)"><NumberInput v={data.areaTotal ?? 0} onV={(v) => update("areaTotal", v)} /></Field>
@@ -276,6 +281,38 @@ function NovoEstudo() {
             <Field label="Condomínio (R$)"><NumberInput v={data.condominio} onV={(v) => update("condominio", v)} /></Field>
             <Field label="IPTU (R$)"><NumberInput v={data.iptu} onV={(v) => update("iptu", v)} /></Field>
             <Field label="Valor pretendido (R$)"><NumberInput v={data.valorPretendido} onV={(v) => update("valorPretendido", v)} /></Field>
+          </div>
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-medium">Como usar esses campos na busca</div>
+                <div className="text-xs text-muted-foreground">
+                  <strong>Ignorar</strong>: só no relatório. <strong>Preferência</strong>: pesa na similaridade. <strong>Obrigatório</strong>: elimina quem não bate.
+                </div>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setFieldModes({ ...DEFAULT_FIELD_MODES })}>
+                Restaurar padrão
+              </Button>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {FIELD_KEYS.map((k) => (
+                <div key={k} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2">
+                  <span className="text-sm">{FIELD_LABELS[k]}</span>
+                  <Select
+                    value={fieldModes[k]}
+                    onValueChange={(v) => setFieldModes((m) => ({ ...m, [k]: v as FieldMode }))}
+                  >
+                    <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ignore">Ignorar</SelectItem>
+                      <SelectItem value="soft">Preferência</SelectItem>
+                      <SelectItem value="hard">Obrigatório</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+          </div>
           </div>
         )}
 
