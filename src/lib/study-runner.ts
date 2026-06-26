@@ -685,6 +685,14 @@ export async function runStudy(
         etapa: `${label}: ${recebidos} recebidos / ${aproveitados} aproveitados${descartados ? ` / ${descartados} descartados` : ""}${breakdown}`,
         total: aproveitados,
       });
+      // Per-layer zero recebidos — surfaces silent misses for debugging.
+      const zeroLayers: string[] = [];
+      if (byLayer.condominio.recebidos === 0 && priorizarEdificio) zeroLayers.push("condomínio");
+      if (byLayer.endereco.recebidos === 0 && usarEndereco) zeroLayers.push("endereço");
+      if (byLayer.bairro.recebidos === 0) zeroLayers.push("bairro");
+      if (zeroLayers.length > 0) {
+        funilBusca.push({ etapa: `${label}: 0 retornados em ${zeroLayers.join(", ")}`, total: 0 });
+      }
     }
     criteriosAplicados.push(`Portais consultados: ${targets.map((t) => PORTAL_TARGETS[t]).join(", ")}`);
   }
