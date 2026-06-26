@@ -63,11 +63,12 @@ function NovoEstudo() {
     portais: ["Zap Imóveis"],
   });
 
-  // Seed Chaves na Mão a partir do flag global (default ligado)
+  // Seed Chaves na Mão a partir do flag global (default ligado).
+  // Aceita "1"/"true" (on) e "0"/"false" (off) para compatibilidade.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const v = localStorage.getItem("portal.chavesnamao");
-    const enabled = v === null ? true : v === "true";
+    const enabled = v === null ? true : v === "1" || v === "true";
     setData((d) => {
       const cur = d.portais ?? [];
       const has = cur.includes("Chaves na Mão");
@@ -103,7 +104,7 @@ function NovoEstudo() {
     const next = cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p];
     update("portais", next);
     if (p === "Chaves na Mão" && typeof window !== "undefined") {
-      localStorage.setItem("portal.chavesnamao", String(next.includes(p)));
+      localStorage.setItem("portal.chavesnamao", next.includes(p) ? "1" : "0");
     }
   };
 

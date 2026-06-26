@@ -26,9 +26,9 @@ function Configuracoes() {
   const [plpTesting, setPlpTesting] = useState(false);
   const [plpResult, setPlpResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
   const [chavesOn, setChavesOn] = useState<boolean>(() => {
-    if (typeof localStorage === "undefined") return false;
+    if (typeof localStorage === "undefined") return true;
     const v = localStorage.getItem("portal.chavesnamao");
-    return v === null ? true : v === "1";
+    return v === null ? true : v === "1" || v === "true";
   });
 
   const toggleChaves = (on: boolean) => {

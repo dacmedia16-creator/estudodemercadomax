@@ -10,16 +10,22 @@ const PORTAL_TARGETS = {
 } as const;
 type PortalTarget = keyof typeof PORTAL_TARGETS;
 
-function activeTargets(): PortalTarget[] {
-  const list: PortalTarget[] = ["zapimoveis.com.br"];
+export function isChavesEnabled(): boolean {
   try {
-    if (typeof localStorage === "undefined") return list;
+    if (typeof localStorage === "undefined") return true;
     const v = localStorage.getItem("portal.chavesnamao");
-    // Default ON when the user hasn't explicitly opted out.
-    if (v === null || v === "1") {
-      list.push("chavesnamao.com.br");
-    }
-  } catch { /* ignore */ }
+    if (v === null) return true; // default ON
+    return v === "1" || v === "true";
+  } catch { return true; }
+}
+
+function activeTargets(input?: StudyInput): PortalTarget[] {
+  const list: PortalTarget[] = ["zapimoveis.com.br"];
+  // Per-study selection wins over the global toggle.
+  const portais = input?.portais ?? [];
+  const hasChavesInStudy = portais.some((p) => p.toLowerCase().includes("chaves"));
+  const enabled = portais.length > 0 ? hasChavesInStudy : isChavesEnabled();
+  if (enabled) list.push("chavesnamao.com.br");
   return list;
 }
 
@@ -60,7 +66,7 @@ export async function runStudy(
   let plpCalls = 0;
   let pdpCalls = 0;
   let descartadosIncompletos = 0;
-  const targets = activeTargets();
+  const targets = activeTargets(input);
   const perPortal: Record<string, { recebidos: number; aproveitados: number; descartados: number }> = {};
   for (const t of targets) perPortal[t] = { recebidos: 0, aproveitados: 0, descartados: 0 };
   const loggedShape = new Set<string>();

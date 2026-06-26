@@ -1,28 +1,25 @@
-## Problema
+## Plano
 
-No passo 4 ("Portais") do formulário detalhado, **Chaves na Mão** aparece como "Em breve" e não pode ser selecionada — mesmo já tendo sido integrada no backend (adapter + runner) e disponível em Configurações.
+1. **Padronizar o estado do portal Chaves na Mão**
+   - Corrigir a inconsistência atual: algumas telas salvam `true/false`, outras leem `1/0`.
+   - Usar um único formato para `localStorage.portal.chavesnamao` e aceitar os valores antigos para não quebrar quem já configurou.
 
-Isso é só um detalhe visual hardcoded em `src/routes/app.novo-estudo.tsx` linha 31:
+2. **Fazer o runner respeitar a seleção do estudo**
+   - Além do `localStorage`, usar também `input.portais` do formulário.
+   - Se o estudo tiver `Chaves na Mão` marcado, a busca deve obrigatoriamente incluir `target: "chavesnamao.com.br"`.
+   - Zap continua sempre ativo como base.
 
-```ts
-{ nome: "Chaves na Mão", ativo: false }
-```
+3. **Sincronizar formulário e configurações**
+   - Em `/app/novo-estudo`, o card “Chaves na Mão” deve salvar no mesmo padrão usado pelo runner.
+   - Em `/app/configuracoes`, o switch deve ler e salvar o mesmo padrão.
+   - Ajustar o estado inicial para Chaves vir ligado por padrão quando nunca configurado.
 
-O runner já dispara as duas chamadas em paralelo quando o switch global está ligado em Configurações — o card do passo 4 só está desatualizado.
+4. **Deixar visível durante a busca**
+   - Atualizar a tela de carregamento para não dizer só “Buscando imóveis no Zap Imóveis”.
+   - Mostrar algo como “Buscando imóveis nos portais ativos” para evitar a impressão de que só Zap está rodando.
 
-## Mudanças
-
-**1. `src/routes/app.novo-estudo.tsx`**
-- Marcar `Chaves na Mão` como `ativo: true` na lista de portais.
-- Tornar os cards de portal **realmente clicáveis** (hoje são decorativos): Zap fica sempre ligado, Chaves na Mão alterna `localStorage.portal.chavesnamao` no clique, com check mark e estado visual sincronizados.
-- Os outros (Viva Real / OLX / Imovelweb) continuam "Em breve" e disabled.
-
-**2. Sincronia com Configurações**
-- Ler o valor inicial de `localStorage.portal.chavesnamao` (default `true`) ao montar o passo.
-- Salvar imediatamente ao clicar — o `study-runner` já lê esse flag, então a próxima execução respeita a escolha feita aqui.
-- Mostrar uma linha de ajuda discreta: "Também configurável em Configurações → Portais ativos".
-
-## Fora de escopo
-
-- Não mexo no runner nem no adapter (já funcionam).
-- Não habilito Viva Real / OLX / Imovelweb (não estão integrados na GeckoAPI ainda).
+5. **Validação**
+   - Conferir que uma busca com Chaves marcado gera chamadas PLP para os dois targets:
+     - `zapimoveis.com.br`
+     - `chavesnamao.com.br`
+   - Conferir que, no funil do relatório, aparecem os contadores por portal.
