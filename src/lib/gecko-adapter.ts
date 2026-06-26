@@ -20,6 +20,30 @@ export function mapTipoToPropertyType(tipo: string): string | undefined {
   return PROPERTY_TYPE_MAP[tipo.trim().toLowerCase()];
 }
 
+/**
+ * Chaves na Mão uses lowercase aliases for propertyTypes:
+ * apartment, house, penthouse, land, commercial_room, loft, flat, farm.
+ */
+const CHAVES_TYPE_MAP: Record<string, string> = {
+  apartamento: "apartment",
+  apto: "apartment",
+  cobertura: "penthouse",
+  casa: "house",
+  sobrado: "house",
+  "casa de condomínio": "house",
+  "casa de condominio": "house",
+  studio: "flat",
+  kitnet: "flat",
+  loft: "loft",
+  terreno: "land",
+  comercial: "commercial_room",
+  sala: "commercial_room",
+};
+
+export function mapTipoToChavesAlias(tipo: string): string | undefined {
+  return CHAVES_TYPE_MAP[tipo.trim().toLowerCase()];
+}
+
 export function normalizeText(s: string): string {
   return s
     .normalize("NFD")
@@ -63,6 +87,17 @@ function parsePrice(v: unknown): number {
 
 export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóveis"): MockProperty | null {
   const anyItem = item as unknown as Record<string, any>;
+
+  // ---- Dispatch to Chaves na Mão parser when shape matches ----
+  // Chaves payloads expose `counts.bedrooms.count`, `prices.rawPrice`, `area.useful`.
+  const looksLikeChaves =
+    portal === "Chaves na Mão" ||
+    (anyItem.counts && anyItem.counts.bedrooms && typeof anyItem.counts.bedrooms === "object") ||
+    typeof anyItem.prices?.rawPrice === "number";
+  if (looksLikeChaves) {
+    return chavesItemToProperty(anyItem, portal);
+  }
+
   const desc: string = item.description ?? anyItem.title ?? anyItem.name ?? "";
 
   // Price — tolerant across portals (Zap nests under prices.mainValue;
@@ -208,6 +243,131 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     advertiserRating,
     virtualTourUrl: item.virtualTourUrl,
     agregadoCount,
+  };
+}
+
+/** Parser for Chaves na Mão PLP/PDP item shape — see docs/chavesnamao-com-br-plp. */
+function chavesItemToProperty(item: Record<string, any>, portal: string): MockProperty | null {
+  const desc: string = item.description ?? item.title ?? item.metaDescription ?? "";
+
+  const preco =
+    (typeof item.prices?.rawPrice === "number" ? item.prices.rawPrice : 0) ||
+    (typeof item.prices?.maxPrice === "number" ? item.prices.maxPrice : 0) ||
+    parsePrice(item.prices?.main) ||
+    0;
+  if (!preco) return null;
+
+  const areaUtilRaw =
+    (typeof item.area?.useful === "number" && item.area.useful > 0 ? item.area.useful : 0) ||
+    (typeof item.area?.total === "number" && item.area.total > 0 ? item.area.total : 0) ||
+    extractNumber(desc, [/(\d+(?:[.,]\d+)?)\s*m[²2]/i]);
+
+  const quartosRaw =
+    (typeof item.counts?.bedrooms?.count === "number" ? item.counts.bedrooms.count : null) ??
+    extractNumber(desc, [/(\d+)\s*quartos?/i, /(\d+)\s*dorm/i]);
+
+  const incomplete = quartosRaw === null || !areaUtilRaw || areaUtilRaw <= 0;
+  const quartos = quartosRaw ?? 0;
+  const areaUtil = areaUtilRaw && areaUtilRaw > 0 ? areaUtilRaw : 0;
+
+  const banheiros =
+    (typeof item.counts?.bathrooms?.count === "number" ? item.counts.bathrooms.count : null) ??
+    extractNumber(desc, [/(\d+)\s*banheiros?/i]) ??
+    Math.max(1, quartos - 1 || 1);
+  const suites =
+    (typeof item.counts?.suites?.count === "number" ? item.counts.suites.count : 0) ?? 0;
+  const vagas =
+    (typeof item.counts?.garages?.count === "number" ? item.counts.garages.count : null) ??
+    extractNumber(desc, [/(\d+)\s*vagas?/i]) ??
+    0;
+
+  const bairro: string = item.address?.neighborhood ?? "—";
+  const cidade: string = item.address?.city ?? "—";
+  const estado: string = item.address?.state ?? "—";
+  const latitude =
+    typeof item.address?.latitude === "number" ? item.address.latitude : undefined;
+  const longitude =
+    typeof item.address?.longitude === "number" ? item.address.longitude : undefined;
+
+  const imagem: string =
+    (typeof item.featuredImage === "string" ? item.featuredImage : "") ||
+    (Array.isArray(item.images) && typeof item.images[0] === "string" ? item.images[0] : "") ||
+    (Array.isArray(item.images) && item.images[0]?.url) ||
+    "";
+
+  const url: string = item.url ?? "";
+  const id: string = (item.id ?? item.listingId ?? url) || crypto.randomUUID();
+
+  const condominio =
+    typeof item.prices?.condominiumFee === "number" ? item.prices.condominiumFee : 0;
+  const iptu = typeof item.prices?.iptuValue === "number" ? item.prices.iptuValue : 0;
+
+  // updatedAt is the closest proxy to DOM for Chaves (no createdAt exposed).
+  const updatedAt = item.updatedAt ?? "";
+  let diasMercado: number | undefined;
+  if (updatedAt) {
+    const t = Date.parse(updatedAt);
+    if (!isNaN(t)) diasMercado = Math.max(0, Math.floor((Date.now() - t) / 86400000));
+  }
+
+  const adv = item.advertiser ?? {};
+  const phones = adv.phones ?? {};
+  const rawPhone: string | undefined =
+    phones.cellphone || phones.commercial || phones.landline || undefined;
+  const advertiserPhone = rawPhone;
+  // Derive WhatsApp link from a cell number (DDD+9 digits) when public.
+  let advertiserWhatsapp: string | undefined;
+  if (rawPhone && phones.public !== false) {
+    const digits = rawPhone.replace(/\D/g, "");
+    if (digits.length >= 10) {
+      advertiserWhatsapp = digits.startsWith("55") ? digits : `55${digits}`;
+    }
+  }
+  const advertiserCreci = adv.creci || undefined;
+  const advertiserRating =
+    typeof item.gmb?.rating === "number" ? item.gmb.rating : undefined;
+
+  const diferenciais: string[] = [
+    ...(Array.isArray(item.privativeAmenities) ? item.privativeAmenities : []),
+    ...(Array.isArray(item.commonAmenities) ? item.commonAmenities : []),
+  ];
+
+  const titulo: string = (item.title || desc || `Imóvel em ${bairro}`).slice(0, 80);
+
+  return {
+    id: String(id),
+    portal,
+    titulo,
+    url,
+    bairro,
+    cidade,
+    estado,
+    preco,
+    condominio,
+    iptu,
+    areaUtil,
+    quartos,
+    suites,
+    banheiros,
+    vagas,
+    descricao: desc,
+    anunciante: adv.name ?? "—",
+    diferenciais,
+    imagem,
+    dataColeta: new Date().toISOString().slice(0, 10),
+    incomplete,
+    latitude,
+    longitude,
+    diasMercado,
+    publicationType: item.highlighted ? "PREMIUM" : undefined,
+    mainAmenities: diferenciais.length ? diferenciais.slice(0, 5) : undefined,
+    infoTags: undefined,
+    advertiserPhone,
+    advertiserWhatsapp,
+    advertiserCreci,
+    advertiserRating,
+    virtualTourUrl: item.media?.tour360 || undefined,
+    agregadoCount: undefined,
   };
 }
 
