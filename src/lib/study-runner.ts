@@ -29,11 +29,11 @@ export function isChavesEnabled(): boolean {
 
 export function isOlxEnabled(): boolean {
   try {
-    if (typeof localStorage === "undefined") return false;
+    if (typeof localStorage === "undefined") return true;
     const v = localStorage.getItem("portal.olx");
-    if (v === null) return false; // default OFF — opt-in
+    if (v === null) return true; // default ON
     return v === "1" || v === "true";
-  } catch { return false; }
+  } catch { return true; }
 }
 
 function activeTargets(input?: StudyInput): PortalTarget[] {
