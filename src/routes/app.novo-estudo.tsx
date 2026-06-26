@@ -140,6 +140,7 @@ function NovoEstudo() {
   const handleSubmit = () => {
     const input = data as StudyInput;
     sessionStorage.setItem("rip:pending", JSON.stringify(input));
+    sessionStorage.setItem("rip:pending-radius", String(radiusKm));
     navigate({ to: "/app/carregando" });
   };
 
