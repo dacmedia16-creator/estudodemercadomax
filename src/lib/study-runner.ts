@@ -1,6 +1,6 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
-import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText } from "@/lib/gecko-adapter";
+import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
 import { DEFAULT_FIELD_MODES } from "@/lib/study-types";
@@ -196,9 +196,7 @@ export async function runStudy(
     const bairrosAlvo = [bairro, ...bairrosProximos].filter(Boolean).map(normalizeText);
     const tipoNorm = normalizeText(tipo);
     const matchesType = (p: MockProperty) => {
-      if (!tipoNorm) return true;
-      const hay = normalizeText(`${p.titulo} ${p.descricao}`);
-      return hay.includes(tipoNorm);
+      return isSameTipoFamily(p, tipo);
     };
     const inBairro = (p: MockProperty) =>
       bairrosAlvo.length === 0 || bairrosAlvo.includes(normalizeText(p.bairro));
@@ -394,8 +392,13 @@ export async function runStudy(
           (collected) => collected.filter((p) => matchEdificio(p, edificio)).length >= TARGET,
           "condominio",
         );
-        condoMatches = res.properties
-          .filter((p) => matchEdificio(p, edificio))
+        const condoRaw = res.properties.filter((p) => matchEdificio(p, edificio));
+        const condoTipoOk = condoRaw.filter((p) => isSameTipoFamily(p, tipo));
+        const removidosTipoCondo = condoRaw.length - condoTipoOk.length;
+        if (removidosTipoCondo > 0) {
+          funilBusca.push({ etapa: `Mesmo prédio: removidos por tipo (${tipo})`, total: removidosTipoCondo });
+        }
+        condoMatches = condoTipoOk
           .map((p) => {
             // Same-building proxy: if PLP lacked area/quartos, use the
             // user's own values — apartments in the same condo usually
@@ -428,6 +431,12 @@ export async function runStudy(
           "endereco",
         );
         enderecoMatches = res.properties.filter((p) => matchEndereco(p, enderecoRaw));
+        const enderecoTotal = enderecoMatches.length;
+        enderecoMatches = enderecoMatches.filter((p) => isSameTipoFamily(p, tipo));
+        const removidosTipoEnd = enderecoTotal - enderecoMatches.length;
+        if (removidosTipoEnd > 0) {
+          funilBusca.push({ etapa: `Mesmo endereço: removidos por tipo (${tipo})`, total: removidosTipoEnd });
+        }
         enderecoMatches.forEach((p) => mesmoEnderecoIds.add(p.id));
         funilBusca.push({ etapa: `Mesmo endereço (${res.pages} pág.)`, total: enderecoMatches.length });
       } catch { /* best-effort */ }
@@ -654,6 +663,16 @@ export async function runStudy(
     }
 
     funilBusca.push({ etapa: chosenLayer, total: chosen.length });
+    // Hard filter de tipo (apartamento ≠ casa, etc.) — derruba qualquer
+    // imóvel da família errada que tenha escapado das camadas anteriores.
+    {
+      const before = chosen.length;
+      chosen = chosen.filter((p) => isSameTipoFamily(p, tipo));
+      const removed = before - chosen.length;
+      if (removed > 0) {
+        funilBusca.push({ etapa: `Tipo incompatível (${tipo}) — removidos`, total: removed });
+      }
+    }
     // ---- Hard filters (campos extras marcados como "Obrigatório") ----
     {
       const modes: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(overrides.fieldModes ?? {}) };

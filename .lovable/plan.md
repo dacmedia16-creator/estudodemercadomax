@@ -1,38 +1,44 @@
-## Objetivo
-Adicionar um **modo apresentação em PDF (slides 16:9)** no relatório `/app/relatorio/:id`, para o corretor imprimir/salvar e apresentar ao proprietário. Mantém a identidade verde do Radar Imobiliário Pro.
+## Diagnóstico
+Olhei o `src/lib/study-runner.ts`. As **camadas 1 (mesmo condomínio) e 2 (mesmo endereço)** só aplicam `matchEdificio` / `matchEndereco` — **pulam o filtro de tipo**. Quando o sistema prioriza essas camadas (caso do estudo da imagem — quase todos os resultados estão marcados "Mesmo prédio"), qualquer "Casa de condomínio", "Sobrado" etc. publicado dentro do mesmo condomínio/endereço entra como comparável de "Apartamento".
 
-## Entregáveis
-Botão **"Apresentação para o proprietário"** no cabeçalho do relatório, ao lado do "Exportar PDF" atual. Ao clicar, ativa uma classe `print-mode-slides` no `<html>` e dispara `window.print()`. Cada slide ocupa exatamente uma página 16:9 (297mm × 167mm landscape).
+Também existem dois reforços que falharam:
+- O `propertyType` enviado ao Zap PLP serve só como filtro nativo; **se o portal não respeita, nada local descarta**.
+- O `matchesType` usado nas camadas seguintes verifica só se a palavra "apartamento" aparece no `titulo/descricao`. Vários anúncios de Zap/Chaves/OLX não trazem essa palavra explícita, então o fallback ainda deixa casas passarem.
 
-### Slides (uma página cada)
-1. **Capa** — logo, "Estudo de Mercado", endereço/edifício, cidade, data, nome do corretor (de Settings).
-2. **Imóvel analisado** — dados-chave em grid (tipo, área, quartos, suítes, vagas, andar, condomínio/IPTU, diferenciais) + foto/placeholder.
-3. **Valor recomendado (hero)** — número gigante centralizado, com mín. fechamento e máx. publicação ao lado, R$/m² médio, status vs. pretendido.
-4. **Análise ACM** — 4 fatores (localização, conservação, idade, padrão) com barras horizontais, multiplicador combinado, custo de reforma e valor avaliado do m².
-5. **Comparáveis de mercado** — tabela com top 6 (endereço · m² · quartos · preço · R$/m² · portal) + mini-funil de busca (total amostrado / similaridade média / portais).
-6. **Próximos passos** — pontos fortes vs. atenção lado a lado, sugestão comercial em destaque, rodapé com contato do corretor.
+Resultado: o estudo de Apartamento misturou "Casa de condomínio à venda…", "Casa de condomínio para comprar…", "Casa de condomínio para alugar…" do Zap.
 
-## Mudanças técnicas
+## Correção (apenas frontend / lógica, sem mexer em UI)
 
-1. **`src/styles.css`** — novo bloco `@media print` ativo somente quando `<html class="print-mode-slides">`:
-   - `@page { size: 297mm 167mm; margin: 0 }` (16:9 landscape paisagem).
-   - Cada `.slide-page` = `width:297mm; height:167mm; page-break-after: always; padding: 14mm 16mm;`.
-   - Esconde o conteúdo de tela e o one-pager A4 atual (`.print-onepager`, `.print-hide-on-print` continuam para o modo A4).
-   - Tipografia maior: títulos 28–40pt, valor hero 64pt, corpo 11pt.
+### 1. `src/lib/gecko-adapter.ts`
+- Exportar um helper `isSameTipoFamily(propertyOrTitle, tipoDesejado)` que considera:
+  - O campo estruturado do PLP (`propertyType`, `unitTypes`, `listingType`) quando disponível.
+  - Palavras-chave do título normalizado: famílias `apartamento` (apartamento, apto, cobertura, flat, studio, kitnet, loft) **excluindo** `casa`, `sobrado`, `casa de condomínio`, `chácara`, `sítio`, `terreno`, `comercial`, `sala`, etc.
+  - Família `casa` (casa, sobrado, casa de condomínio, casa térrea) excluindo apartamento/cobertura.
+  - Demais tipos por correspondência direta.
+- Anotar no `MockProperty` (já existe `propertyType` opcional via gecko) — só ler, não criar campo novo.
 
-2. **Novo `src/components/print-slides.tsx`** — componente único `<PrintSlides study={...} />` renderizado com `hidden` por padrão e visível apenas em `@media print` quando classe `print-mode-slides` está ativa. Renderiza os 6 slides listados acima reaproveitando `computeAcm`, `formatBRL` e os arrays já existentes em `StudyResult`.
+### 2. `src/lib/study-runner.ts`
+- Substituir `matchesType` pelo novo `isSameTipoFamily` em todos os lugares (camadas 3/cidade/livre).
+- **Aplicar o filtro de tipo nas camadas 1 e 2**:
+  - `condoMatches = res.properties.filter((p) => matchEdificio(p, edificio) && isSameTipoFamily(p, tipo))`
+  - `enderecoMatches = res.properties.filter((p) => matchEndereco(p, enderecoRaw) && isSameTipoFamily(p, tipo))`
+- Logar no funil quantos foram **removidos por tipo incompatível** em cada camada:
+  - `funilBusca.push({ etapa: "Removidos por tipo (mesmo prédio)", total: N })` quando `N > 0`.
+- Adicionar um **hard filter final** sobre `chosen` (após as camadas escolhidas e antes dos hard filters dos campos extras):
+  ```
+  const before = chosen.length;
+  chosen = chosen.filter((p) => isSameTipoFamily(p, tipo));
+  const removed = before - chosen.length;
+  if (removed > 0) funilBusca.push({ etapa: `Tipo incompatível (${tipo}) — removidos`, total: removed });
+  ```
+- Manter `propertyType`/`propertyTypes` já enviados ao Zap/Chaves (filtro nativo continua, é só backup).
 
-3. **`src/routes/app.relatorio.$id.tsx`** — adicionar:
-   - Botão "Apresentação para o proprietário" (ícone `Presentation` do lucide).
-   - Handler que faz: `document.documentElement.classList.add("print-mode-slides"); window.print();` e remove a classe no `afterprint`.
-   - Inclui `<PrintSlides study={study} />` ao lado do `<PrintOnePager />` atual. A classe controla qual dos dois aparece na impressão.
-
-4. **Sem novas dependências** — usa `window.print()` nativo, mesma estratégia do A4 atual.
+### 3. (Opcional, mantém o relatório transparente)
+- O bloco "Critérios da busca" no relatório já mostra o `tipo`. Sem mudança de UI necessária — o funil novo já comunica o descarte.
 
 ## Fora do escopo
-- Não alterar busca, cálculos ACM, dados ou layout da tela.
-- Não criar rota nova nem `.pptx`.
-- Não tocar no one-pager A4 existente; ele continua disponível pelo botão "Exportar PDF".
+- Não tocar em layout, ACM, slides, exportação PDF ou no fluxo do form.
+- Não alterar a chamada da Gecko nem adicionar nova requisição.
 
 ## Validação
-Abrir `/app/relatorio/:id` → clicar **"Apresentação para o proprietário"** → no diálogo de impressão escolher "Salvar como PDF" → conferir 6 páginas 16:9, valor recomendado em destaque na pág. 3, tabela de comparáveis cabendo na pág. 5.
+Reexecutar o estudo do print (Apartamento 78m² · Parque Morumbi). Esperado: as 4 linhas "Casa de condomínio…" do Zap desaparecem; o funil mostra `Removidos por tipo (mesmo prédio): N` e/ou `Tipo incompatível (Apartamento) — removidos: N`. Resto dos OLX/Zap (apartamentos) continua na tabela.
