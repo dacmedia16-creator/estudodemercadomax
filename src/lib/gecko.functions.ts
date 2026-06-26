@@ -4,7 +4,7 @@ import type { GeckoCallResult, GeckoPlpData, JsonValue } from "./gecko-types";
 
 const ENDPOINT = "https://api.geckoapi.com.br/v1/extract";
 
-const TARGETS = ["zapimoveis.com.br", "chavesnamao.com.br"] as const;
+const TARGETS = ["zapimoveis.com.br", "chavesnamao.com.br", "olx.com.br"] as const;
 type Target = (typeof TARGETS)[number];
 
 async function callGecko<T>(body: Record<string, unknown>, tokenOverride?: string): Promise<GeckoCallResult<T>> {
@@ -73,6 +73,9 @@ const plpInput = z.object({
   condominium: z.boolean().optional(),
   includeLaunches: z.boolean().optional(),
   sort: z.string().optional(),
+  // OLX-only PLP fields.
+  region: z.string().optional(),
+  categoryPath: z.string().optional(),
   bedrooms: z.array(z.number().int()).optional(),
   bathrooms: z.array(z.number().int()).optional(),
   parkingSpots: z.array(z.number().int()).optional(),
@@ -92,14 +95,40 @@ export const geckoPlp = createServerFn({ method: "POST" })
     const {
       city, state, keyword, target, propertyType,
       neighborhood, propertyTypes, amenities, directOwner, condominium, includeLaunches, sort,
+      region, categoryPath,
       bedrooms, bathrooms, parkingSpots, priceMin, priceMax, areaMin, areaMax,
       latitude, longitude, radius, ...rest
     } = data;
     const hasCity = !!city && city.trim().length > 0;
     const hasState = !!state && state.trim().length === 2;
     const hasKeyword = !!keyword && keyword.trim().length > 0;
-    if (!hasCity && !hasKeyword) {
+    if (target === "olx.com.br") {
+      // OLX PLP requires `state` (UF 2 letras) when no URL is provided.
+      if (!hasState) {
+        return { ok: false as const, status: 0, errorCode: "MISSING_QUERY", errorMessage: "OLX exige UF (state) na busca PLP." };
+      }
+    } else if (!hasCity && !hasKeyword) {
       return { ok: false as const, status: 0, errorCode: "MISSING_QUERY", errorMessage: "Informe ao menos uma cidade ou palavra-chave para buscar." };
+    }
+    // OLX uses a completely different parameter vocabulary — handle it
+    // separately to avoid sending fields the upstream rejects.
+    if (target === "olx.com.br") {
+      const olxBody: Record<string, unknown> = {
+        target,
+        type: "plp",
+        state,
+        page: rest.page,
+        businessType: rest.businessType,
+      };
+      if (hasCity) olxBody.city = city;
+      if (hasKeyword) olxBody.keyword = keyword;
+      if (region && region.trim()) olxBody.region = region;
+      if (categoryPath && categoryPath.trim()) olxBody.categoryPath = categoryPath;
+      if (typeof priceMin === "number" && priceMin >= 0) olxBody.priceMin = priceMin;
+      if (typeof priceMax === "number" && priceMax >= 0) olxBody.priceMax = priceMax;
+      if (sort) olxBody.sort = sort;
+      Object.keys(olxBody).forEach((k) => olxBody[k] === undefined && delete olxBody[k]);
+      return callGecko<GeckoPlpData>(olxBody);
     }
     const body: Record<string, unknown> = {
       target,
