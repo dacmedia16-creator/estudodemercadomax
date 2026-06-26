@@ -65,6 +65,14 @@ const plpInput = z.object({
   businessType: z.enum(["sale", "rent"]),
   keyword: z.string().optional(),
   propertyType: z.string().optional(),
+  // Chaves na Mão–specific (harmless when target=zap and field absent).
+  neighborhood: z.string().optional(),
+  propertyTypes: z.array(z.string()).optional(),
+  amenities: z.array(z.string()).optional(),
+  directOwner: z.boolean().optional(),
+  condominium: z.boolean().optional(),
+  includeLaunches: z.boolean().optional(),
+  sort: z.string().optional(),
   bedrooms: z.array(z.number().int()).optional(),
   bathrooms: z.array(z.number().int()).optional(),
   parkingSpots: z.array(z.number().int()).optional(),
@@ -81,7 +89,12 @@ const plpInput = z.object({
 export const geckoPlp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => plpInput.parse(d))
   .handler(async ({ data }) => {
-    const { city, state, keyword, target, propertyType, bedrooms, bathrooms, parkingSpots, priceMin, priceMax, areaMin, areaMax, latitude, longitude, radius, ...rest } = data;
+    const {
+      city, state, keyword, target, propertyType,
+      neighborhood, propertyTypes, amenities, directOwner, condominium, includeLaunches, sort,
+      bedrooms, bathrooms, parkingSpots, priceMin, priceMax, areaMin, areaMax,
+      latitude, longitude, radius, ...rest
+    } = data;
     const hasCity = !!city && city.trim().length > 0;
     const hasState = !!state && state.trim().length === 2;
     const hasKeyword = !!keyword && keyword.trim().length > 0;
@@ -95,10 +108,21 @@ export const geckoPlp = createServerFn({ method: "POST" })
     };
     if (hasCity) body.city = city;
     if (hasState) body.state = state;
-    if (hasKeyword) body.keyword = keyword;
+    // Chaves PLP does NOT accept `keyword` — only Zap does.
+    if (hasKeyword && target === "zapimoveis.com.br") body.keyword = keyword;
     // propertyType uses Zap's vocabulary (APARTMENT/HOME/…); only send it
     // when targeting Zap to avoid over-filtering on Chaves na Mão.
     if (propertyType && target === "zapimoveis.com.br") body.propertyType = propertyType;
+    // Chaves-only fields.
+    if (target === "chavesnamao.com.br") {
+      if (neighborhood && neighborhood.trim().length > 0) body.neighborhood = neighborhood;
+      if (propertyTypes && propertyTypes.length) body.propertyTypes = propertyTypes;
+      if (amenities && amenities.length) body.amenities = amenities;
+      if (typeof directOwner === "boolean") body.directOwner = directOwner;
+      if (typeof condominium === "boolean") body.condominium = condominium;
+      if (typeof includeLaunches === "boolean") body.includeLaunches = includeLaunches;
+      if (sort) body.sort = sort;
+    }
     // Native PLP filters — supported by Zap (and harmless when ignored by Chaves).
     if (bedrooms && bedrooms.length) body.bedrooms = bedrooms;
     if (bathrooms && bathrooms.length) body.bathrooms = bathrooms;
