@@ -62,6 +62,7 @@ type PlpParams = {
   latitude?: number;
   longitude?: number;
   radius?: number;
+  includeLaunches?: boolean;
 };
 
 /**
@@ -103,6 +104,13 @@ export async function runStudy(
   const loggedShape = new Set<string>();
   const plpNotFoundPerTarget: Record<string, number> = {};
   for (const t of targets) plpNotFoundPerTarget[t] = 0;
+  // Chaves-only counters exposed by the PLP response.
+  const launchesFilteredPerTarget: Record<string, number> = {};
+  const coordFilteredPerTarget: Record<string, number> = {};
+  for (const t of targets) {
+    launchesFilteredPerTarget[t] = 0;
+    coordFilteredPerTarget[t] = 0;
+  }
   let geoLat: number | undefined;
   let geoLng: number | undefined;
   let geoLabel: string | undefined;
@@ -214,6 +222,9 @@ export async function runStudy(
                       latitude: params.latitude,
                       longitude: params.longitude,
                       // Chaves worker applies a fixed 2 km radius when lat/lng are sent — no `radius` field.
+                      // Doc default is already false; we send explicitly so launches never
+                      // contaminate the comparable median.
+                      includeLaunches: false,
                     }
                   : params;
               const res = await geckoPlp({ data: { ...portalParams, target: t, page } });
@@ -240,6 +251,12 @@ export async function runStudy(
           if (typeof rawData.totalResults === "number") {
             totalResultsPerTarget[t] = Math.max(totalResultsPerTarget[t] ?? 0, rawData.totalResults);
           }
+          if (typeof rawData.launchesFilteredOut === "number") {
+            launchesFilteredPerTarget[t] += rawData.launchesFilteredOut;
+          }
+          if (typeof rawData.coordinateFilteredOut === "number") {
+            coordFilteredPerTarget[t] += rawData.coordinateFilteredOut;
+          }
           // Tolerate alternative payload shapes (Chaves na Mão may return
           // `results`/`properties`/`ads` instead of `items`).
           const items: any[] =
@@ -257,6 +274,10 @@ export async function runStudy(
           if (items.length === 0 || (hasNextField && nextIsFalsy)) {
             if (items.length === 0) exhaustedGlobal.add(t);
             else if (hasNextField && nextIsFalsy) exhaustedGlobal.add(t);
+          }
+          // Doc: Chaves returns `totalPages`. Stop early once consumed.
+          if (typeof rawData.totalPages === "number" && page >= rawData.totalPages) {
+            exhaustedGlobal.add(t);
           }
           if (items.length === 0) continue;
           anyItems = true;
@@ -454,6 +475,14 @@ export async function runStudy(
       }
       if (exhaustedGlobal.has(t)) {
         funilBusca.push({ etapa: `${PORTAL_TARGETS[t]}: portal esgotado (sem mais páginas)`, total: 1 });
+      }
+      const lf = launchesFilteredPerTarget[t] ?? 0;
+      if (lf > 0) {
+        funilBusca.push({ etapa: `${PORTAL_TARGETS[t]}: lançamentos removidos (worker)`, total: lf });
+      }
+      const cf = coordFilteredPerTarget[t] ?? 0;
+      if (cf > 0) {
+        funilBusca.push({ etapa: `${PORTAL_TARGETS[t]}: fora do raio 2 km (worker)`, total: cf });
       }
     }
     const agregados = mainProperties.filter((p) => (p.agregadoCount ?? 0) > 0).length;
