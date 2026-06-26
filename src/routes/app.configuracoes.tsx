@@ -18,11 +18,12 @@ function Configuracoes() {
   const [tokenConfigured, setTokenConfigured] = useState<boolean | null>(null);
   const [endpoint, setEndpoint] = useState("https://api.geckoapi.com.br/v1/extract");
   const [testUrl, setTestUrl] = useState("https://www.zapimoveis.com.br/imovel/aluguel-apartamento-4-quartos-com-piscina-agua-verde-curitiba-pr-158m2-id-2795564422/");
-  const [testTarget, setTestTarget] = useState<"zapimoveis.com.br" | "chavesnamao.com.br">("zapimoveis.com.br");
+  const [testTarget, setTestTarget] = useState<"zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br">("zapimoveis.com.br");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
   const [plpKeyword, setPlpKeyword] = useState("apartamento 3 quartos");
   const [plpCity, setPlpCity] = useState("Curitiba");
+  const [plpState, setPlpState] = useState("PR");
   const [plpTesting, setPlpTesting] = useState(false);
   const [plpResult, setPlpResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
   const [chavesOn, setChavesOn] = useState<boolean>(() => {
@@ -30,11 +31,21 @@ function Configuracoes() {
     const v = localStorage.getItem("portal.chavesnamao");
     return v === null ? true : v === "1" || v === "true";
   });
+  const [olxOn, setOlxOn] = useState<boolean>(() => {
+    if (typeof localStorage === "undefined") return false;
+    const v = localStorage.getItem("portal.olx");
+    return v === null ? false : v === "1" || v === "true";
+  });
 
   const toggleChaves = (on: boolean) => {
     setChavesOn(on);
     try { localStorage.setItem("portal.chavesnamao", on ? "1" : "0"); } catch {}
     toast.success(on ? "Chaves na Mão ativada nas buscas." : "Chaves na Mão desativada.");
+  };
+  const toggleOlx = (on: boolean) => {
+    setOlxOn(on);
+    try { localStorage.setItem("portal.olx", on ? "1" : "0"); } catch {}
+    toast.success(on ? "OLX ativada nas buscas." : "OLX desativada.");
   };
 
   useEffect(() => {
@@ -74,7 +85,7 @@ function Configuracoes() {
     setPlpTesting(true);
     setPlpResult(null);
     try {
-      const res = await geckoTestPlp({ data: { target: testTarget, city: plpCity, keyword: plpKeyword, businessType: "sale" } });
+      const res = await geckoTestPlp({ data: { target: testTarget, city: plpCity, keyword: plpKeyword, state: plpState, businessType: "sale" } });
       if (res.ok) {
         const d = res.data as any;
         const items = d?.items ?? [];
@@ -157,16 +168,21 @@ function Configuracoes() {
             <select
               value={testTarget}
               onChange={(e) => {
-                const v = e.target.value as "zapimoveis.com.br" | "chavesnamao.com.br";
+                const v = e.target.value as "zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br";
                 setTestTarget(v);
-                setTestUrl(v === "chavesnamao.com.br"
-                  ? "https://www.chavesnamao.com.br/imovel/apartamento-a-venda-4-quartos-com-garagem-sc-balneario-picarras-centro-496m2-RS5990000/id-29279133/"
-                  : "https://www.zapimoveis.com.br/imovel/aluguel-apartamento-4-quartos-com-piscina-agua-verde-curitiba-pr-158m2-id-2795564422/");
+                setTestUrl(
+                  v === "chavesnamao.com.br"
+                    ? "https://www.chavesnamao.com.br/imovel/apartamento-a-venda-4-quartos-com-garagem-sc-balneario-picarras-centro-496m2-RS5990000/id-29279133/"
+                    : v === "olx.com.br"
+                    ? "https://sp.olx.com.br/sorocaba-e-regiao/imoveis/apartamento-3-quartos-parque-campolim-sorocaba-1234567890"
+                    : "https://www.zapimoveis.com.br/imovel/aluguel-apartamento-4-quartos-com-piscina-agua-verde-curitiba-pr-158m2-id-2795564422/",
+                );
               }}
               className="h-9 rounded-md border border-input bg-card px-2 text-sm"
             >
               <option value="zapimoveis.com.br">Zap Imóveis</option>
               <option value="chavesnamao.com.br">Chaves na Mão</option>
+              <option value="olx.com.br">OLX</option>
             </select>
             <Input value={testUrl} onChange={(e) => setTestUrl(e.target.value)} placeholder="https://www..." />
             <Button onClick={handleTest} disabled={testing || !testUrl} className="gap-2">
@@ -189,7 +205,8 @@ function Configuracoes() {
           <p className="mt-1 text-xs text-muted-foreground">
             Dispara uma busca real no portal selecionado acima e mostra o JSON cru do primeiro item — útil para validar o shape de cada portal.
           </p>
-          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+          <div className="mt-3 grid gap-2 md:grid-cols-[120px_1fr_1fr_auto]">
+            <Input value={plpState} onChange={(e) => setPlpState(e.target.value.toUpperCase().slice(0, 2))} placeholder="UF (ex: SP)" maxLength={2} />
             <Input value={plpCity} onChange={(e) => setPlpCity(e.target.value)} placeholder="Cidade (ex: Curitiba)" />
             <Input value={plpKeyword} onChange={(e) => setPlpKeyword(e.target.value)} placeholder="Keyword (ex: apartamento 3 quartos)" />
             <Button onClick={handleTestPlp} disabled={plpTesting || (!plpCity && !plpKeyword)} className="gap-2">
@@ -213,7 +230,7 @@ function Configuracoes() {
             { n: "Zap Imóveis", on: true, locked: true, checked: true },
             { n: "Chaves na Mão", on: true, locked: false, checked: chavesOn, toggle: toggleChaves },
             { n: "Viva Real", on: false, locked: true, checked: false },
-            { n: "OLX", on: false, locked: true, checked: false },
+            { n: "OLX", on: true, locked: false, checked: olxOn, toggle: toggleOlx },
             { n: "Imovelweb", on: false, locked: true, checked: false },
           ].map((p) => (
             <div key={p.n} className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">

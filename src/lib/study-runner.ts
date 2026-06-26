@@ -9,11 +9,13 @@ import type { MockProperty } from "@/lib/mock-properties";
 const PORTAL_TARGETS = {
   "zapimoveis.com.br": "Zap Imóveis",
   "chavesnamao.com.br": "Chaves na Mão",
+  "olx.com.br": "OLX",
 } as const;
 type PortalTarget = keyof typeof PORTAL_TARGETS;
 const PORTAL_NAME_TO_TARGET: Record<string, PortalTarget> = {
   "Zap Imóveis": "zapimoveis.com.br",
   "Chaves na Mão": "chavesnamao.com.br",
+  "OLX": "olx.com.br",
 };
 
 export function isChavesEnabled(): boolean {
@@ -25,6 +27,15 @@ export function isChavesEnabled(): boolean {
   } catch { return true; }
 }
 
+export function isOlxEnabled(): boolean {
+  try {
+    if (typeof localStorage === "undefined") return false;
+    const v = localStorage.getItem("portal.olx");
+    if (v === null) return false; // default OFF — opt-in
+    return v === "1" || v === "true";
+  } catch { return false; }
+}
+
 function activeTargets(input?: StudyInput): PortalTarget[] {
   const list: PortalTarget[] = ["zapimoveis.com.br"];
   // Per-study selection wins over the global toggle.
@@ -32,7 +43,32 @@ function activeTargets(input?: StudyInput): PortalTarget[] {
   const hasChavesInStudy = portais.some((p) => p.toLowerCase().includes("chaves"));
   const enabled = portais.length > 0 ? hasChavesInStudy : isChavesEnabled();
   if (enabled) list.push("chavesnamao.com.br");
+  const hasOlxInStudy = portais.some((p) => p.toLowerCase() === "olx" || p.toLowerCase().includes("olx"));
+  const olxOn = portais.length > 0 ? hasOlxInStudy : isOlxEnabled();
+  if (olxOn) list.push("olx.com.br");
   return list;
+}
+
+/** Maps "Apartamento"/"Venda" → "imoveis/venda-de-apartamentos" for OLX PLP. */
+function mapTipoToOlxCategory(tipo: string, businessType: "sale" | "rent"): string {
+  const t = normalizeText(tipo);
+  const slugByTipo: Record<string, string> = {
+    apartamento: "apartamentos",
+    apto: "apartamentos",
+    cobertura: "apartamentos",
+    casa: "casas",
+    sobrado: "casas",
+    "casa de condominio": "casas",
+    studio: "apartamentos",
+    kitnet: "apartamentos",
+    terreno: "terrenos",
+    comercial: "comerciais",
+    sala: "comerciais",
+  };
+  const slug = slugByTipo[t];
+  if (!slug) return "imoveis";
+  const prefix = businessType === "rent" ? "aluguel" : "venda";
+  return `imoveis/${prefix}-de-${slug}`;
 }
 
 export interface RunStudyOutcome {
@@ -64,6 +100,10 @@ type PlpParams = {
   longitude?: number;
   radius?: number;
   includeLaunches?: boolean;
+  /** OLX PLP — category slug (e.g. "imoveis/venda-de-apartamentos"). */
+  categoryPath?: string;
+  /** OLX PLP — textual region (e.g. "Regiao de Bauru e Marilia"). */
+  region?: string;
 };
 
 /**
@@ -239,6 +279,18 @@ export async function runStudy(
                       // contaminate the comparable median.
                       includeLaunches: false,
                     }
+                  : t === "olx.com.br"
+                  ? ({
+                      city: params.city,
+                      state: params.state,
+                      businessType: params.businessType,
+                      keyword: params.keyword,
+                      priceMin: params.priceMin,
+                      priceMax: params.priceMax,
+                      // OLX-specific: classify under the right real-estate path
+                      // to avoid noise from other categories.
+                      ...({ categoryPath: mapTipoToOlxCategory(tipo, params.businessType) } as Record<string, unknown>),
+                    } as PlpParams)
                   : params;
               const res = await geckoPlp({ data: { ...portalParams, target: t, page } });
               return { t, res };
