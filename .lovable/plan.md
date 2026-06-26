@@ -1,55 +1,38 @@
 ## Objetivo
-Refazer o layout de impressão do relatório para caber tudo em **uma única folha A4**, mantendo hierarquia visual clara e destaque para o valor recomendado.
+Adicionar um **modo apresentação em PDF (slides 16:9)** no relatório `/app/relatorio/:id`, para o corretor imprimir/salvar e apresentar ao proprietário. Mantém a identidade verde do Radar Imobiliário Pro.
 
-## Estratégia
-Trocar o modelo atual (capa + várias seções com `page-break`) por um **dashboard de uma página** estilo "one-pager executivo", com grid denso e tipografia reduzida apenas no modo `@media print`. A visualização na tela continua igual.
+## Entregáveis
+Botão **"Apresentação para o proprietário"** no cabeçalho do relatório, ao lado do "Exportar PDF" atual. Ao clicar, ativa uma classe `print-mode-slides` no `<html>` e dispara `window.print()`. Cada slide ocupa exatamente uma página 16:9 (297mm × 167mm landscape).
 
-## Layout proposto (A4 retrato, margens 8mm)
-
-```text
-┌─────────────────────────────────────────────────────┐
-│ HEADER (slim)  Radar Imobiliário Pro · data · ID    │
-├─────────────────────────────────────────────────────┤
-│ TÍTULO DO IMÓVEL  ·  endereço · tipo · m² · quartos │
-├──────────────────────────┬──────────────────────────┤
-│  VALOR RECOMENDADO       │  Mín fechamento          │
-│  R$ XXX.XXX  (destaque)  │  Máx publicação          │
-│                          │  R$/m² · amostra · DOM   │
-├──────────────────────────┴──────────────────────────┤
-│ RESUMO ACM (3 colunas compactas: fatores | custos | │
-│ resultado)                                          │
-├─────────────────────────────────────────────────────┤
-│ COMPARÁVEIS (tabela enxuta, até 6 linhas)           │
-│ Endereço · m² · quartos · preço · R$/m² · portal    │
-├──────────────────────────┬──────────────────────────┤
-│ PONTOS FORTES (bullets)  │ PONTOS DE ATENÇÃO        │
-├──────────────────────────┴──────────────────────────┤
-│ FOOTER: sugestão comercial em 1 linha + paginação   │
-└─────────────────────────────────────────────────────┘
-```
+### Slides (uma página cada)
+1. **Capa** — logo, "Estudo de Mercado", endereço/edifício, cidade, data, nome do corretor (de Settings).
+2. **Imóvel analisado** — dados-chave em grid (tipo, área, quartos, suítes, vagas, andar, condomínio/IPTU, diferenciais) + foto/placeholder.
+3. **Valor recomendado (hero)** — número gigante centralizado, com mín. fechamento e máx. publicação ao lado, R$/m² médio, status vs. pretendido.
+4. **Análise ACM** — 4 fatores (localização, conservação, idade, padrão) com barras horizontais, multiplicador combinado, custo de reforma e valor avaliado do m².
+5. **Comparáveis de mercado** — tabela com top 6 (endereço · m² · quartos · preço · R$/m² · portal) + mini-funil de busca (total amostrado / similaridade média / portais).
+6. **Próximos passos** — pontos fortes vs. atenção lado a lado, sugestão comercial em destaque, rodapé com contato do corretor.
 
 ## Mudanças técnicas
 
-1. **`src/styles.css` – bloco `@media print`**
-   - `@page { size: A4; margin: 8mm }`.
-   - Reset de `font-size` base para 9pt; títulos 11–14pt; valor recomendado 28pt.
-   - Forçar `html, body { height: 297mm }` e desabilitar `page-break-*` antigos (`break-before: auto`).
-   - Nova classe utilitária `.print-onepager` com grid CSS (12 colunas, gap 6pt).
-   - Esconder elementos não essenciais: cards de indicadores duplicados, gráficos Recharts, painéis interativos, `CriteriosEditor`, `AcmPanel` sliders, badges grandes.
-   - Limitar tabela de comparáveis a 6 linhas via `tr:nth-child(n+7) { display:none }` no print.
+1. **`src/styles.css`** — novo bloco `@media print` ativo somente quando `<html class="print-mode-slides">`:
+   - `@page { size: 297mm 167mm; margin: 0 }` (16:9 landscape paisagem).
+   - Cada `.slide-page` = `width:297mm; height:167mm; page-break-after: always; padding: 14mm 16mm;`.
+   - Esconde o conteúdo de tela e o one-pager A4 atual (`.print-onepager`, `.print-hide-on-print` continuam para o modo A4).
+   - Tipografia maior: títulos 28–40pt, valor hero 64pt, corpo 11pt.
 
-2. **`src/routes/app.relatorio.$id.tsx`**
-   - Substituir o `PrintCover` atual por um componente `PrintOnePager` único renderizado apenas em `print` (`hidden print:block`), que monta o layout acima a partir do `study` já carregado.
-   - Esconder via `print:hidden` toda a versão tela do relatório durante impressão.
-   - Garantir que valores ACM (recomendado/mín/máx), top 6 comparáveis ordenados por similaridade, e até 4 bullets de cada coluna venham do mesmo state já existente — sem alterar lógica de cálculo.
+2. **Novo `src/components/print-slides.tsx`** — componente único `<PrintSlides study={...} />` renderizado com `hidden` por padrão e visível apenas em `@media print` quando classe `print-mode-slides` está ativa. Renderiza os 6 slides listados acima reaproveitando `computeAcm`, `formatBRL` e os arrays já existentes em `StudyResult`.
 
-3. **`src/components/acm-panel.tsx`**
-   - Já oculta sliders no print; adicionar variante compacta (`text-[9pt]`, sem cards grandes) quando dentro do `PrintOnePager`.
+3. **`src/routes/app.relatorio.$id.tsx`** — adicionar:
+   - Botão "Apresentação para o proprietário" (ícone `Presentation` do lucide).
+   - Handler que faz: `document.documentElement.classList.add("print-mode-slides"); window.print();` e remove a classe no `afterprint`.
+   - Inclui `<PrintSlides study={study} />` ao lado do `<PrintOnePager />` atual. A classe controla qual dos dois aparece na impressão.
+
+4. **Sem novas dependências** — usa `window.print()` nativo, mesma estratégia do A4 atual.
 
 ## Fora do escopo
-- Não mexer em cálculos, busca, ou dados.
-- Sem mudanças visuais na tela (somente `@media print`).
-- Sem nova dependência de PDF; continua via `window.print()`.
+- Não alterar busca, cálculos ACM, dados ou layout da tela.
+- Não criar rota nova nem `.pptx`.
+- Não tocar no one-pager A4 existente; ele continua disponível pelo botão "Exportar PDF".
 
 ## Validação
-Abrir `/app/relatorio/:id`, `Ctrl+P` → "Salvar como PDF" → conferir que cabe em 1 página A4 com hierarquia legível e o valor recomendado em destaque.
+Abrir `/app/relatorio/:id` → clicar **"Apresentação para o proprietário"** → no diálogo de impressão escolher "Salvar como PDF" → conferir 6 páginas 16:9, valor recomendado em destaque na pág. 3, tabela de comparáveis cabendo na pág. 5.
