@@ -1,6 +1,6 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
-import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText } from "@/lib/gecko-adapter";
+import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
 import { DEFAULT_FIELD_MODES } from "@/lib/study-types";
@@ -196,9 +196,7 @@ export async function runStudy(
     const bairrosAlvo = [bairro, ...bairrosProximos].filter(Boolean).map(normalizeText);
     const tipoNorm = normalizeText(tipo);
     const matchesType = (p: MockProperty) => {
-      if (!tipoNorm) return true;
-      const hay = normalizeText(`${p.titulo} ${p.descricao}`);
-      return hay.includes(tipoNorm);
+      return isSameTipoFamily(p, tipo);
     };
     const inBairro = (p: MockProperty) =>
       bairrosAlvo.length === 0 || bairrosAlvo.includes(normalizeText(p.bairro));
