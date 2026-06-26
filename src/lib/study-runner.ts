@@ -729,10 +729,12 @@ function matchEndereco(p: MockProperty, endereco: string): boolean {
     "rua", "r", "avenida", "av", "travessa", "tv", "alameda", "al",
     "estrada", "rodovia", "rod", "praca", "praça", "largo", "via",
   ]);
-  const tokens = normalizeText(endereco).split(/\s+/).filter((t) => t.length >= 3 && !STOP.has(t));
-  if (tokens.length === 0) return false;
+  const allTokens = normalizeText(endereco).split(/[\s,]+/).filter(Boolean);
+  // Name tokens: alphabetic, ≥3 chars, not a stopword. Number is optional.
+  const nameTokens = allTokens.filter((t) => t.length >= 3 && !STOP.has(t) && !/^\d+$/.test(t));
+  if (nameTokens.length === 0) return false;
   const hay = normalizeText(`${p.titulo} ${p.descricao} ${p.bairro}`);
-  return tokens.every((t) => hay.includes(t));
+  return nameTokens.every((t) => hay.includes(t));
 }
 
 /** Haversine distance in kilometers between two lat/lng pairs. */
