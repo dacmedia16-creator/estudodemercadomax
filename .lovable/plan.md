@@ -1,80 +1,52 @@
-## Diagnóstico
 
-Estudando o doc do **Zapimoveis PDP** descobri **3 problemas** no nosso pipeline + várias oportunidades de enriquecimento que estamos jogando fora:
+## Estudo: GeckoAPI Zap Imóveis PLP
 
-1. **Bug silencioso de enriquecimento PDP.** Em `study-runner.ts` (linhas 354-358), o código lê `d.condominium` e `d.iptu`, mas o payload real do PDP entrega esses valores em `data.data.prices.monthlyCondoFee` e `data.data.prices.iptu`. Resultado: nenhum comparável recebe valor de condomínio/IPTU hoje.
-2. **`notFound: true` tratado como sucesso vazio.** O Gecko retorna HTTP 200 + `notFound: true` quando o anúncio sumiu. Hoje o adapter trata como dados ausentes e descarta — perdendo o sinal de que o anúncio expirou.
-3. **Erros de crédito/rate-limit (`402`, `429`) não têm mensagem clara.** A mensagem genérica esconde a causa real.
+Você só pediu pra estudar — abaixo o resumo do doc + o que dá pra melhorar no código atual quando quiser implementar. **Nada será alterado até você aprovar.**
 
-Além disso, o PDP entrega campos ricos (geolocalização, anunciante completo, datas, comodidades destacadas, tipo de publicação) que hoje são descartados.
+### O que o endpoint oferece
 
-## O que vai melhorar
+`POST /v1/extract` com `target: "zapimoveis.com.br"`, `type: "plp"`.
 
-**Correção do bug PDP** — comparáveis passam a mostrar condomínio e IPTU reais.
+**Inputs úteis que já podemos mandar (mas hoje NÃO mandamos):**
 
-**Novos dados em cada comparável** extraídos do PDP:
-- **Anunciante:** nome, CRECI, telefone, WhatsApp, rating
-- **Geolocalização:** latitude/longitude (preparada pra mapa futuro)
-- **Dias no mercado (DOM):** calculado a partir de `createdAt`
-- **Custo total mensal:** preço/m² + condomínio + IPTU somados
-- **Comodidades destacadas** (`mainAmenities`) e tags (`infoTags`, ex.: "Aceita financiamento")
-- **Publicação PREMIUM/STANDARD** (sinal de qualidade do anúncio)
+| Campo | O que faz | Status no nosso código |
+|---|---|---|
+| `bedrooms: int[]` | Filtra quartos no upstream | ❌ Aceito no Zod, **não enviado** pelo `study-runner` |
+| `bathrooms: int[]` | Filtra banheiros | ❌ Não enviado |
+| `parkingSpots: int[]` | Filtra vagas | ❌ Não enviado |
+| `priceMin` / `priceMax` | Faixa de preço no upstream | ❌ Não enviado |
+| `areaMin` / `areaMax` | Faixa de área (m²) | ❌ Não enviado |
+| `latitude` + `longitude` | Raio de 2 km ao redor do ponto | ❌ Não usado (mesmo quando temos lat/lng do CEP/PDP) |
 
-**Tratamento robusto:**
-- `notFound: true` → marca comparável como "Anúncio removido" em vez de ignorar
-- `402 INSUFFICIENT_CREDITS` → banner claro no relatório: "Sem créditos GeckoAPI"
-- `429 RATE_LIMIT` → já tem retry, vai ganhar mensagem específica
+Hoje o runner faz PLP "wide" e filtra tudo localmente, o que **gasta créditos** trazendo páginas cheias de anúncios fora da faixa. Mandar esses filtros nativos reduziria descartes e o número de páginas necessárias.
 
-**Relatório:**
-- Tabela de comparáveis ganha colunas opcionais: **Condomínio**, **IPTU**, **DOM** (dias no mercado), **Anunciante**
-- Card resumo mostra **anunciante com mais comparáveis** (insight competitivo)
+### Output (campos que valem aproveitar)
 
-## Detalhes técnicos
-
-### 1. `src/lib/gecko-types.ts`
-Estender `GeckoItem` (ou criar `GeckoPdpData`) com `prices.monthlyCondoFee`, `prices.iptu`, `address.latitude/longitude`, `advertiser.{mainPhone, whatsAppNumber, creci, rating}`, `createdAt`, `updatedAt`, `mainAmenities`, `infoTags`, `publicationType`, `virtualTourUrl`.
-
-### 2. `src/lib/mock-properties.ts` — `MockProperty`
-Adicionar campos opcionais:
-```ts
-latitude?: number;
-longitude?: number;
-diasMercado?: number;
-publicationType?: string;
-mainAmenities?: string[];
-infoTags?: string[];
-advertiserPhone?: string;
-advertiserWhatsapp?: string;
-advertiserCreci?: string;
-advertiserRating?: number;
-removido?: boolean;        // notFound do PDP
+```
+data.totalResults       → quantos resultados existem (decisão de parar paginação)
+data.nextPage           → null/ausente = última página (parar sem chamar mais)
+data.items[].address.latitude/longitude   → mapa + raio
+data.items[].prices.mainValue + period    → já usamos
+data.items[].amenities[] / stamps[]       → enriquece tabela
+data.items[].advertiser.{id,name}         → já agrupamos no relatório
+data.items[].childrenCount                → card agregado (vários anúncios juntos) — hoje tratamos como 1 só
 ```
 
-### 3. `src/lib/gecko-adapter.ts`
-- Mapear `prices.monthlyCondoFee` → `condominio` e `prices.iptu` → `iptu` (PLP às vezes já traz).
-- Mapear `address.latitude/longitude`.
-- Mapear `createdAt` → calcular `diasMercado = floor((now - createdAt)/86400000)`.
-- Mapear `advertiser.{mainPhone, whatsAppNumber, creci, rating.score}`.
-- Mapear `mainAmenities`, `infoTags`, `publicationType`, `virtualTourUrl`.
+**Limitação importante:** PLP **não** retorna `bedrooms`/`usableAreas` por item — por isso o adapter depende de regex na `description`. Por isso enviar `bedrooms`/`areaMin/Max` ao upstream é a **única forma barata** de pré-filtrar sem PDP.
 
-### 4. `src/lib/study-runner.ts`
-- **Corrigir leitura do PDP:** trocar `d.condominium / d.iptu / d.amenities` por leitura de `d.data.data.prices.monthlyCondoFee`, `d.data.data.prices.iptu`, `d.data.data.mainAmenities` etc. — passar pelo mesmo `geckoItemToProperty` para reuso.
-- Quando `pdp.notFound === true`, marcar `p.removido = true` e adicionar contador no funil.
-- Mensagens de erro específicas para `402` e `429` no `catch` final.
+### `notFound: true`
 
-### 5. `src/lib/gecko.functions.ts`
-Já propaga `notFound` corretamente — sem mudança estrutural, só garantir tipos atualizados.
+PLP também pode retornar `200` com `data: null` + `notFound: true` (cidade/UF que o Zap não reconhece). Hoje tratamos como "0 itens" e seguimos — está OK, mas vale logar como aviso explícito.
 
-### 6. `src/routes/app.relatorio.$id.tsx`
-- Tabela de comparáveis: adicionar colunas **Cond.**, **IPTU**, **DOM**, **Anunciante** (badge com WhatsApp clicável se existir).
-- Badge "Anúncio removido" em itens com `removido: true`.
-- Pequeno card "Top anunciantes da região" (agrupa comparáveis por `anunciante`).
+### Oportunidades concretas (lista de implementação futura)
 
-### 7. Sem mudanças
-- Schema do `gecko.functions.ts` request: o PDP só precisa de `url` + `target` + `type: "pdp"` (já fazemos).
-- Lógica das 3 camadas de busca (edifício → endereço → bairro): segue igual.
-- Custo de créditos: igual (mesmo número de chamadas PDP).
+1. **Mandar filtros nativos no PLP** (`bedrooms`, `areaMin/Max`, `priceMin/Max`) — corta páginas inúteis e ~30-50% menos PDPs descartados.
+2. **Usar `latitude`/`longitude` quando disponível** (do CEP via ViaCEP/geocoder ou do primeiro PDP) — raio de 2 km substitui as camadas frágeis de "mesmo endereço".
+3. **Parar paginação por `nextPage == null`** em vez de só pelo TARGET — economiza 1 chamada por layer no fim das listas curtas.
+4. **Expor `totalResults` no funil** — feedback útil ("achamos 824 anúncios, analisamos 24").
+5. **Logar `notFound: true` separadamente** no funil/warning.
+6. **Tratar `childrenCount > 0`** como badge "Anúncio agregado" e, opcionalmente, fazer 1 PDP extra para abrir os filhos.
 
-## Fora de escopo
-- Mapa interativo (latitude/longitude ficam preparados, mas integração com Leaflet/Mapbox fica pra outro plano).
-- Workflow assíncrono de imobiliárias (`/v1/workflows/runs`) — já discutido, sem implementação.
+### Conclusão
+
+A integração atual está funcional mas **subutiliza o PLP** — manda só city/state/keyword e filtra tudo no cliente. Os ganhos maiores vêm de #1 (filtros nativos) e #2 (lat/lng). Quando quiser implementar, me diga quais itens entram e eu monto um plano com o passo a passo de código.
