@@ -23,6 +23,7 @@ function Configuracoes() {
   const [testResult, setTestResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
   const [plpKeyword, setPlpKeyword] = useState("apartamento 3 quartos");
   const [plpCity, setPlpCity] = useState("Curitiba");
+  const [plpState, setPlpState] = useState("PR");
   const [plpTesting, setPlpTesting] = useState(false);
   const [plpResult, setPlpResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
   const [chavesOn, setChavesOn] = useState<boolean>(() => {
@@ -84,7 +85,7 @@ function Configuracoes() {
     setPlpTesting(true);
     setPlpResult(null);
     try {
-      const res = await geckoTestPlp({ data: { target: testTarget, city: plpCity, keyword: plpKeyword, businessType: "sale" } });
+      const res = await geckoTestPlp({ data: { target: testTarget, city: plpCity, keyword: plpKeyword, state: plpState, businessType: "sale" } });
       if (res.ok) {
         const d = res.data as any;
         const items = d?.items ?? [];
@@ -204,7 +205,8 @@ function Configuracoes() {
           <p className="mt-1 text-xs text-muted-foreground">
             Dispara uma busca real no portal selecionado acima e mostra o JSON cru do primeiro item — útil para validar o shape de cada portal.
           </p>
-          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+          <div className="mt-3 grid gap-2 md:grid-cols-[120px_1fr_1fr_auto]">
+            <Input value={plpState} onChange={(e) => setPlpState(e.target.value.toUpperCase().slice(0, 2))} placeholder="UF (ex: SP)" maxLength={2} />
             <Input value={plpCity} onChange={(e) => setPlpCity(e.target.value)} placeholder="Cidade (ex: Curitiba)" />
             <Input value={plpKeyword} onChange={(e) => setPlpKeyword(e.target.value)} placeholder="Keyword (ex: apartamento 3 quartos)" />
             <Button onClick={handleTestPlp} disabled={plpTesting || (!plpCity && !plpKeyword)} className="gap-2">
