@@ -32,9 +32,9 @@ function Configuracoes() {
     return v === null ? true : v === "1" || v === "true";
   });
   const [olxOn, setOlxOn] = useState<boolean>(() => {
-    if (typeof localStorage === "undefined") return false;
+    if (typeof localStorage === "undefined") return true;
     const v = localStorage.getItem("portal.olx");
-    return v === null ? false : v === "1" || v === "true";
+    return v === null ? true : v === "1" || v === "true";
   });
 
   const toggleChaves = (on: boolean) => {
