@@ -2,7 +2,8 @@ import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
 import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
-import type { StudyInput, StudyResult, SearchOverrides } from "@/lib/study-types";
+import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
+import { DEFAULT_FIELD_MODES } from "@/lib/study-types";
 import type { MockProperty } from "@/lib/mock-properties";
 
 const PORTAL_TARGETS = {
