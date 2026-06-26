@@ -757,12 +757,24 @@ export async function runStudy(
         hardChecks.push({ key: "iptu", label: `IPTU obrigatório (até ${Math.round(limite)})`, pass: (p) => typeof p.iptu !== "number" || p.iptu === 0 || p.iptu <= limite });
       }
       if (modes.diferenciais === "hard" && input.diferenciais.length > 0) {
-        const min = Math.ceil(input.diferenciais.length * 0.5);
-        hardChecks.push({
-          key: "diferenciais",
-          label: `Diferenciais obrigatório (≥${min} de ${input.diferenciais.length})`,
-          pass: (p) => input.diferenciais.filter((d) => p.diferenciais.includes(d)).length >= min,
-        });
+        // Só exige os diferenciais ESTRUTURAIS (Piscina, Academia, etc.).
+        // Itens subjetivos ("Vista livre", "Próximo ao metrô", "Reformado",
+        // "Novo") raramente aparecem na lista de amenities do anúncio e
+        // derrubariam comparáveis legítimos.
+        const required = input.diferenciais.filter(isStructuralDiferencial);
+        if (required.length > 0) {
+          const min = Math.max(1, Math.ceil(required.length * 0.5));
+          const reqNorm = required.map((d) => d.toLowerCase());
+          hardChecks.push({
+            key: "diferenciais",
+            label: `Diferenciais obrigatório (≥${min} de ${required.length} estruturais)`,
+            pass: (p) => {
+              const have = (p.diferenciais ?? []).map((d) => d.toLowerCase());
+              const hits = reqNorm.filter((d) => have.some((h) => h.includes(d) || d.includes(h))).length;
+              return hits >= min;
+            },
+          });
+        }
       }
       for (const check of hardChecks) {
         const before = chosen.length;
