@@ -367,7 +367,18 @@ function ReportPage() {
           {sorted.slice(0, 3).map((c) => (
             <Card key={c.id} className="overflow-hidden border-border/60">
               <div className="aspect-video w-full overflow-hidden bg-muted">
-                <img src={c.imagem} alt={c.titulo} className="h-full w-full object-cover" />
+                {c.imagem ? (
+                  <img
+                    src={c.imagem}
+                    alt={c.titulo}
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                ) : null}
               </div>
               <div className="p-4">
                 <div className="flex items-center justify-between">
