@@ -55,6 +55,7 @@ type PlpParams = {
   areaMax?: number;
   latitude?: number;
   longitude?: number;
+  radius?: number;
 };
 
 /**
@@ -106,6 +107,7 @@ export async function runStudy(
   const enderecoRaw = (input.endereco ?? "").trim();
   const usarEndereco = enderecoRaw.replace(/\s+/g, " ").length >= 4;
   const maxPages = Math.min(3, Math.max(1, overrides.maxPages ?? 3));
+  const radiusKm = Math.min(5, Math.max(1, overrides.radiusKm ?? 2));
   const TARGET = 8;
   const buscaLivre = !cidade || cidade.trim().length === 0;
 
@@ -305,6 +307,7 @@ export async function runStudy(
           areaMax: !buscaLivre && areaMax > 0 ? Math.round(areaMax) : undefined,
           latitude: geoLat,
           longitude: geoLng,
+          radius: geoLat && geoLng ? radiusKm : undefined,
         },
         (collected) => {
           const strict = collected.filter(buscaLivre ? matchesType : strictLocal).length;
@@ -333,7 +336,21 @@ export async function runStudy(
     }
     if (mainPages > 0) funilBusca.push({ etapa: `Páginas consultadas (bairro)`, total: mainPages });
     if (geoLat && geoLng) {
-      funilBusca.push({ etapa: `Geocoding ativo (raio 2 km${geoLabel ? ` · ${geoLabel.split(",").slice(0,2).join(",")}` : ""})`, total: 1 });
+      const removidosRaio = mainProperties.filter((p) => {
+        if (typeof p.latitude !== "number" || typeof p.longitude !== "number") return false;
+        return haversineKm(geoLat!, geoLng!, p.latitude, p.longitude) > radiusKm;
+      }).length;
+      funilBusca.push({
+        etapa: `Geocoding ativo (raio ${radiusKm} km${geoLabel ? ` · ${geoLabel.split(",").slice(0, 2).join(",")}` : ""})`,
+        total: 1,
+      });
+      if (removidosRaio > 0) {
+        funilBusca.push({ etapa: `Fora do raio (${radiusKm} km) — removidos`, total: removidosRaio });
+        mainProperties = mainProperties.filter((p) => {
+          if (typeof p.latitude !== "number" || typeof p.longitude !== "number") return true;
+          return haversineKm(geoLat!, geoLng!, p.latitude, p.longitude) <= radiusKm;
+        });
+      }
     }
     if (totalResultsUpstream > 0) funilBusca.push({ etapa: `Total disponível no portal (totalResults)`, total: totalResultsUpstream });
     funilBusca.push({ etapa: "Retornados pela API", total: mainProperties.length });
