@@ -62,6 +62,7 @@ type PlpParams = {
   latitude?: number;
   longitude?: number;
   radius?: number;
+  includeLaunches?: boolean;
 };
 
 /**
