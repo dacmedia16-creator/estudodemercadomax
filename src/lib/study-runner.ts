@@ -82,7 +82,8 @@ export async function runStudy(
   for (const t of targets) perPortal[t] = { recebidos: 0, aproveitados: 0, descartados: 0 };
   const loggedShape = new Set<string>();
   let totalResultsUpstream = 0;
-  let plpNotFoundCount = 0;
+  const plpNotFoundPerTarget: Record<string, number> = {};
+  for (const t of targets) plpNotFoundPerTarget[t] = 0;
   let geoLat: number | undefined;
   let geoLng: number | undefined;
   let geoLabel: string | undefined;
@@ -158,7 +159,19 @@ export async function runStudy(
           remaining.map(async (t) => {
             plpCalls++;
             try {
-              const res = await geckoPlp({ data: { ...params, target: t, page } });
+              // Per-portal params: Chaves na Mão doesn't speak Zap's
+              // PLP vocabulary (bedrooms/price/area/lat/lng/radius) and
+              // is picky about state codes. Strip those for Chaves.
+              const portalParams: PlpParams =
+                t === "chavesnamao.com.br"
+                  ? {
+                      city: params.city,
+                      state: "", // Chaves ignores/breaks on UF code
+                      businessType: params.businessType,
+                      keyword: params.keyword,
+                    }
+                  : params;
+              const res = await geckoPlp({ data: { ...portalParams, target: t, page } });
               return { t, res };
             } catch (e) {
               if (!firstError) firstError = (e as Error).message;
@@ -174,16 +187,32 @@ export async function runStudy(
             continue;
           }
           if (res.notFound) {
-            plpNotFoundCount++;
+            plpNotFoundPerTarget[t] = (plpNotFoundPerTarget[t] ?? 0) + 1;
             exhausted.add(t);
             continue;
           }
-          if (typeof res.data?.totalResults === "number") {
-            totalResultsUpstream = Math.max(totalResultsUpstream, res.data.totalResults);
+          const rawData = (res.data ?? {}) as any;
+          if (typeof rawData.totalResults === "number") {
+            totalResultsUpstream = Math.max(totalResultsUpstream, rawData.totalResults);
           }
-          // No next page → don't ask this portal again on later iterations.
-          if (res.data?.nextPage == null) exhausted.add(t);
-          const items = res.data?.items ?? [];
+          // Tolerate alternative payload shapes (Chaves na Mão may return
+          // `results`/`properties`/`ads` instead of `items`).
+          const items: any[] =
+            rawData.items ??
+            rawData.results ??
+            rawData.properties ??
+            rawData.ads ??
+            rawData.listings ??
+            [];
+          // Only mark exhausted when the portal truly has no more pages
+          // AND no items came back — `nextPage: undefined` with items is
+          // common in portals that don't expose the cursor.
+          const hasNextField = "nextPage" in rawData || "hasNextPage" in rawData;
+          const nextIsFalsy = rawData.nextPage == null || rawData.hasNextPage === false;
+          if (items.length === 0 || (hasNextField && nextIsFalsy)) {
+            if (items.length === 0) exhausted.add(t);
+            else if (hasNextField && nextIsFalsy) exhausted.add(t);
+          }
           if (items.length === 0) continue;
           anyItems = true;
           const portalName = PORTAL_TARGETS[t];
@@ -360,8 +389,11 @@ export async function runStudy(
     if (descartadosIncompletos > 0) {
       funilBusca.push({ etapa: "Sem área/quartos na listagem (descartados do filtro estrito)", total: descartadosIncompletos });
     }
-    if (plpNotFoundCount > 0) {
-      funilBusca.push({ etapa: "PLP notFound (cidade/UF não reconhecida pelo portal)", total: plpNotFoundCount });
+    for (const t of targets) {
+      const nf = plpNotFoundPerTarget[t] ?? 0;
+      if (nf > 0) {
+        funilBusca.push({ etapa: `${PORTAL_TARGETS[t]}: PLP notFound (cidade/UF não reconhecida)`, total: nf });
+      }
     }
     const agregados = mainProperties.filter((p) => (p.agregadoCount ?? 0) > 0).length;
     if (agregados > 0) {
