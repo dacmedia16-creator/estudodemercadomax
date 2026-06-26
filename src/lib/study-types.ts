@@ -79,4 +79,50 @@ export interface SearchOverrides {
   maxPages?: number;
   /** Search radius in km around the geocoded address (1–5). Default 2 when geo is available. */
   radiusKm?: number;
+  /**
+   * Per-field mode for the "extra" property attributes (suites, vagas, etc.).
+   * - "ignore": campo só aparece no relatório, não afeta busca nem similaridade.
+   * - "soft":   pesa na similaridade mas não elimina nada.
+   * - "hard":   imóveis que não batem são removidos do resultado final.
+   * Quando ausente, cada campo cai no default histórico (soft para suites/vagas/diferenciais, ignore para o resto).
+   */
+  fieldModes?: Partial<Record<FieldKey, FieldMode>>;
 }
+
+export type FieldMode = "ignore" | "soft" | "hard";
+export type FieldKey =
+  | "suites"
+  | "banheiros"
+  | "vagas"
+  | "andar"
+  | "anoConstrucao"
+  | "condominio"
+  | "iptu"
+  | "diferenciais";
+
+export const FIELD_KEYS: FieldKey[] = [
+  "suites", "banheiros", "vagas", "andar", "anoConstrucao", "condominio", "iptu", "diferenciais",
+];
+
+export const FIELD_LABELS: Record<FieldKey, string> = {
+  suites: "Suítes",
+  banheiros: "Banheiros",
+  vagas: "Vagas",
+  andar: "Andar",
+  anoConstrucao: "Ano de construção",
+  condominio: "Condomínio (R$)",
+  iptu: "IPTU (R$)",
+  diferenciais: "Diferenciais",
+};
+
+/** Default mode quando o usuário não escolheu nada — preserva o comportamento atual. */
+export const DEFAULT_FIELD_MODES: Record<FieldKey, FieldMode> = {
+  suites: "soft",
+  banheiros: "ignore",
+  vagas: "soft",
+  andar: "ignore",
+  anoConstrucao: "ignore",
+  condominio: "ignore",
+  iptu: "ignore",
+  diferenciais: "soft",
+};

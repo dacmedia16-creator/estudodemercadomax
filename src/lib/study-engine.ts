@@ -1,14 +1,24 @@
 import { mockProperties, type MockProperty } from "./mock-properties";
-import type { ComparableProperty, StudyInput, StudyResult } from "./study-types";
+import type { ComparableProperty, StudyInput, StudyResult, FieldMode, FieldKey } from "./study-types";
+import { DEFAULT_FIELD_MODES } from "./study-types";
 
 const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / Math.max(arr.length, 1);
 
-function similarity(input: StudyInput, p: MockProperty): number {
+function similarity(
+  input: StudyInput,
+  p: MockProperty,
+  modes: Record<FieldKey, FieldMode>,
+): number {
   let score = 0;
   let total = 0;
   const w = (weight: number, match: number) => {
     score += weight * match;
     total += weight;
+  };
+  /** Modo "ignore" zera o peso do campo. Soft/Hard usam o peso normal. */
+  const wf = (key: FieldKey, weight: number, match: number) => {
+    if (modes[key] === "ignore") return;
+    w(weight, match);
   };
   w(20, p.bairro === input.bairro ? 1 : input.bairrosProximos.includes(p.bairro) ? 0.6 : 0.1);
   w(10, p.cidade === input.cidade ? 1 : 0);
@@ -18,18 +28,43 @@ function similarity(input: StudyInput, p: MockProperty): number {
   const areaScore = Math.max(0, 1 - areaDiffPct) + (areaDiffPct <= 0.05 ? 0.15 : 0);
   w(30, Math.min(1, areaScore));
   w(15, p.quartos === input.quartos ? 1 : Math.max(0, 1 - Math.abs(p.quartos - input.quartos) * 0.3));
-  w(8, p.vagas === input.vagas ? 1 : Math.max(0, 1 - Math.abs(p.vagas - input.vagas) * 0.4));
-  w(7, p.suites === input.suites ? 1 : 0.5);
+  wf("vagas", 8, p.vagas === input.vagas ? 1 : Math.max(0, 1 - Math.abs(p.vagas - input.vagas) * 0.4));
+  wf("suites", 7, p.suites === input.suites ? 1 : 0.5);
+  // Banheiros / andar / ano / condo / IPTU only contribute when user enables them.
+  if (typeof p.banheiros === "number") {
+    wf("banheiros", 5, p.banheiros === input.banheiros ? 1 : Math.max(0, 1 - Math.abs(p.banheiros - input.banheiros) * 0.3));
+  }
+  if (typeof (p as any).andar === "number" && typeof input.andar === "number") {
+    const diff = Math.abs((p as any).andar - input.andar);
+    wf("andar", 4, diff === 0 ? 1 : Math.max(0, 1 - diff * 0.15));
+  }
+  if (typeof (p as any).anoConstrucao === "number" && typeof input.anoConstrucao === "number" && input.anoConstrucao > 0) {
+    const diff = Math.abs((p as any).anoConstrucao - input.anoConstrucao);
+    wf("anoConstrucao", 5, diff === 0 ? 1 : Math.max(0, 1 - diff / 20));
+  }
+  if (typeof p.condominio === "number" && input.condominio > 0) {
+    const diffPct = Math.abs(p.condominio - input.condominio) / input.condominio;
+    wf("condominio", 4, Math.max(0, 1 - diffPct));
+  }
+  if (typeof p.iptu === "number" && input.iptu > 0) {
+    const diffPct = Math.abs(p.iptu - input.iptu) / input.iptu;
+    wf("iptu", 3, Math.max(0, 1 - diffPct));
+  }
   const diffMatch = input.diferenciais.length
     ? input.diferenciais.filter((d) => p.diferenciais.includes(d)).length /
       input.diferenciais.length
     : 0.5;
-  w(15, diffMatch);
+  wf("diferenciais", 15, diffMatch);
   w(10, 1 - Math.min(Math.abs(p.preco - input.valorPretendido) / Math.max(input.valorPretendido, 1), 1));
   return Math.round((score / total) * 100);
 }
 
-export function generateStudy(input: StudyInput, properties?: MockProperty[]): StudyResult {
+export function generateStudy(
+  input: StudyInput,
+  properties?: MockProperty[],
+  fieldModes?: Partial<Record<FieldKey, FieldMode>>,
+): StudyResult {
+  const modes: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(fieldModes ?? {}) };
   const allBairros = [input.bairro, ...input.bairrosProximos];
   const usingExternal = !!(properties && properties.length > 0);
   const source = usingExternal ? properties! : mockProperties;
@@ -38,7 +73,7 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
     .map<ComparableProperty>((p) => ({
       ...p,
       precoM2: Math.round(p.preco / p.areaUtil),
-      similaridade: similarity(input, p),
+      similaridade: similarity(input, p, modes),
     }))
     .sort((a, b) => b.similaridade - a.similaridade);
 

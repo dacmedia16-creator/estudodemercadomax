@@ -2,7 +2,8 @@ import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
 import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
-import type { StudyInput, StudyResult, SearchOverrides } from "@/lib/study-types";
+import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
+import { DEFAULT_FIELD_MODES } from "@/lib/study-types";
 import type { MockProperty } from "@/lib/mock-properties";
 
 const PORTAL_TARGETS = {
@@ -601,6 +602,50 @@ export async function runStudy(
     }
 
     funilBusca.push({ etapa: chosenLayer, total: chosen.length });
+    // ---- Hard filters (campos extras marcados como "Obrigatório") ----
+    {
+      const modes: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(overrides.fieldModes ?? {}) };
+      const hardChecks: { key: FieldKey; label: string; pass: (p: MockProperty) => boolean }[] = [];
+      if (modes.suites === "hard" && input.suites > 0) {
+        hardChecks.push({ key: "suites", label: `Suítes obrigatório (${input.suites} ±1)`, pass: (p) => Math.abs(p.suites - input.suites) <= 1 });
+      }
+      if (modes.banheiros === "hard" && input.banheiros > 0) {
+        hardChecks.push({ key: "banheiros", label: `Banheiros obrigatório (${input.banheiros} ±1)`, pass: (p) => typeof p.banheiros !== "number" || Math.abs(p.banheiros - input.banheiros) <= 1 });
+      }
+      if (modes.vagas === "hard" && input.vagas > 0) {
+        hardChecks.push({ key: "vagas", label: `Vagas obrigatório (${input.vagas} ±1)`, pass: (p) => Math.abs(p.vagas - input.vagas) <= 1 });
+      }
+      if (modes.andar === "hard" && typeof input.andar === "number" && input.andar > 0) {
+        hardChecks.push({ key: "andar", label: `Andar obrigatório (${input.andar} ±3)`, pass: (p) => typeof (p as any).andar !== "number" || Math.abs((p as any).andar - input.andar!) <= 3 });
+      }
+      if (modes.anoConstrucao === "hard" && typeof input.anoConstrucao === "number" && input.anoConstrucao > 0) {
+        hardChecks.push({ key: "anoConstrucao", label: `Ano obrigatório (${input.anoConstrucao} ±10)`, pass: (p) => typeof (p as any).anoConstrucao !== "number" || Math.abs((p as any).anoConstrucao - input.anoConstrucao!) <= 10 });
+      }
+      if (modes.condominio === "hard" && input.condominio > 0) {
+        const limite = input.condominio * 1.3;
+        hardChecks.push({ key: "condominio", label: `Condomínio obrigatório (até ${Math.round(limite)})`, pass: (p) => typeof p.condominio !== "number" || p.condominio === 0 || p.condominio <= limite });
+      }
+      if (modes.iptu === "hard" && input.iptu > 0) {
+        const limite = input.iptu * 1.3;
+        hardChecks.push({ key: "iptu", label: `IPTU obrigatório (até ${Math.round(limite)})`, pass: (p) => typeof p.iptu !== "number" || p.iptu === 0 || p.iptu <= limite });
+      }
+      if (modes.diferenciais === "hard" && input.diferenciais.length > 0) {
+        const min = Math.ceil(input.diferenciais.length * 0.5);
+        hardChecks.push({
+          key: "diferenciais",
+          label: `Diferenciais obrigatório (≥${min} de ${input.diferenciais.length})`,
+          pass: (p) => input.diferenciais.filter((d) => p.diferenciais.includes(d)).length >= min,
+        });
+      }
+      for (const check of hardChecks) {
+        const before = chosen.length;
+        chosen = chosen.filter(check.pass);
+        const removed = before - chosen.length;
+        if (removed > 0) {
+          funilBusca.push({ etapa: `Removidos por ${check.label}`, total: removed });
+        }
+      }
+    }
     // Por portal — mostra exatamente quantos do Zap e Chaves entraram no
     // conjunto final, para diagnosticar "sumiço" silencioso.
     {
@@ -690,7 +735,7 @@ export async function runStudy(
   }
 
   onStep?.(3);
-  const result = generateStudy(input, properties);
+  const result = generateStudy(input, properties, overrides.fieldModes);
   if (mesmoCondominioIds.size > 0) {
     result.comparaveis.forEach((c) => { if (mesmoCondominioIds.has(c.id)) c.mesmoCondominio = true; });
   }
