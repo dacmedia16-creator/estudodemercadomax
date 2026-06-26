@@ -663,6 +663,16 @@ export async function runStudy(
     }
 
     funilBusca.push({ etapa: chosenLayer, total: chosen.length });
+    // Hard filter de tipo (apartamento ≠ casa, etc.) — derruba qualquer
+    // imóvel da família errada que tenha escapado das camadas anteriores.
+    {
+      const before = chosen.length;
+      chosen = chosen.filter((p) => isSameTipoFamily(p, tipo));
+      const removed = before - chosen.length;
+      if (removed > 0) {
+        funilBusca.push({ etapa: `Tipo incompatível (${tipo}) — removidos`, total: removed });
+      }
+    }
     // ---- Hard filters (campos extras marcados como "Obrigatório") ----
     {
       const modes: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(overrides.fieldModes ?? {}) };
