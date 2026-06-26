@@ -15,7 +15,7 @@ export const Route = createFileRoute("/app/carregando")({
 
 const STEPS = [
   "Conectando à GeckoAPI",
-  "Buscando imóveis no Zap Imóveis",
+  "Buscando imóveis nos portais ativos",
   "Analisando imóveis encontrados",
   "Gerando estudo de mercado",
 ];
