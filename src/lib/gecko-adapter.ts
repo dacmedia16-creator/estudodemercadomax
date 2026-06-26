@@ -248,6 +248,11 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
 
 /** Parser for Chaves na Mão PLP/PDP item shape — see docs/chavesnamao-com-br-plp. */
 function chavesItemToProperty(item: Record<string, any>, portal: string): MockProperty | null {
+  // Per Chaves PLP doc: skip inactive and launch items locally — reinforces
+  // the server-side `includeLaunches: false` and protects against stale cards.
+  if (item.active === false) return null;
+  if (item.isLaunch === true) return null;
+  if (typeof item.status === "string" && item.status.toUpperCase() === "INACTIVE") return null;
   const desc: string = item.description ?? item.title ?? item.metaDescription ?? "";
 
   const preco =
