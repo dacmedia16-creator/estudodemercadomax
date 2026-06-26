@@ -1,6 +1,6 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
-import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, normalizeText } from "@/lib/gecko-adapter";
+import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides } from "@/lib/study-types";
 import type { MockProperty } from "@/lib/mock-properties";
@@ -50,6 +50,8 @@ type PlpParams = {
   businessType: "sale" | "rent";
   keyword?: string;
   propertyType?: string;
+  neighborhood?: string;
+  propertyTypes?: string[];
   bedrooms?: number[];
   bathrooms?: number[];
   parkingSpots?: number[];
@@ -94,6 +96,8 @@ export async function runStudy(
   // Persisted across all adaptivePaginate() calls — if a portal exhausts
   // on layer 1, layers 2/3 don't burn credits hitting it again.
   const exhaustedGlobal = new Set<PortalTarget>();
+  // True once we add the funnel line "Chaves: skipped on keyword layers".
+  let chavesKeywordSkipNoted = false;
   const totalResultsPerTarget: Record<string, number> = {};
   for (const t of targets) totalResultsPerTarget[t] = 0;
   const loggedShape = new Set<string>();
@@ -165,23 +169,51 @@ export async function runStudy(
       const seen = new Set<string>();
       let pages = 0;
       let firstError: string | undefined;
+      // Chaves na Mão PLP doesn't accept `keyword` — skip it on layers
+      // that depend on building name or street.
+      const keywordOnlyLayer = layerKey === "condominio" || layerKey === "endereco";
       for (let page = 1; page <= maxPages; page++) {
-        const remaining = targets.filter((t) => !exhaustedGlobal.has(t));
+        const remaining = targets.filter((t) => {
+          if (exhaustedGlobal.has(t)) return false;
+          if (keywordOnlyLayer && t === "chavesnamao.com.br") {
+            if (!chavesKeywordSkipNoted) {
+              funilBusca.push({
+                etapa: `Chaves na Mão: pulado em camadas de keyword (API não aceita 'keyword')`,
+                total: 1,
+              });
+              chavesKeywordSkipNoted = true;
+            }
+            return false;
+          }
+          return true;
+        });
         if (remaining.length === 0) break;
         const calls = await Promise.all(
           remaining.map(async (t) => {
             plpCalls++;
             try {
-              // Per-portal params: Chaves na Mão doesn't speak Zap's
-              // PLP vocabulary (bedrooms/price/area/lat/lng/radius).
-              // Keep state (UF) — Chaves URLs need it (/imoveis/SP/...).
+              // Per-portal params. Chaves needs `neighborhood`/`propertyTypes`
+              // and accepts native filters; only `keyword` and `propertyType`
+              // (singular) are Zap-specific.
               const portalParams: PlpParams =
                 t === "chavesnamao.com.br"
                   ? {
                       city: params.city,
                       state: params.state,
                       businessType: params.businessType,
-                      keyword: params.keyword,
+                      neighborhood: params.neighborhood,
+                      propertyTypes: params.propertyTypes,
+                      // Chaves limits to 1 value per filter — pick the first.
+                      bedrooms: params.bedrooms?.length ? [params.bedrooms[0]] : undefined,
+                      bathrooms: params.bathrooms?.length ? [params.bathrooms[0]] : undefined,
+                      parkingSpots: params.parkingSpots?.length ? [params.parkingSpots[0]] : undefined,
+                      priceMin: params.priceMin,
+                      priceMax: params.priceMax,
+                      areaMin: params.areaMin,
+                      areaMax: params.areaMax,
+                      latitude: params.latitude,
+                      longitude: params.longitude,
+                      // Chaves worker applies a fixed 2 km radius when lat/lng are sent — no `radius` field.
                     }
                   : params;
               const res = await geckoPlp({ data: { ...portalParams, target: t, page } });
@@ -344,6 +376,11 @@ export async function runStudy(
           businessType,
           keyword,
           propertyType,
+          neighborhood: buscaLivre ? undefined : bairro || undefined,
+          propertyTypes: (() => {
+            const a = mapTipoToChavesAlias(tipo);
+            return a ? [a] : undefined;
+          })(),
           bedrooms: bedroomsList,
           priceMin: !buscaLivre && priceMin > 0 ? Math.round(priceMin) : undefined,
           priceMax: !buscaLivre && priceMax > 0 ? Math.round(priceMax) : undefined,
