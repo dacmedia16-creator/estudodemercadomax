@@ -1,47 +1,34 @@
-# Usar diferenciais como filtro real na busca
+# Por que o layout ficou assim
 
-## Situação atual
-Os diferenciais marcados no formulário (Piscina, Academia, Churrasqueira, Portaria 24h, etc.) **não são enviados** para o Zap PLP. Eles só são usados depois:
-- **Soft** → somam pontos na similaridade.
-- **Hard** → exigem que ≥50% dos diferenciais estejam presentes no anúncio retornado.
-- **Ignore** → não fazem nada.
+Na rota `src/routes/app.relatorio.$id.tsx` os componentes `PrintOnePager` e `PrintSlides` são montados sempre no DOM, sem nenhuma classe que os esconda em tela:
 
-Isso desperdiça oportunidade: o Zap aceita `amenities` no PLP e poderia filtrar na fonte, trazendo comparáveis mais aderentes sem gastar requisições extras.
+```tsx
+<PrintOnePager study={study} sorted={sorted} />
+<PrintSlides study={study} sorted={sorted} />
 
-## O que vou mudar
+<div className="... print-hide-on-print"> {/* relatório normal */} </div>
+```
 
-### 1. Mapeamento dos diferenciais para o vocabulário do Zap
-Criar `mapDiferenciaisToZapAmenities()` em `src/lib/gecko-adapter.ts` traduzindo os rótulos da UI para os códigos aceitos pela API (ex.: "Piscina" → `POOL`, "Academia" → `GYM`, "Churrasqueira" → `BARBECUE_GRILL`, "Portaria 24h" → `GATED_COMMUNITY`/`CONCIERGE_24H`, "Sacada" → `BALCONY`, "Elevador" → `ELEVATOR`, "Mobiliado" → `FURNISHED`, etc.). Rótulos sem equivalente (ex.: "Vista livre", "Próximo ao metrô") continuam apenas no scoring local.
+Todo o CSS deles (`.print-onepager`, `.print-slides`, `.slide-page`, etc.) vive dentro de `@media print` em `src/styles.css`. Logo, na tela esses elementos aparecem como texto puro empilhado — é o que você está vendo ("Slide 2 / Imóvel analisado / Tipo / Apartamento ..."). Provavelmente algo quebrou a regra anterior que mantinha esses blocos ocultos (ou a regra nunca existiu).
 
-### 2. Envio condicional para o Zap PLP
-Em `src/lib/study-runner.ts`, ao montar o payload PLP do Zap:
-- Se o modo do campo `diferenciais` for **hard** → enviar `amenities` com **todos** os mapeados (filtro estrito na fonte).
-- Se for **soft** → enviar só os 2–3 diferenciais mais "decisivos" (Piscina, Academia, Mobiliado) quando o usuário marcou ≥3 itens, para guiar a busca sem ser restritivo demais. Configurável.
-- Se for **ignore** → não enviar.
-- OLX e Chaves: não enviar (o adapter deles não usa `amenities`); seguem só com filtragem local.
+# Correção
 
-### 3. Fallback automático quando o filtro nativo zera resultados
-Se uma camada (prédio/endereço/bairro) voltar vazia **com** `amenities` enviado, refazer a mesma camada **sem** `amenities` e aplicar o filtro localmente. Isso evita perder comparáveis quando o anúncio simplesmente não declara as amenities no Zap.
+1. Em `src/styles.css`, adicionar regra **fora** do `@media print`:
+   ```css
+   .print-onepager, .print-slides { display: none; }
+   ```
+   Dentro de `@media print` continuam as regras que mostram um deles conforme o modo (`print-mode-slides` mostra slides e esconde onepager; padrão mostra onepager).
 
-### 4. Filtro local mais tolerante para o modo Hard
-Hoje exigimos ≥50% dos diferenciais. Problema: muitos anúncios não preenchem a lista completa. Mudar para:
-- Exigir só os diferenciais **estruturais** marcados como Hard (Piscina, Academia, Churrasqueira, Mobiliado, Portaria 24h, Elevador).
-- Ignorar diferenciais "subjetivos" no Hard (Vista livre, Próximo ao metrô/escolas, Reformado, Novo) — esses só pontuam no Soft.
+2. Garantir que `.print-hide-on-print` continue só escondendo o conteúdo normal durante a impressão (não mexer).
 
-### 5. Visibilidade no funil e no relatório
-- Adicionar linha no funil: `"Zap PLP com amenities: [Piscina, Academia] → X resultados"` e, se houver fallback, `"Fallback sem amenities: +Y resultados"`.
-- No bloco "Critérios da busca" do relatório, listar quais diferenciais foram enviados nativamente vs. aplicados só localmente.
+3. Verificar visualmente:
+   - Tela `/app/relatorio/:id`: só o relatório interativo aparece (sem o texto cru de slides/onepager).
+   - "Exportar PDF": gera o one-pager A4.
+   - "Apresentação para proprietário": adiciona `print-mode-slides` no `<html>`, abre print, gera os slides 16:9.
+   - Após imprimir, remover a classe `print-mode-slides` (já é feito hoje) para a tela voltar ao normal.
 
-### 6. Editor de critérios
-No `CriteriosEditor`, mostrar os diferenciais com seus modos (Ignorar/Soft/Hard) e permitir reexecutar o estudo alterando isso.
+# Arquivo afetado
 
-## Arquivos afetados
-- `src/lib/gecko-adapter.ts` — novo `mapDiferenciaisToZapAmenities`.
-- `src/lib/study-runner.ts` — envio condicional, fallback, filtro local revisado, log no funil.
-- `src/components/criterios-editor.tsx` — exibir e editar modos dos diferenciais.
-- `src/routes/app.relatorio.$id.tsx` — exibir no bloco de critérios.
+- `src/styles.css` (apenas adicionar 1 regra base).
 
-## Fora do escopo
-- Não muda o consumo de créditos (mesma quantidade de chamadas, no pior caso +1 fallback por camada vazia).
-- Não muda OLX nem Chaves na Mão (mantêm filtragem só local).
-- Não altera o scoring de similaridade pós-busca (Soft continua funcionando como hoje).
+Nada de lógica de negócio muda; é só correção de visibilidade na tela.
