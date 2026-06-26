@@ -12,8 +12,9 @@ import {
   CheckCircle2, AlertTriangle, Sparkles,
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
-import { formatBRL } from "@/lib/study-engine";
+import { formatBRL, computeAcm } from "@/lib/study-engine";
 import type { StudyResult, SearchOverrides } from "@/lib/study-types";
+import { DEFAULT_ACM } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
 import { CriteriosEditor } from "@/components/criterios-editor";
 import { AcmPanel } from "@/components/acm-panel";
@@ -112,8 +113,8 @@ function ReportPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      {/* Header (oculto no PDF) */}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">Relatório do estudo</div>
           <h1 className="text-3xl font-bold tracking-tight">{input.tipo} em {input.bairro}</h1>
@@ -135,8 +136,11 @@ function ReportPage() {
         </div>
       </div>
 
+      {/* Capa do PDF — só aparece na impressão */}
+      <PrintCover study={study} />
+
       {/* Block 1: resumo */}
-      <Card className="border-border/60 p-6">
+      <Card className="border-border/60 p-6 print-section">
         <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Imóvel analisado</div>
         <div className="grid gap-6 md:grid-cols-4">
           <Info icon={Home} label="Tipo / Finalidade" value={`${input.tipo} · ${input.finalidade}`} />
@@ -181,13 +185,13 @@ function ReportPage() {
 
       {/* Block 3.2: ACM */}
       {study.comparaveis.length > 0 && (
-        <div className="mt-6">
+        <div className="mt-6 print-break-before">
           <AcmPanel study={study} onChange={setStudy} />
         </div>
       )}
 
       {/* Block 3.5: critérios da busca */}
-      <div className="mt-6">
+      <div className="mt-6 print:hidden">
         <CriteriosEditor
           study={study}
           input={input}
@@ -247,7 +251,7 @@ function ReportPage() {
       </div>
 
       {/* Block 4: tabela */}
-      <Card className="mt-6 border-border/60 p-6">
+      <Card className="mt-6 border-border/60 p-6 print-break-before print-section">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tabela comparativa</div>
@@ -413,7 +417,7 @@ function ReportPage() {
       {/* Block 7: pontos fortes e fracos */}
       </>
       )}
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <div className="mt-6 grid gap-4 md:grid-cols-2 print-break-before">
         <Card className="border-success/30 bg-success/5 p-6">
           <div className="mb-3 flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-success" />
@@ -439,13 +443,13 @@ function ReportPage() {
       </div>
 
       {/* Block 8: sugestao comercial */}
-      <Card className="mt-6 border-border/60 p-6">
+      <Card className="mt-6 border-border/60 p-6 print-section">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider text-primary">Sugestão comercial</div>
             <div className="text-sm text-muted-foreground">Pronto para usar com o cliente</div>
           </div>
-          <Button variant="outline" size="sm" className="gap-2" onClick={copyAnalise}>
+          <Button variant="outline" size="sm" className="gap-2 print:hidden" onClick={copyAnalise}>
             <Copy className="h-4 w-4" /> Copiar análise
           </Button>
         </div>
@@ -455,7 +459,70 @@ function ReportPage() {
           <Suggestion title="Argumento para o proprietário" text={study.argumentoProprietario} />
         </div>
       </Card>
+
+      {/* Rodapé exclusivo do PDF */}
+      <div className="mt-8 hidden border-t border-border pt-3 text-[10pt] text-muted-foreground print:block">
+        Radar Imobiliário Pro · gerado em {new Date(study.createdAt).toLocaleString("pt-BR")}
+        {typeof study.revisao === "number" && study.revisao > 0 ? ` · revisão ${study.revisao}` : ""}
+      </div>
     </div>
+  );
+}
+
+/** Capa do PDF — só aparece em @media print. Destaca o valor recomendado de venda. */
+function PrintCover({ study }: { study: StudyResult }) {
+  const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
+  const { input } = study;
+  return (
+    <section className="mb-6 hidden print:block">
+      <div className="flex items-center justify-between border-b border-border pb-2 text-[10pt] text-muted-foreground">
+        <div className="font-semibold tracking-wider uppercase text-primary">Radar Imobiliário Pro</div>
+        <div>{new Date(study.createdAt).toLocaleDateString("pt-BR")}</div>
+      </div>
+
+      <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground">
+        {input.tipo} em {input.bairro}, {input.cidade}/{input.estado}
+      </h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {input.areaUtil} m² · {input.quartos} dorm{input.suites > 0 ? ` (${input.suites} suíte${input.suites > 1 ? "s" : ""})` : ""} · {input.vagas} vaga{input.vagas !== 1 ? "s" : ""} · {input.finalidade}
+      </p>
+
+      <div className="mt-5 rounded-2xl border-2 border-primary bg-primary/5 p-7 text-center">
+        <div className="text-[10pt] font-semibold uppercase tracking-[0.18em] text-primary">
+          Valor recomendado para venda
+        </div>
+        <div className="print-hero-value mt-2 text-primary">{formatBRL(acm.valorSugerido)}</div>
+        <div className="mt-3 text-xs text-muted-foreground">
+          Baseado em {study.comparaveis.length} comparáveis · média de mercado {formatBRL(study.precoM2Medio)}/m²
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-4 border-t border-primary/30 pt-4">
+          <div>
+            <div className="text-[9pt] font-semibold uppercase tracking-wider text-muted-foreground">
+              Mínimo de fechamento
+            </div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-foreground">
+              {formatBRL(acm.valorMinimoFechamento)}
+            </div>
+          </div>
+          <div>
+            <div className="text-[9pt] font-semibold uppercase tracking-wider text-muted-foreground">
+              Máximo de publicação
+            </div>
+            <div className="mt-1 text-xl font-bold tabular-nums text-primary">
+              {formatBRL(acm.valorMaximoPublicacao)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-lg border border-border p-4">
+        <div className="text-[10pt] font-semibold uppercase tracking-wider text-muted-foreground">
+          Status vs. mercado: <span className="text-foreground">{study.status}</span>
+        </div>
+        <p className="mt-2 text-sm leading-relaxed text-foreground">{study.diagnostico}</p>
+      </div>
+    </section>
   );
 }
 

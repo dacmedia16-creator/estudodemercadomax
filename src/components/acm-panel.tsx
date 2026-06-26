@@ -40,7 +40,7 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
 
   return (
     <Card className="border-border/60 p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Calculator className="h-4 w-4" />
@@ -62,7 +62,7 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 print:hidden">
         <div className="space-y-5">
           <FactorSlider label="Localização" value={acm.localizacao} onChange={(v) => update({ localizacao: v })} />
           <FactorSlider label="Estado de conservação" value={acm.conservacao} onChange={(v) => update({ conservacao: v })} />
@@ -130,9 +130,9 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
       </div>
 
       {/* Resumo - avaliação para venda */}
-      <div className="mt-6 rounded-xl border border-border bg-muted/20 p-5">
-        <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Resumo · Avaliação para venda
+      <div className="mt-6 rounded-xl border border-border bg-muted/20 p-5 print:mt-0 print:border-primary/40 print:bg-transparent">
+        <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground print:text-primary">
+          Avaliação ACM · Resumo para venda
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryItem label="Média R$/m² (mercado)" value={formatBRL(study.precoM2Medio)} />

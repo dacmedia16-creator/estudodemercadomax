@@ -155,3 +155,83 @@
     color: var(--color-foreground);
   }
 }
+
+/* ---------------------------------------------------------------
+ * Print stylesheet — "Exportar PDF"
+ * Reorganiza o relatório para impressão: esconde sidebar, botões e
+ * controles interativos; destaca a capa com o valor recomendado.
+ * ------------------------------------------------------------- */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  html, body {
+    background: #fff !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Esconde shell do app (sidebar + header sticky) e qualquer marcador no-print */
+  [data-slot="sidebar"],
+  [data-slot="sidebar-wrapper"] > [data-slot="sidebar"],
+  [data-sidebar],
+  header.sticky,
+  .no-print,
+  [data-no-print] {
+    display: none !important;
+  }
+
+  /* Remove backdrop/blur do header caso permaneça em algum lugar */
+  .backdrop-blur-lg { backdrop-filter: none !important; }
+
+  /* Conteúdo principal ocupa toda a página */
+  main { padding: 0 !important; }
+
+  /* Cards: sem sombra, borda leve, evita quebrar no meio */
+  [data-slot="card"],
+  .print-section {
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Quebra de página explícita */
+  .print-break-before {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Gráficos Recharts não imprimem bem */
+  .recharts-responsive-container,
+  .recharts-wrapper {
+    display: none !important;
+  }
+
+  /* Tabela mais compacta no PDF */
+  table { font-size: 10pt; }
+  th, td { padding: 6px 8px !important; }
+
+  /* Tipografia geral mais sóbria */
+  h1 { font-size: 22pt !important; }
+  h2 { font-size: 16pt !important; }
+
+  /* Hero de impressão */
+  .print-hero-value {
+    font-size: 40pt !important;
+    line-height: 1.05 !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em;
+  }
+
+  /* Garante que cores de destaque (primary/success/warning) saiam no PDF */
+  .bg-primary, .bg-primary\/5, .bg-primary\/10,
+  .bg-success\/5, .bg-warning\/5,
+  .text-primary, .text-success, .text-warning-foreground,
+  .border-primary, .border-primary\/40 {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
