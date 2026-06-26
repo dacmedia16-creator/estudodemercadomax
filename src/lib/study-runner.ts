@@ -100,6 +100,10 @@ type PlpParams = {
   longitude?: number;
   radius?: number;
   includeLaunches?: boolean;
+  /** OLX PLP — category slug (e.g. "imoveis/venda-de-apartamentos"). */
+  categoryPath?: string;
+  /** OLX PLP — textual region (e.g. "Regiao de Bauru e Marilia"). */
+  region?: string;
 };
 
 /**
