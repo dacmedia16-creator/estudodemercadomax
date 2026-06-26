@@ -9,7 +9,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import {
   Download, Share2, Save, Plus, Copy, ExternalLink,
   TrendingUp, TrendingDown, Minus, Home, MapPin, Bed, Car, Maximize2,
-  CheckCircle2, AlertTriangle, Sparkles,
+  CheckCircle2, AlertTriangle, Sparkles, Presentation,
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
 import { formatBRL, computeAcm } from "@/lib/study-engine";
@@ -18,6 +18,7 @@ import { DEFAULT_ACM } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
 import { CriteriosEditor } from "@/components/criterios-editor";
 import { AcmPanel } from "@/components/acm-panel";
+import { PrintSlides } from "@/components/print-slides";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +116,8 @@ function ReportPage() {
     <>
       {/* One-pager exclusivo do PDF (A4, página única) */}
       <PrintOnePager study={study} sorted={sorted} />
+      {/* Apresentação 16:9 para o proprietário (ativada via classe `print-mode-slides`) */}
+      <PrintSlides study={study} sorted={sorted} />
 
       <div className="mx-auto max-w-7xl px-6 py-8 print-hide-on-print">
       {/* Header (oculto no PDF) */}
@@ -129,6 +132,19 @@ function ReportPage() {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" className="gap-2" onClick={() => { window.print(); toast.info("Use 'Salvar como PDF' na impressão."); }}>
             <Download className="h-4 w-4" /> Exportar PDF
+          </Button>
+          <Button size="sm" className="gap-2" onClick={() => {
+            const html = document.documentElement;
+            html.classList.add("print-mode-slides");
+            const cleanup = () => {
+              html.classList.remove("print-mode-slides");
+              window.removeEventListener("afterprint", cleanup);
+            };
+            window.addEventListener("afterprint", cleanup);
+            toast.info("Configure como Paisagem · 'Salvar como PDF'.");
+            setTimeout(() => window.print(), 50);
+          }}>
+            <Presentation className="h-4 w-4" /> Apresentação para o proprietário
           </Button>
           <Button variant="outline" size="sm" className="gap-2" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copiado!"); }}>
             <Share2 className="h-4 w-4" /> Compartilhar
