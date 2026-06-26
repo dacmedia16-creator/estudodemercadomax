@@ -388,6 +388,140 @@ function chavesItemToProperty(item: Record<string, any>, portal: string): MockPr
 }
 
 /**
+ * Parser for OLX PLP/PDP items.
+ * - PLP shape (flat):   { id, url, title, price, location:{city,state,neighborhood,ddd},
+ *                         images:[{url,webpUrl}], properties:[{name,label,value}], listedAt, ... }
+ * - PDP shape (nested): outer.data.data = { listingId, url, title, description, price,
+ *                         location:{...,zipCode,region}, attributes:[{name,label,value}], images:[{url}], ... }
+ * `enrichWithPdp` calls us with `outer.data` already unwrapped; if we still
+ * see a `data` sub-object we drill one more level.
+ */
+function olxItemToProperty(itemRaw: Record<string, any>, portal: string): MockProperty | null {
+  // PDP envelope: outer.data may itself contain { data: { ...real... } }.
+  const item: Record<string, any> =
+    itemRaw && typeof itemRaw.data === "object" && (itemRaw.data.listingId || itemRaw.data.title || itemRaw.data.price)
+      ? itemRaw.data
+      : itemRaw;
+
+  const desc: string = item.description ?? item.title ?? "";
+  const titulo: string = (item.title || desc || "Imóvel").slice(0, 80);
+
+  const preco =
+    (typeof item.price === "number" && item.price > 0 ? item.price : 0) ||
+    parsePrice(item.priceDisplay) ||
+    parsePrice(item.priceValue) ||
+    extractNumber(desc, [/R\$\s*([\d.,]+)/i]) ||
+    0;
+  if (!preco) return null;
+
+  // OLX exposes structured attrs in `properties[]` (PLP) or `attributes[]` (PDP).
+  const attrs: Array<{ name?: string; label?: string; value?: string }> = [
+    ...(Array.isArray(item.properties) ? item.properties : []),
+    ...(Array.isArray(item.attributes) ? item.attributes : []),
+  ];
+  const attrByName = new Map<string, string>();
+  for (const a of attrs) {
+    if (a && typeof a.name === "string" && typeof a.value === "string") {
+      attrByName.set(a.name.toLowerCase(), a.value);
+    }
+  }
+  const attrNum = (...names: string[]): number | null => {
+    for (const n of names) {
+      const v = attrByName.get(n.toLowerCase());
+      if (v) {
+        const num = Number(String(v).replace(/[^\d.,-]/g, "").replace(",", "."));
+        if (isFinite(num) && num > 0) return num;
+      }
+    }
+    return null;
+  };
+
+  const hay = `${titulo} ${desc}`;
+  const quartosRaw =
+    attrNum("rooms", "real_estate_rooms", "imovel_quartos") ??
+    extractNumber(hay, [/(\d+)\s*quartos?/i, /(\d+)\s*dorm/i]);
+  const areaUtilRaw =
+    attrNum("real_estate_useful_area", "area_util", "useful_area", "real_estate_total_area") ??
+    extractNumber(hay, [/(\d+(?:[.,]\d+)?)\s*m[²2]/i]);
+
+  const incomplete = quartosRaw === null || !areaUtilRaw || areaUtilRaw <= 0;
+  const quartos = quartosRaw ?? 0;
+  const areaUtil = areaUtilRaw && areaUtilRaw > 0 ? areaUtilRaw : 0;
+
+  const banheiros =
+    attrNum("bathrooms", "real_estate_bathrooms") ??
+    extractNumber(hay, [/(\d+)\s*banheiros?/i]) ??
+    Math.max(1, quartos - 1 || 1);
+  const suites = attrNum("suites", "real_estate_suites") ?? 0;
+  const vagas =
+    attrNum("garage_spaces", "real_estate_garage_spaces", "parking_spaces") ??
+    extractNumber(hay, [/(\d+)\s*vagas?/i, /(\d+)\s*garagens?/i]) ??
+    0;
+  const condominio = attrNum("condominium_fee", "real_estate_condominium_fee") ?? 0;
+  const iptu = attrNum("iptu", "real_estate_iptu") ?? 0;
+
+  const bairro: string = item.location?.neighborhood ?? "—";
+  const cidade: string = item.location?.city ?? "—";
+  const estado: string = item.location?.state ?? "—";
+
+  const rawImage =
+    (Array.isArray(item.images) && (item.images[0]?.webpUrl || item.images[0]?.url)) || "";
+  const imagem = typeof rawImage === "string" ? rawImage : "";
+
+  const url: string = item.url ?? "";
+  const id: string = String(item.id ?? item.listingId ?? item.adId ?? url) || crypto.randomUUID();
+
+  const listedAt = item.listedAt ?? "";
+  let diasMercado: number | undefined;
+  if (listedAt) {
+    const t = Date.parse(listedAt);
+    if (!isNaN(t)) diasMercado = Math.max(0, Math.floor((Date.now() - t) / 86400000));
+  }
+
+  // OLX hides seller name (LGPD hash) — show role only.
+  const anunciante =
+    item.professionalAd === true || item.seller?.isProfessional === true
+      ? "Profissional"
+      : "Particular";
+
+  return {
+    id,
+    portal,
+    titulo,
+    url,
+    bairro,
+    cidade,
+    estado,
+    preco,
+    condominio,
+    iptu,
+    areaUtil,
+    quartos,
+    suites,
+    banheiros,
+    vagas,
+    descricao: typeof desc === "string" ? desc : "",
+    anunciante,
+    diferenciais: [],
+    imagem,
+    dataColeta: new Date().toISOString().slice(0, 10),
+    incomplete,
+    latitude: undefined,
+    longitude: undefined,
+    diasMercado,
+    publicationType: item.featured ? "PREMIUM" : undefined,
+    mainAmenities: undefined,
+    infoTags: undefined,
+    advertiserPhone: undefined,
+    advertiserWhatsapp: undefined,
+    advertiserCreci: undefined,
+    advertiserRating: undefined,
+    virtualTourUrl: undefined,
+    agregadoCount: undefined,
+  };
+}
+
+/**
  * Merge enrichment fields from a PDP payload into an existing property.
  * The PDP response shape is `{ source, type, data: {...real fields...} }`
  * (one level deeper than PLP items).
