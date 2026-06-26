@@ -33,6 +33,7 @@ export interface MockProperty {
   advertiserRating?: number;
   virtualTourUrl?: string;
   removido?: boolean;
+  agregadoCount?: number;
 }
 
 const img = (seed: string) =>
