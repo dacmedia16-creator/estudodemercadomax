@@ -1,5 +1,5 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
-import { geckoItemToProperty, mapTipoToPropertyType, normalizeText } from "@/lib/gecko-adapter";
+import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, normalizeText } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides } from "@/lib/study-types";
 import type { MockProperty } from "@/lib/mock-properties";
@@ -344,21 +344,29 @@ export async function runStudy(
     // PDP only for top 3 comparables missing condominium data.
     const top = properties
       .slice(0, 3)
-      .filter((p) => p.url && (!p.condominio || p.condominio === 0));
+      .filter((p) => p.url && (!p.condominio || p.condominio === 0 || !p.diasMercado || !p.advertiserPhone));
+    let pdpNotFound = 0;
     await Promise.allSettled(
       top.map(async (p) => {
         try {
           pdpCalls++;
           const pdp = await geckoPdp({ data: { url: p.url } });
+          if (pdp.ok && pdp.notFound) {
+            p.removido = true;
+            pdpNotFound++;
+            return;
+          }
           if (pdp.ok && pdp.data && typeof pdp.data === "object") {
-            const d = pdp.data as Record<string, any>;
-            if (typeof d.condominium === "number") p.condominio = d.condominium;
-            if (typeof d.iptu === "number") p.iptu = d.iptu;
-            if (Array.isArray(d.amenities)) p.diferenciais = d.amenities;
+            // PDP payload shape: { source, type, parser, data: { ...real fields... } }
+            const enriched = enrichWithPdp(p, pdp.data);
+            Object.assign(p, enriched);
           }
         } catch { /* ignore */ }
       }),
     );
+    if (pdpNotFound > 0) {
+      funilBusca.push({ etapa: "Anúncios removidos (PDP notFound)", total: pdpNotFound });
+    }
   } catch (err) {
     const msg = (err as Error).message ?? "Erro desconhecido";
     const code = String(msg);
@@ -367,7 +375,9 @@ export async function runStudy(
     } else if (code.includes("401") || code.toUpperCase().includes("UNAUTHORIZED")) {
       warningMsg = "Token GeckoAPI inválido — usando dados de demonstração.";
     } else if (code.includes("402") || code.includes("INSUFFICIENT")) {
-      warningMsg = "Sem créditos GeckoAPI — usando dados de demonstração.";
+      warningMsg = "Sem créditos GeckoAPI (402 INSUFFICIENT_CREDITS) — recarregue sua conta. Usando dados de demonstração.";
+    } else if (code.includes("429") || code.toUpperCase().includes("RATE_LIMIT") || code.toUpperCase().includes("TOO_MANY")) {
+      warningMsg = "Limite de requisições GeckoAPI atingido (429) — aguarde e tente novamente. Usando dados de demonstração.";
     } else {
       warningMsg = `Falha na GeckoAPI (${msg}) — usando dados de demonstração.`;
     }
