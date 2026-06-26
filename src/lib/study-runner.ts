@@ -45,6 +45,15 @@ type PlpParams = {
   businessType: "sale" | "rent";
   keyword?: string;
   propertyType?: string;
+  bedrooms?: number[];
+  bathrooms?: number[];
+  parkingSpots?: number[];
+  priceMin?: number;
+  priceMax?: number;
+  areaMin?: number;
+  areaMax?: number;
+  latitude?: number;
+  longitude?: number;
 };
 
 /**
@@ -70,6 +79,8 @@ export async function runStudy(
   const perPortal: Record<string, { recebidos: number; aproveitados: number; descartados: number }> = {};
   for (const t of targets) perPortal[t] = { recebidos: 0, aproveitados: 0, descartados: 0 };
   const loggedShape = new Set<string>();
+  let totalResultsUpstream = 0;
+  let plpNotFoundCount = 0;
 
   // Effective parameters (overrides win over input).
   const finalidade = overrides.finalidade ?? input.finalidade;
@@ -131,9 +142,14 @@ export async function runStudy(
       const seen = new Set<string>();
       let pages = 0;
       let firstError: string | undefined;
+      // Track per-target last seen `nextPage` so we can stop paginating a
+      // portal that already exhausted its results (saves credits).
+      const exhausted = new Set<PortalTarget>();
       for (let page = 1; page <= maxPages; page++) {
+        const remaining = targets.filter((t) => !exhausted.has(t));
+        if (remaining.length === 0) break;
         const calls = await Promise.all(
-          targets.map(async (t) => {
+          remaining.map(async (t) => {
             plpCalls++;
             try {
               const res = await geckoPlp({ data: { ...params, target: t, page } });
@@ -151,6 +167,16 @@ export async function runStudy(
             if (!firstError) firstError = res.errorMessage || res.errorCode || `HTTP_${res.status}`;
             continue;
           }
+          if (res.notFound) {
+            plpNotFoundCount++;
+            exhausted.add(t);
+            continue;
+          }
+          if (typeof res.data?.totalResults === "number") {
+            totalResultsUpstream = Math.max(totalResultsUpstream, res.data.totalResults);
+          }
+          // No next page → don't ask this portal again on later iterations.
+          if (res.data?.nextPage == null) exhausted.add(t);
           const items = res.data?.items ?? [];
           if (items.length === 0) continue;
           anyItems = true;
@@ -234,8 +260,25 @@ export async function runStudy(
     let mainPages = 0;
     let mainError: string | undefined;
     if (anchorsCount < TARGET) {
+      // Push as many filters as possible to the upstream — saves credits by
+      // avoiding pages full of out-of-range listings (doc says PLP supports
+      // bedrooms/bathrooms/parkingSpots/priceMin/Max/areaMin/Max natively).
+      const bedroomsList = !buscaLivre && quartosMin > 0
+        ? Array.from(new Set([quartosMin, quartosMax].filter((n) => n > 0)))
+        : undefined;
       const res = await adaptivePaginate(
-        { city: buscaLivre ? "" : cidade, state: buscaLivre ? "" : estado.toUpperCase(), businessType, keyword, propertyType },
+        {
+          city: buscaLivre ? "" : cidade,
+          state: buscaLivre ? "" : estado.toUpperCase(),
+          businessType,
+          keyword,
+          propertyType,
+          bedrooms: bedroomsList,
+          priceMin: !buscaLivre && priceMin > 0 ? Math.round(priceMin) : undefined,
+          priceMax: !buscaLivre && priceMax > 0 ? Math.round(priceMax) : undefined,
+          areaMin: !buscaLivre && areaMin > 0 ? Math.round(areaMin) : undefined,
+          areaMax: !buscaLivre && areaMax > 0 ? Math.round(areaMax) : undefined,
+        },
         (collected) => {
           const strict = collected.filter(buscaLivre ? matchesType : strictLocal).length;
           return strict + anchorsCount >= TARGET;
@@ -262,10 +305,18 @@ export async function runStudy(
       normalized.forEach((p) => { if (matchEndereco(p, enderecoRaw)) mesmoEnderecoIds.add(p.id); });
     }
     if (mainPages > 0) funilBusca.push({ etapa: `Páginas consultadas (bairro)`, total: mainPages });
+    if (totalResultsUpstream > 0) funilBusca.push({ etapa: `Total disponível no portal (totalResults)`, total: totalResultsUpstream });
     funilBusca.push({ etapa: "Retornados pela API", total: mainProperties.length });
     funilBusca.push({ etapa: "Com dados completos", total: normalizedComplete.length });
     if (descartadosIncompletos > 0) {
       funilBusca.push({ etapa: "Sem área/quartos na listagem (descartados do filtro estrito)", total: descartadosIncompletos });
+    }
+    if (plpNotFoundCount > 0) {
+      funilBusca.push({ etapa: "PLP notFound (cidade/UF não reconhecida pelo portal)", total: plpNotFoundCount });
+    }
+    const agregados = mainProperties.filter((p) => (p.agregadoCount ?? 0) > 0).length;
+    if (agregados > 0) {
+      funilBusca.push({ etapa: `Anúncios agregados (vários imóveis em 1 card)`, total: agregados });
     }
 
     type Layer = { label: string; fn: (p: MockProperty) => boolean };

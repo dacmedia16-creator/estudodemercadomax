@@ -80,7 +80,7 @@ const plpInput = z.object({
 export const geckoPlp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => plpInput.parse(d))
   .handler(async ({ data }) => {
-    const { city, state, keyword, target, propertyType, ...rest } = data;
+    const { city, state, keyword, target, propertyType, bedrooms, bathrooms, parkingSpots, priceMin, priceMax, areaMin, areaMax, latitude, longitude, ...rest } = data;
     const hasCity = !!city && city.trim().length > 0;
     const hasState = !!state && state.trim().length === 2;
     const hasKeyword = !!keyword && keyword.trim().length > 0;
@@ -98,6 +98,18 @@ export const geckoPlp = createServerFn({ method: "POST" })
     // propertyType uses Zap's vocabulary (APARTMENT/HOME/…); only send it
     // when targeting Zap to avoid over-filtering on Chaves na Mão.
     if (propertyType && target === "zapimoveis.com.br") body.propertyType = propertyType;
+    // Native PLP filters — supported by Zap (and harmless when ignored by Chaves).
+    if (bedrooms && bedrooms.length) body.bedrooms = bedrooms;
+    if (bathrooms && bathrooms.length) body.bathrooms = bathrooms;
+    if (parkingSpots && parkingSpots.length) body.parkingSpots = parkingSpots;
+    if (typeof priceMin === "number" && priceMin >= 0) body.priceMin = priceMin;
+    if (typeof priceMax === "number" && priceMax >= 0) body.priceMax = priceMax;
+    if (typeof areaMin === "number" && areaMin >= 0) body.areaMin = areaMin;
+    if (typeof areaMax === "number" && areaMax >= 0) body.areaMax = areaMax;
+    if (typeof latitude === "number" && typeof longitude === "number") {
+      body.latitude = latitude;
+      body.longitude = longitude;
+    }
     Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
     return callGecko<GeckoPlpData>(body);
   });
