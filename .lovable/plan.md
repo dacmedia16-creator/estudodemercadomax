@@ -1,58 +1,126 @@
-## Lógica da planilha (ACM - Verona Ricardo)
+## Problema
 
-A planilha é uma **Análise Comparativa de Mercado** clássica usada por corretores. O fluxo é:
+Hoje o "Exportar PDF" só chama `window.print()` na página do relatório, sem nenhum CSS de impressão. Resultado: sidebar, header do app, botões, painel de critérios, painel ACM completo com sliders, controles de ordenação e cards interativos vão todos pro PDF — fica bagunçado, multi-página sem hierarquia, e o valor recomendado de venda some no meio.
 
-1. Lista 10 imóveis similares (link, M², dorms, suítes, vagas, condomínio, valor venda, R$/m²).
-2. Define o imóvel-alvo (M², dorms, suítes, vagas, condomínio, andar).
-3. **Calcula a média do R$/m²** dos comparáveis → âncora de preço.
-4. Aplica **4 fatores de ajuste percentuais** (Localização, Estado de Conservação, Idade, Padrão), todos partindo de 100%. O produto deles multiplica a média.
-5. Soma/desconta um **Valor de Reforma/Atualização** (R$/m² × área), com guia: estética R$ 200–500/m², estrutural R$ 1.000–2.000/m².
-6. **Valor sugerido** = (média R$/m² × área × ajustes) − reforma.
-7. **Valor Máximo de Publicação** ≈ sugerido × 1,05 (margem de negociação ~5%).
+## Objetivo
 
-Hoje a gente já tem: comparáveis, média R$/m², faixa min/max (±7%) e diagnóstico. O que **falta e vale puxar da ACM**:
+Quando o usuário clicar em **Exportar PDF**, gerar um documento com cara de relatório profissional, com **capa destacando o valor recomendado de venda** e seções organizadas, sem mexer no layout da tela.
 
-## O que adicionar ao Radar
+## Estrutura do PDF (nova)
 
-### 1. Painel "Ajustes ACM" no relatório
-Quatro sliders/inputs com default 100% e range típico 80–120%:
-- Localização (vs. média da região)
-- Estado de conservação
-- Idade do imóvel
-- Padrão de acabamento
+```
+┌─────────────────────────────────────────┐
+│  RADAR IMOBILIÁRIO PRO · Relatório      │  ← cabeçalho fixo (logo + data)
+├─────────────────────────────────────────┤
+│                                         │
+│   [Tipo] em [Bairro, Cidade/UF]         │
+│   Apto · 3 dorm · 92 m² · Venda         │
+│                                         │
+│   ╔═══════════════════════════════════╗ │
+│   ║  VALOR RECOMENDADO PARA VENDA     ║ │  ← bloco hero,
+│   ║                                   ║ │    fundo primary,
+│   ║         R$ 845.000                ║ │    fonte grande,
+│   ║                                   ║ │    sempre na 1ª pág
+│   ║  Mínimo fechamento  Máx publicação║ │
+│   ║   R$ 802.750         R$ 887.250   ║ │
+│   ╚═══════════════════════════════════╝ │
+│                                         │
+│   Status vs. mercado: Dentro da média   │
+│   Diagnóstico (parágrafo curto)         │
+│                                         │
+│ ─── PÁGINA 1 (capa executiva) ─────────│
+│                                         │
+│   Imóvel analisado (grid 4 col)         │
+│   Resumo de mercado (média m², faixa)   │
+│                                         │
+│ ─── PÁGINA 2 (avaliação ACM) ──────────│
+│                                         │
+│   Avaliação ACM — só o resumo final     │
+│   (média m², ajustes aplicados,         │
+│    reforma, sugerido, mín, máx)         │
+│   Sem sliders/botões/inputs.            │
+│                                         │
+│ ─── PÁGINA 3+ (comparáveis) ───────────│
+│                                         │
+│   Tabela compacta dos comparáveis       │
+│   (#, endereço, área, R$, R$/m², sim.)  │
+│   Critérios da busca (lista resumida)   │
+│                                         │
+│ ─── ÚLTIMA PÁGINA (texto comercial) ───│
+│                                         │
+│   Pontos fortes / atenção               │
+│   Título sugerido + descrição           │
+│   Argumento para proprietário           │
+│                                         │
+│   Rodapé: gerado por Radar Imobiliário  │
+└─────────────────────────────────────────┘
+```
 
-Multiplicador final = produto dos quatro.
+Gráfico Recharts: ocultado no print (não renderiza bem em SVG impresso e polui). A tabela já transmite a informação.
 
-### 2. Bloco "Reforma / Atualização"
-- Campo R$/m² (com presets: "Sem reforma 0", "Estética 350", "Estrutural 1500", "Customizado")
-- Calcula `area × R$/m²` e desconta do valor sugerido
-- Mostra a régua de referência da ACM como dica
+## Como implementar (técnico)
 
-### 3. Novos campos no resumo
-- **Valor avaliado do m²** = média m² × ajustes
-- **Valor sugerido (estado atual)** = avaliado × área − reforma
-- **Valor máximo de publicação** = sugerido × (1 + margem%), margem default 5% editável
-- **Valor mínimo de fechamento** = sugerido × (1 − margem%) (extra, ajuda corretor a negociar)
+### 1. `src/styles.css` — bloco `@media print`
 
-Substitui/complementa o atual "faixa ±7%", que vira só uma referência rápida.
+Adicionar um único bloco `@media print` com:
+- `@page { size: A4; margin: 14mm 12mm; }`
+- Esconder sidebar do app, header app, todos os botões e qualquer elemento com classe `.no-print`.
+- Esconder `CriteriosEditor` inteiro (painel de ajuste de busca — não vai pro PDF).
+- Esconder os controles internos do `AcmPanel` (sliders, presets, botões), mantendo só o bloco "Resumo · Avaliação para venda".
+- Esconder o gráfico Recharts (`.recharts-responsive-container`).
+- Forçar fundo branco, cores sólidas (`-webkit-print-color-adjust: exact`).
+- Garantir que cards não quebrem no meio (`break-inside: avoid`).
+- Forçar quebras de página entre seções principais com classes utilitárias `.print-break-before`.
 
-### 4. Exportação ACM
-Adicionar no relatório um botão "Exportar ACM" (PDF e/ou XLSX) com o **mesmo layout da planilha**: tabela de comparáveis, definição do imóvel, ajustes, reforma, resumo. Corretor já reconhece o formato e entrega pro proprietário.
+### 2. Componente `PrintHero` (novo, dentro do próprio `app.relatorio.$id.tsx`)
 
-### 5. Persistência
-Salvar os ajustes (fatores, reforma, margem) dentro do `StudyResult` para a revisão ficar consistente entre re-execuções.
+Bloco visível **somente no print** (`hidden print:block`) que entra logo após o título:
+- Título grande: `{tipo} em {bairro}, {cidade}/{UF}`
+- Linha de specs em uma frase (área · dormitórios · vagas · finalidade)
+- Caixa hero (border primary, fundo primary/5, padding generoso):
+  - Label pequeno: "VALOR RECOMENDADO PARA VENDA"
+  - Número gigante: `computeAcm(study, study.acm ?? DEFAULT_ACM).valorSugerido`
+  - Duas colunas embaixo: Mínimo de fechamento · Máximo de publicação
+- Badge de status (Abaixo/Dentro/Acima da média) + parágrafo do diagnóstico.
 
-## Onde mexer (técnico)
+Esse hero é a primeira coisa que aparece no PDF — garante que o valor recomendado seja o destaque.
 
-- `src/lib/study-types.ts`: adicionar `AcmAdjustments { localizacao, conservacao, idade, padrao, reformaPorM2, margemPublicacaoPct }` em `StudyResult` e `SearchOverrides`.
-- `src/lib/study-engine.ts`: novo `computeAcm(result, adjustments)` que retorna `{ valorM2Avaliado, valorSugerido, valorMaximoPublicacao, valorMinimoFechamento, descontoReforma }`. Não substitui `precoMedio`/`faixaMin/Max` (mantém compat).
-- `src/routes/app.relatorio.$id.tsx`: novo card "Ajustes ACM" (sliders + input reforma + margem) + bloco "Resumo - Avaliação para Venda" no estilo da planilha; botão "Exportar ACM".
-- `src/lib/study-store.ts`: salvar `adjustments` junto ao estudo.
-- Export PDF: usar a infraestrutura de impressão já existente do relatório (CSS print) com uma página dedicada formatada como a ACM. XLSX fica para uma segunda iteração se você quiser.
+### 3. Marcadores nas seções existentes
 
-## Fora de escopo (por enquanto)
+Adicionar classes nos containers já existentes (não muda nada visual na tela):
+- Bloco "Imóvel analisado" e "Resumo de mercado": `print-section`
+- `AcmPanel`: wrap externo com `print-break-before` + classe que aciona o modo compacto no CSS.
+- Tabela de comparáveis: `print-break-before print-section`
+- Bloco comercial (pontos fortes, descrição, argumento): `print-break-before print-section`
 
-- Não muda nada na busca/GeckoAPI nem no funil — é só camada de avaliação em cima do que já vem.
-- Não vamos pesar os fatores ACM na similaridade dos comparáveis (eles avaliam o alvo, não filtram concorrentes).
+### 4. `AcmPanel` — modo print
 
-Quer que eu já implemente tudo isso ou prefere começar só pelos itens 1–3 (ajustes + reforma + novos valores) e deixar exportação ACM pra depois?
+Adicionar nos elementos internos:
+- `className="print:hidden"` nos sliders, input de reforma, presets, botões salvar/resetar e cabeçalho com botões.
+- O bloco "Resumo · Avaliação para venda" permanece visível e ganha `print:mt-0`.
+
+### 5. `CriteriosEditor` e header da página
+
+- `CriteriosEditor`: wrap com `print:hidden`.
+- Header com os botões Exportar/Compartilhar/Salvar/Novo estudo: classe `print:hidden`.
+- Sidebar e topo do app (em `src/routes/app.tsx`): adicionar `print:hidden` no shell. Verificar primeiro o arquivo; se a sidebar usa um componente compartilhado, aplicar lá.
+
+### 6. Rodapé de impressão
+
+Pequeno bloco `hidden print:block` no fim da página com "Radar Imobiliário Pro · gerado em {data} · revisão {n}".
+
+## Fora de escopo
+
+- Não troca `window.print()` por gerador server-side (jsPDF/pdfmake). Mantém o fluxo atual, só organiza o que o navegador imprime.
+- Não mexe na lógica de busca, ACM, ou no layout da tela.
+- Exportação XLSX da ACM continua fora desta iteração.
+
+## Arquivos afetados
+
+- `src/styles.css` — bloco `@media print` novo.
+- `src/routes/app.relatorio.$id.tsx` — adiciona `PrintHero`, classes `print:hidden` nos botões/painéis interativos, marcadores de seção, rodapé de impressão.
+- `src/components/acm-panel.tsx` — `print:hidden` nos controles, manter resumo.
+- `src/components/criterios-editor.tsx` — `print:hidden` no wrapper raiz.
+- `src/routes/app.tsx` (ou onde estiver a sidebar/topbar do app) — `print:hidden` no shell.
+
+Resultado: PDF com 3–4 páginas limpas, valor recomendado em destaque na capa, sem ruído de UI interativa.
