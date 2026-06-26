@@ -208,6 +208,7 @@ const plpTestInput = z.object({
   target: z.enum(TARGETS),
   city: z.string().optional().default(""),
   keyword: z.string().optional().default(""),
+  state: z.string().optional().default(""),
   businessType: z.enum(["sale", "rent"]).optional().default("sale"),
   token: z.string().optional(),
 });
@@ -223,7 +224,11 @@ export const geckoTestPlp = createServerFn({ method: "POST" })
     };
     if (data.city) body.city = data.city;
     if (data.keyword) body.keyword = data.keyword;
-    if (!data.city && !data.keyword) {
+    if (data.state && data.state.length === 2) body.state = data.state;
+    if (data.target === "olx.com.br" && !body.state) {
+      return { ok: false as const, status: 0, errorCode: "MISSING_QUERY", errorMessage: "OLX exige state (UF 2 letras)." };
+    }
+    if (data.target !== "olx.com.br" && !data.city && !data.keyword) {
       return { ok: false as const, status: 0, errorCode: "MISSING_QUERY", errorMessage: "Informe city ou keyword." };
     }
     return callGecko<JsonValue>(body, data.token);
