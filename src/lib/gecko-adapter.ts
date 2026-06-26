@@ -88,6 +88,17 @@ function parsePrice(v: unknown): number {
 export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóveis"): MockProperty | null {
   const anyItem = item as unknown as Record<string, any>;
 
+  // ---- Dispatch to OLX parser ----
+  // OLX PLP items have a flat shape with `location.ddd`, `listedAtEpoch`,
+  // `properties[]` and a numeric `price`.
+  const looksLikeOlx =
+    portal === "OLX" ||
+    (typeof anyItem.listedAtEpoch === "number" &&
+      anyItem.location && typeof anyItem.location.ddd === "string");
+  if (looksLikeOlx) {
+    return olxItemToProperty(anyItem, portal === "OLX" ? portal : "OLX");
+  }
+
   // ---- Dispatch to Chaves na Mão parser when shape matches ----
   // Chaves payloads expose `counts.bedrooms.count`, `prices.rawPrice`, `area.useful`.
   const looksLikeChaves =
