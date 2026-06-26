@@ -196,8 +196,13 @@ export async function runStudy(
           return true;
         });
         if (remaining.length === 0) break;
+        // Per-query exhaustion — items=[] only stops THIS paginate loop, not
+        // every future layer. (Empty result for a building keyword does not
+        // mean the portal has nothing in the city.)
+        const exhaustedThisQuery = new Set<PortalTarget>();
         const calls = await Promise.all(
           remaining.map(async (t) => {
+            if (exhaustedThisQuery.has(t)) return { t, res: null as any };
             plpCalls++;
             try {
               // Per-portal params. Chaves needs `neighborhood`/`propertyTypes`
@@ -240,6 +245,9 @@ export async function runStudy(
           if (!res) continue;
           if (!res.ok) {
             if (!firstError) firstError = res.errorMessage || res.errorCode || `HTTP_${res.status}`;
+            // HTTP error → don't keep burning credits on this portal for
+            // later layers either.
+            exhaustedGlobal.add(t);
             continue;
           }
           if (res.notFound) {
@@ -266,18 +274,21 @@ export async function runStudy(
             rawData.ads ??
             rawData.listings ??
             [];
-          // Only mark exhausted when the portal truly has no more pages
-          // AND no items came back — `nextPage: undefined` with items is
-          // common in portals that don't expose the cursor.
+          // Stop THIS paginate loop when items=[] — but DO NOT globally ban
+          // the portal: the same portal may have plenty of results for the
+          // next layer with different keyword/filters.
+          if (items.length === 0) {
+            exhaustedThisQuery.add(t);
+          }
+          // Only mark globally exhausted when the portal explicitly signals
+          // no more pages exist for this query AND we've consumed them all.
           const hasNextField = "nextPage" in rawData || "hasNextPage" in rawData;
           const nextIsFalsy = rawData.nextPage == null || rawData.hasNextPage === false;
-          if (items.length === 0 || (hasNextField && nextIsFalsy)) {
-            if (items.length === 0) exhaustedGlobal.add(t);
-            else if (hasNextField && nextIsFalsy) exhaustedGlobal.add(t);
+          if (hasNextField && nextIsFalsy) {
+            exhaustedThisQuery.add(t);
           }
-          // Doc: Chaves returns `totalPages`. Stop early once consumed.
           if (typeof rawData.totalPages === "number" && page >= rawData.totalPages) {
-            exhaustedGlobal.add(t);
+            exhaustedThisQuery.add(t);
           }
           if (items.length === 0) continue;
           anyItems = true;
@@ -307,6 +318,8 @@ export async function runStudy(
         }
         pages++;
         if (!anyItems) break;
+        // If every remaining portal exhausted THIS query, stop paginating.
+        if (remaining.every((t) => exhaustedThisQuery.has(t))) break;
         if (shouldStop(all)) break;
       }
       return { properties: all, pages, errorMessage: firstError };
@@ -343,8 +356,11 @@ export async function runStudy(
     let enderecoMatches: MockProperty[] = [];
     if (usarEndereco && !buscaLivre && condoMatches.length < TARGET) {
       try {
+        // Strip trailing street number from the keyword — Zap relevance
+        // drops to zero when a specific number is in the query.
+        const enderecoSemNumero = enderecoRaw.replace(/,?\s*\d+\s*$/, "").trim() || enderecoRaw;
         const res = await adaptivePaginate(
-          { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${enderecoRaw} ${bairro}`.trim(), propertyType },
+          { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${enderecoSemNumero} ${bairro}`.trim(), propertyType },
           (collected) => {
             const matched = collected.filter((p) => matchEndereco(p, enderecoRaw)).length;
             return matched + condoMatches.length >= TARGET;
@@ -420,6 +436,41 @@ export async function runStudy(
       mainProperties = res.properties;
       mainPages = res.pages;
       mainError = res.errorMessage;
+      // ---- Retry Zap-only with relaxed filters if it returned nothing ----
+      const zapTarget: PortalTarget = "zapimoveis.com.br";
+      const zapWasActive = targets.includes(zapTarget) && !exhaustedGlobal.has(zapTarget);
+      const zapZero = (perPortal[zapTarget]?.bairro.recebidos ?? 0) === 0;
+      const zapNotFound = (plpNotFoundPerTarget[zapTarget] ?? 0) > 0;
+      if (zapWasActive && zapZero && !zapNotFound && !buscaLivre) {
+        // Temporarily restrict targets to Zap for the retry pass.
+        const savedTargets = targets.slice();
+        targets.length = 0;
+        targets.push(zapTarget);
+        try {
+          const retry = await adaptivePaginate(
+            {
+              city: cidade,
+              state: estado.toUpperCase(),
+              businessType,
+              keyword,
+              propertyType,
+              // intentionally drop bedrooms / price / area / lat-lng-radius
+            },
+            (collected) => collected.filter(strictLocal).length + anchorsCount >= TARGET,
+            "bairro",
+          );
+          if (retry.properties.length > 0) {
+            // Merge retry into main pool, dedup by id.
+            const seen = new Set(mainProperties.map((p) => p.id));
+            for (const p of retry.properties) if (!seen.has(p.id)) mainProperties.push(p);
+            mainPages += retry.pages;
+            funilBusca.push({ etapa: `Zap Imóveis: retry sem filtros nativos`, total: retry.properties.length });
+          }
+        } finally {
+          targets.length = 0;
+          for (const t of savedTargets) targets.push(t);
+        }
+      }
     }
 
     if (mainProperties.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {

@@ -1,46 +1,62 @@
-## Estudo do doc PLP Chaves na Mão
+## Diagnóstico
 
-O doc confirma campos e comportamentos que ainda não estamos aproveitando bem. Implementar 5 melhorias focadas em **precisão dos filtros**, **transparência no funil** e **economia de créditos** — sem mudar UI.
+Olhando o `src/lib/study-runner.ts` achei duas causas concretas:
 
-### 1. `includeLaunches: false` por padrão (Chaves)
-Doc: "default do worker é false" — mas como temos um campo `condominium`/`directOwner` opcional, vamos enviar explicitamente `includeLaunches: false` para garantir que lançamentos não entrem nos comparáveis (preço/área de lançamento distorcem mediana). Em `study-runner.ts`, na camada bairro do bloco Chaves, adicionar `includeLaunches: false`.
+### Bug 1 — Zap fica "esgotado" para sempre quando a camada 1 (edifício) retorna 0
 
-### 2. Aproveitar contadores de filtro do response
-Doc expõe `launchesFilteredOut` e `coordinateFilteredOut` por página. Somar esses valores por portal e exibir no funil:
-- "Chaves na Mão: lançamentos removidos (N)"
-- "Chaves na Mão: fora do raio 2 km (N)"
+`exhaustedGlobal` é compartilhado entre as 3 camadas. Quando a camada 1 manda `keyword: edificio` ("Cannes Campolim") pro Zap e a primeira página vem com `items: []`, o código marca **Zap como exhausted globalmente**. Resultado: a camada 3 (bairro, que é a que de fato traz comparáveis) **nem chama mais o Zap** — só o Chaves. É exatamente o que seu print mostra (10/10 cards são Chaves).
 
-Isso já existe parcialmente para Zap via cálculo local Haversine; para Chaves é o worker quem filtra, então só precisamos ler e mostrar.
-
-### 3. Exhaustion mais preciso usando `totalPages`
-Hoje paramos quando `nextPage == null` ou `items.length === 0`. Doc garante `totalPages` (ex.: 2206). Quando `page >= totalPages`, marcar `exhaustedGlobal` mesmo se a API não setar `nextPage`. Reduz 1 chamada extra em buscas curtas.
-
-### 4. `directOwner` / `condominium` editáveis (opcional, sem UI nova)
-Hoje os campos existem no Zod mas nada no runner os usa. Sem mudar UI: adicionar passagem em `CriteriosEditor` futuramente. **Por agora, só documentar como TODO no código** — não vamos criar UI sem o usuário pedir.
-
-### 5. Filtro local de status na Chaves
-Doc mostra `status: "ACTIVE"`, `active: true`, `isLaunch: false` por item. Adicionar em `gecko-adapter.ts` (`chavesItemToProperty`): descartar item se `active === false`, `status === "INACTIVE"`, ou `isLaunch === true` (reforço local ao filtro `includeLaunches`).
-
-### Onde mexer (resumo técnico)
-
-```text
-src/lib/study-runner.ts
-  - bloco Chaves (linha ~199): add includeLaunches: false
-  - adaptivePaginate: ler rawData.launchesFilteredOut e
-    rawData.coordinateFilteredOut → somar por portal
-  - exhaustion: marcar exhausted quando page >= rawData.totalPages
-  - funilBusca: 2 novas linhas por portal Chaves
-
-src/lib/gecko-adapter.ts
-  - chavesItemToProperty: skip se active===false || isLaunch===true
-    || status==="INACTIVE"
+```ts
+// hoje: items.length === 0 → exhaustedGlobal.add(t) → próximas camadas pulam o portal
+if (items.length === 0) exhaustedGlobal.add(t);
 ```
 
-Sem mudanças em `gecko.functions.ts` (Zod já aceita os campos).
+### Bug 2 — "Mesmo endereço" não casa quando o usuário põe o número
 
-### Fora de escopo (mencionados no doc, não implementar agora)
-- PLP por URL pública — exigiria nova UI para colar link do Chaves.
-- `amenities`/`bathrooms`/`parkingSpots` nativos — precisaria novos campos no `StudyInput`.
-- Filtros `directOwner`/`condominium` editáveis no `CriteriosEditor` — UI nova, pedir confirmação antes.
+`matchEndereco` exige que **todos** os tokens significativos do endereço apareçam no anúncio:
 
-Após implementação rodo typecheck. Resultado esperado: funil mais explicativo no portal Chaves e menos comparáveis "lançamento" distorcendo a mediana.
+```ts
+return tokens.every((t) => hay.includes(t));
+```
+
+Se o usuário digita "Rua Coronel Nogueira Padilha, 1000", os tokens viram `["coronel","nogueira","padilha","1000"]`. Quase nenhum anúncio coloca o número exato no título/descrição do Zap/Chaves, então o `every()` falha sempre e a camada zera. Pior: o keyword enviado pro PLP (`${enderecoRaw} ${bairro}`) inclui o número, o que joga a relevância do Zap pra zero.
+
+## Correções
+
+**Arquivo único:** `src/lib/study-runner.ts`.
+
+### 1. Tirar o "exhaust on empty"
+
+- `exhaustedGlobal` passa a marcar portal apenas em casos definitivos: `notFound: true`, erro HTTP, ou `nextPage == null && totalPages` consumido.
+- Quando `items: []` numa camada com `keyword`, parar só **aquela** paginação, **não** banir o portal para as próximas camadas. Manter um `exhaustedThisQuery` local por chamada de `adaptivePaginate`.
+
+### 2. Endereço sem número
+
+- Em `matchEndereco`: separar tokens em `nameTokens` (não-numéricos, len≥3, sem stopword) e `numberToken` (puro dígito). Exigir todos os `nameTokens`; o número fica como **bônus opcional** (se casar, é "Mesmo endereço exato"; se não, ainda conta como mesmo endereço).
+- No envio do keyword pra Zap/Chaves na camada `endereco`, **remover o número** (`enderecoRaw.replace(/,?\s*\d+\s*$/, "").trim()`) — Zap relevância funciona melhor sem o número.
+
+### 3. Retry de Zap quando a camada de bairro vier vazia
+
+Após `adaptivePaginate` da camada `bairro`, se `perPortal["zapimoveis.com.br"].bairro.recebidos === 0` e o portal não está em `exhaustedGlobal` por `notFound`, fazer **uma segunda passada apenas pro Zap** com filtros nativos relaxados:
+- sem `bedrooms`, `priceMin/Max`, `areaMin/Max`
+- sem `latitude/longitude/radius` (geocoding do Nominatim pode estar fora do polígono)
+- mantém `keyword`, `city`, `state`, `propertyType`, `page: 1..maxPages`
+
+Adicionar linha no funil: `"Zap Imóveis: retry sem filtros nativos"` para transparência.
+
+### 4. Funil mais útil
+
+- Mostrar `"<portal>: 0 retornados em <camada>"` por camada quando recebidos = 0 (hoje só aparece o agregado, fica difícil debugar).
+- Mostrar a flag de "Mesmo endereço exato (número confere)" no diagnóstico quando algum comparável casar o número.
+
+## Verificação
+
+- `tsgo` (typecheck) limpo.
+- Você roda novo estudo em Sorocaba/SP · Parque Campolim · "Cannes Campolim" e confere no funil:
+  - linha `Zap Imóveis: <N> recebidos / <M> aproveitados` com N>0
+  - linha `Mesmo endereço (...)` com total > 0 mesmo com o número preenchido
+
+## Fora do escopo
+
+- Não vou geocodar de novo nem ajustar o raio padrão — o raio editável fica como está.
+- Não vou mudar o adapter nem a integração com Chaves.
