@@ -601,6 +601,29 @@ export async function runStudy(
     }
 
     funilBusca.push({ etapa: chosenLayer, total: chosen.length });
+    // Por portal — mostra exatamente quantos do Zap e Chaves entraram no
+    // conjunto final, para diagnosticar "sumiço" silencioso.
+    {
+      const porPortal = new Map<string, number>();
+      for (const p of chosen) porPortal.set(p.portal, (porPortal.get(p.portal) ?? 0) + 1);
+      for (const [portal, n] of porPortal) {
+        funilBusca.push({ etapa: `Selecionados de ${portal}`, total: n });
+      }
+      // Avisa quando um portal trouxe dados mas foi totalmente filtrado.
+      for (const t of targets) {
+        const recebidos =
+          (perPortal[t]?.condominio.aproveitados ?? 0) +
+          (perPortal[t]?.endereco.aproveitados ?? 0) +
+          (perPortal[t]?.bairro.aproveitados ?? 0);
+        const selecionados = porPortal.get(PORTAL_TARGETS[t]) ?? 0;
+        if (recebidos > 0 && selecionados === 0) {
+          funilBusca.push({
+            etapa: `${PORTAL_TARGETS[t]}: ${recebidos} recebidos, mas TODOS removidos no filtro local (área/preço/quartos/raio)`,
+            total: 0,
+          });
+        }
+      }
+    }
     if (chosen.length === 0) throw new Error("Nenhum imóvel compatível com os critérios informados");
 
     properties = chosen;
