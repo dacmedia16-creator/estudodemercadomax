@@ -172,6 +172,7 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
 
   const mainAmenities = Array.isArray(item.mainAmenities) ? item.mainAmenities : undefined;
   const infoTags = Array.isArray(item.infoTags) ? item.infoTags : undefined;
+  const agregadoCount = typeof item.childrenCount === "number" && item.childrenCount > 0 ? item.childrenCount : undefined;
 
   return {
     id,
@@ -206,6 +207,7 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     advertiserCreci,
     advertiserRating,
     virtualTourUrl: item.virtualTourUrl,
+    agregadoCount,
   };
 }
 
