@@ -161,6 +161,12 @@
  * Reorganiza o relatório para impressão: esconde sidebar, botões e
  * controles interativos; destaca a capa com o valor recomendado.
  * ------------------------------------------------------------- */
+/* Esconde blocos exclusivos de impressão na tela */
+.print-onepager,
+.print-slides {
+  display: none !important;
+}
+
 @media print {
   @page {
     size: A4;
