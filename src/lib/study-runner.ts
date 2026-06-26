@@ -1,4 +1,5 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
+import { geocodeAddress } from "@/lib/geocode.functions";
 import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, normalizeText } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides } from "@/lib/study-types";
@@ -81,6 +82,9 @@ export async function runStudy(
   const loggedShape = new Set<string>();
   let totalResultsUpstream = 0;
   let plpNotFoundCount = 0;
+  let geoLat: number | undefined;
+  let geoLng: number | undefined;
+  let geoLabel: string | undefined;
 
   // Effective parameters (overrides win over input).
   const finalidade = overrides.finalidade ?? input.finalidade;
@@ -260,6 +264,27 @@ export async function runStudy(
     let mainPages = 0;
     let mainError: string | undefined;
     if (anchorsCount < TARGET) {
+      // Geocode the address to enable upstream 2 km radius filter (PLP doc).
+      // Cached per session to spare Nominatim's 1 req/s limit.
+      if (!buscaLivre && (enderecoRaw || bairro || cidade)) {
+        const parts = [enderecoRaw, bairro, cidade, estado].filter(Boolean).join(", ");
+        if (parts.length >= 4) {
+          try {
+            const cacheKey = `geo:${normalizeText(parts)}`;
+            const cached = typeof localStorage !== "undefined" ? localStorage.getItem(cacheKey) : null;
+            if (cached) {
+              const obj = JSON.parse(cached);
+              geoLat = obj.lat; geoLng = obj.lng; geoLabel = obj.label;
+            } else {
+              const g = await geocodeAddress({ data: { query: parts } });
+              if (g.ok && typeof g.latitude === "number" && typeof g.longitude === "number") {
+                geoLat = g.latitude; geoLng = g.longitude; geoLabel = g.displayName;
+                try { localStorage.setItem(cacheKey, JSON.stringify({ lat: geoLat, lng: geoLng, label: geoLabel })); } catch { /* ignore */ }
+              }
+            }
+          } catch { /* best-effort */ }
+        }
+      }
       // Push as many filters as possible to the upstream — saves credits by
       // avoiding pages full of out-of-range listings (doc says PLP supports
       // bedrooms/bathrooms/parkingSpots/priceMin/Max/areaMin/Max natively).
@@ -278,6 +303,8 @@ export async function runStudy(
           priceMax: !buscaLivre && priceMax > 0 ? Math.round(priceMax) : undefined,
           areaMin: !buscaLivre && areaMin > 0 ? Math.round(areaMin) : undefined,
           areaMax: !buscaLivre && areaMax > 0 ? Math.round(areaMax) : undefined,
+          latitude: geoLat,
+          longitude: geoLng,
         },
         (collected) => {
           const strict = collected.filter(buscaLivre ? matchesType : strictLocal).length;
@@ -305,6 +332,9 @@ export async function runStudy(
       normalized.forEach((p) => { if (matchEndereco(p, enderecoRaw)) mesmoEnderecoIds.add(p.id); });
     }
     if (mainPages > 0) funilBusca.push({ etapa: `Páginas consultadas (bairro)`, total: mainPages });
+    if (geoLat && geoLng) {
+      funilBusca.push({ etapa: `Geocoding ativo (raio 2 km${geoLabel ? ` · ${geoLabel.split(",").slice(0,2).join(",")}` : ""})`, total: 1 });
+    }
     if (totalResultsUpstream > 0) funilBusca.push({ etapa: `Total disponível no portal (totalResults)`, total: totalResultsUpstream });
     funilBusca.push({ etapa: "Retornados pela API", total: mainProperties.length });
     funilBusca.push({ etapa: "Com dados completos", total: normalizedComplete.length });
