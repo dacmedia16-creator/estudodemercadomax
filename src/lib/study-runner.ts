@@ -392,8 +392,13 @@ export async function runStudy(
           (collected) => collected.filter((p) => matchEdificio(p, edificio)).length >= TARGET,
           "condominio",
         );
-        condoMatches = res.properties
-          .filter((p) => matchEdificio(p, edificio))
+        const condoRaw = res.properties.filter((p) => matchEdificio(p, edificio));
+        const condoTipoOk = condoRaw.filter((p) => isSameTipoFamily(p, tipo));
+        const removidosTipoCondo = condoRaw.length - condoTipoOk.length;
+        if (removidosTipoCondo > 0) {
+          funilBusca.push({ etapa: `Mesmo prédio: removidos por tipo (${tipo})`, total: removidosTipoCondo });
+        }
+        condoMatches = condoTipoOk
           .map((p) => {
             // Same-building proxy: if PLP lacked area/quartos, use the
             // user's own values — apartments in the same condo usually
@@ -426,6 +431,12 @@ export async function runStudy(
           "endereco",
         );
         enderecoMatches = res.properties.filter((p) => matchEndereco(p, enderecoRaw));
+        const enderecoTotal = enderecoMatches.length;
+        enderecoMatches = enderecoMatches.filter((p) => isSameTipoFamily(p, tipo));
+        const removidosTipoEnd = enderecoTotal - enderecoMatches.length;
+        if (removidosTipoEnd > 0) {
+          funilBusca.push({ etapa: `Mesmo endereço: removidos por tipo (${tipo})`, total: removidosTipoEnd });
+        }
         enderecoMatches.forEach((p) => mesmoEnderecoIds.add(p.id));
         funilBusca.push({ etapa: `Mesmo endereço (${res.pages} pág.)`, total: enderecoMatches.length });
       } catch { /* best-effort */ }
