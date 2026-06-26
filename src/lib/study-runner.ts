@@ -719,6 +719,12 @@ export async function runStudy(
             total: 0,
           });
         }
+        if (recebidos === 0 && selecionados === 0) {
+          funilBusca.push({
+            etapa: `${PORTAL_TARGETS[t]}: consultado, 0 resultados retornados pelo portal`,
+            total: 0,
+          });
+        }
       }
     }
     if (chosen.length === 0) throw new Error("Nenhum imóvel compatível com os critérios informados");
