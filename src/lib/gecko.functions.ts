@@ -152,6 +152,10 @@ export const geckoPlp = createServerFn({ method: "POST" })
       if (typeof includeLaunches === "boolean") body.includeLaunches = includeLaunches;
       if (sort) body.sort = sort;
     }
+    // Zap PLP também aceita `amenities` (vocabulário POOL/GYM/...).
+    if (target === "zapimoveis.com.br" && amenities && amenities.length) {
+      body.amenities = amenities;
+    }
     // Native PLP filters — supported by Zap (and harmless when ignored by Chaves).
     if (bedrooms && bedrooms.length) body.bedrooms = bedrooms;
     if (bathrooms && bathrooms.length) body.bathrooms = bathrooms;
