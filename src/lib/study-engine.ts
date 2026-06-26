@@ -12,7 +12,11 @@ function similarity(input: StudyInput, p: MockProperty): number {
   };
   w(20, p.bairro === input.bairro ? 1 : input.bairrosProximos.includes(p.bairro) ? 0.6 : 0.1);
   w(10, p.cidade === input.cidade ? 1 : 0);
-  w(15, 1 - Math.min(Math.abs(p.areaUtil - input.areaUtil) / Math.max(input.areaUtil, 1), 1));
+  // Area gets the highest weight — "mesmo tamanho" é o critério mais pedido.
+  // Bônus extra quando a diferença é menor que 5% (basicamente o mesmo imóvel em metragem).
+  const areaDiffPct = p.areaUtil > 0 ? Math.abs(p.areaUtil - input.areaUtil) / Math.max(input.areaUtil, 1) : 1;
+  const areaScore = Math.max(0, 1 - areaDiffPct) + (areaDiffPct <= 0.05 ? 0.15 : 0);
+  w(30, Math.min(1, areaScore));
   w(15, p.quartos === input.quartos ? 1 : Math.max(0, 1 - Math.abs(p.quartos - input.quartos) * 0.3));
   w(8, p.vagas === input.vagas ? 1 : Math.max(0, 1 - Math.abs(p.vagas - input.vagas) * 0.4));
   w(7, p.suites === input.suites ? 1 : 0.5);
@@ -36,8 +40,32 @@ export function generateStudy(input: StudyInput, properties?: MockProperty[]): S
       precoM2: Math.round(p.preco / p.areaUtil),
       similaridade: similarity(input, p),
     }))
-    .sort((a, b) => b.similaridade - a.similaridade)
-    .slice(0, 10);
+    .sort((a, b) => b.similaridade - a.similaridade);
+
+  // Portal interleaving: when more than one portal returned results, ensure
+  // each portal contributes to the top 10 instead of one portal dominating.
+  const top10 = (() => {
+    if (!usingExternal || filtered.length <= 10) return filtered.slice(0, 10);
+    const byPortal = new Map<string, ComparableProperty[]>();
+    for (const p of filtered) {
+      const k = p.portal || "—";
+      if (!byPortal.has(k)) byPortal.set(k, []);
+      byPortal.get(k)!.push(p);
+    }
+    if (byPortal.size <= 1) return filtered.slice(0, 10);
+    const out: ComparableProperty[] = [];
+    const queues = Array.from(byPortal.values());
+    while (out.length < 10) {
+      let added = false;
+      for (const q of queues) {
+        if (out.length >= 10) break;
+        const next = q.shift();
+        if (next) { out.push(next); added = true; }
+      }
+      if (!added) break;
+    }
+    return out.sort((a, b) => b.similaridade - a.similaridade);
+  })();
 
   const precos = filtered.map((p) => p.preco);
   const precosM2 = filtered.map((p) => p.precoM2);
