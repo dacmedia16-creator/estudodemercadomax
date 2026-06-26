@@ -77,4 +77,6 @@ export interface SearchOverrides {
   edificio?: string;
   priorizarEdificio?: boolean;
   maxPages?: number;
+  /** Search radius in km around the geocoded address (1–5). Default 2 when geo is available. */
+  radiusKm?: number;
 }

@@ -42,6 +42,7 @@ function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<Searc
     edificio: o.edificio ?? input.edificio ?? "",
     priorizarEdificio: o.priorizarEdificio ?? !!(input.edificio && input.edificio.trim()),
     maxPages: o.maxPages ?? 3,
+    radiusKm: o.radiusKm ?? 2,
   };
 }
 
@@ -84,6 +85,7 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
       edificio: form.edificio.trim() || undefined,
       priorizarEdificio: form.priorizarEdificio,
       maxPages: Number(form.maxPages),
+      radiusKm: Number(form.radiusKm),
     });
   };
 
@@ -220,6 +222,22 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
                 <SelectItem value="1">1</SelectItem>
                 <SelectItem value="2">2</SelectItem>
                 <SelectItem value="3">3</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
+            <div>
+              <div className="text-sm font-medium">Raio de busca</div>
+              <div className="text-xs text-muted-foreground">Distância máxima a partir do endereço geocodificado. Aplicado no upstream e também localmente nos imóveis com coordenadas.</div>
+            </div>
+            <Select value={String(form.radiusKm)} onValueChange={(v) => set("radiusKm", Number(v))}>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 km</SelectItem>
+                <SelectItem value="2">2 km</SelectItem>
+                <SelectItem value="3">3 km</SelectItem>
+                <SelectItem value="5">5 km</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -37,7 +37,10 @@ function Loading() {
     }
     const input = JSON.parse(raw) as StudyInput;
     const kwRaw = sessionStorage.getItem("rip:pending-keyword");
-    const overrides = kwRaw ? { keyword: kwRaw, autoExpand: true } : {};
+    const radiusRaw = sessionStorage.getItem("rip:pending-radius");
+    const radiusKm = radiusRaw ? Number(radiusRaw) : undefined;
+    const overrides: Record<string, unknown> = kwRaw ? { keyword: kwRaw, autoExpand: true } : {};
+    if (radiusKm && radiusKm > 0) overrides.radiusKm = radiusKm;
 
     (async () => {
       const { result, warning, fellBack } = await runStudy(input, overrides, (s) => setStep(s));
@@ -47,6 +50,7 @@ function Loading() {
       studyStore.save(result);
       sessionStorage.removeItem("rip:pending");
       sessionStorage.removeItem("rip:pending-keyword");
+      sessionStorage.removeItem("rip:pending-radius");
 
       // brief pause so the user sees the final step
       await new Promise((r) => setTimeout(r, 600));

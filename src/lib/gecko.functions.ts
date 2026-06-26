@@ -74,13 +74,14 @@ const plpInput = z.object({
   areaMax: z.number().int().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
+  radius: z.number().optional(),
   page: z.number().int().min(1).default(1),
 });
 
 export const geckoPlp = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => plpInput.parse(d))
   .handler(async ({ data }) => {
-    const { city, state, keyword, target, propertyType, bedrooms, bathrooms, parkingSpots, priceMin, priceMax, areaMin, areaMax, latitude, longitude, ...rest } = data;
+    const { city, state, keyword, target, propertyType, bedrooms, bathrooms, parkingSpots, priceMin, priceMax, areaMin, areaMax, latitude, longitude, radius, ...rest } = data;
     const hasCity = !!city && city.trim().length > 0;
     const hasState = !!state && state.trim().length === 2;
     const hasKeyword = !!keyword && keyword.trim().length > 0;
@@ -109,6 +110,7 @@ export const geckoPlp = createServerFn({ method: "POST" })
     if (typeof latitude === "number" && typeof longitude === "number") {
       body.latitude = latitude;
       body.longitude = longitude;
+      if (typeof radius === "number" && radius > 0) body.radius = radius;
     }
     Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
     return callGecko<GeckoPlpData>(body);
