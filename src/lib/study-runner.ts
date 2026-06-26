@@ -275,6 +275,18 @@ export async function runStudy(
                       // contaminate the comparable median.
                       includeLaunches: false,
                     }
+                  : t === "olx.com.br"
+                  ? ({
+                      city: params.city,
+                      state: params.state,
+                      businessType: params.businessType,
+                      keyword: params.keyword,
+                      priceMin: params.priceMin,
+                      priceMax: params.priceMax,
+                      // OLX-specific: classify under the right real-estate path
+                      // to avoid noise from other categories.
+                      ...({ categoryPath: mapTipoToOlxCategory(tipo, params.businessType) } as Record<string, unknown>),
+                    } as PlpParams)
                   : params;
               const res = await geckoPlp({ data: { ...portalParams, target: t, page } });
               return { t, res };
