@@ -21,6 +21,18 @@ export interface MockProperty {
   dataColeta: string;
   incomplete?: boolean;
   aproximado?: boolean;
+  latitude?: number;
+  longitude?: number;
+  diasMercado?: number;
+  publicationType?: string;
+  mainAmenities?: string[];
+  infoTags?: string[];
+  advertiserPhone?: string;
+  advertiserWhatsapp?: string;
+  advertiserCreci?: string;
+  advertiserRating?: number;
+  virtualTourUrl?: string;
+  removido?: boolean;
 }
 
 const img = (seed: string) =>

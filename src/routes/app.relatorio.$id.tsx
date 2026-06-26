@@ -267,6 +267,10 @@ function ReportPage() {
                 <TableHead className="text-right">Vagas</TableHead>
                 <TableHead className="text-right">Preço</TableHead>
                 <TableHead className="text-right">R$/m²</TableHead>
+                <TableHead className="text-right">Cond.</TableHead>
+                <TableHead className="text-right">IPTU</TableHead>
+                <TableHead className="text-right">DOM</TableHead>
+                <TableHead>Anunciante</TableHead>
                 <TableHead className="text-right">Similar.</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -283,6 +287,12 @@ function ReportPage() {
                     {!c.mesmoCondominio && c.mesmoEndereco && (
                       <Badge variant="outline" className="mt-1 text-[9px] border-primary/60 text-primary">Mesmo endereço</Badge>
                     )}
+                    {c.removido && (
+                      <Badge variant="outline" className="mt-1 text-[9px] border-destructive/60 text-destructive">Anúncio removido</Badge>
+                    )}
+                    {c.publicationType === "PREMIUM" && (
+                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-amber-500/60 text-amber-600">Premium</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.bairro}</TableCell>
                   <TableCell className="text-right">{c.areaUtil}m²</TableCell>
@@ -290,6 +300,25 @@ function ReportPage() {
                   <TableCell className="text-right">{c.vagas}</TableCell>
                   <TableCell className="text-right font-semibold">{formatBRL(c.preco)}</TableCell>
                   <TableCell className="text-right">{formatBRL(c.precoM2)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{c.condominio ? formatBRL(c.condominio) : "—"}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{c.iptu ? formatBRL(c.iptu) : "—"}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{typeof c.diasMercado === "number" ? `${c.diasMercado}d` : "—"}</TableCell>
+                  <TableCell className="max-w-[180px] text-xs">
+                    <div className="truncate">{c.anunciante || "—"}</div>
+                    {c.advertiserWhatsapp && (
+                      <a
+                        href={`https://wa.me/${c.advertiserWhatsapp.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-emerald-600 hover:underline"
+                      >
+                        WhatsApp
+                      </a>
+                    )}
+                    {c.advertiserCreci && (
+                      <span className="ml-2 text-[10px] text-muted-foreground">CRECI {c.advertiserCreci}</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Badge className={cn("text-[10px]", c.similaridade > 75 ? "bg-success text-success-foreground" : c.similaridade > 55 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
                       {c.similaridade}%
@@ -302,6 +331,34 @@ function ReportPage() {
           </Table>
         </div>
       </Card>
+
+      {/* Top anunciantes da região */}
+      {(() => {
+        const counts = new Map<string, number>();
+        sorted.forEach((c) => {
+          const name = (c.anunciante || "").trim();
+          if (!name || name === "—") return;
+          counts.set(name, (counts.get(name) ?? 0) + 1);
+        });
+        const top = Array.from(counts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5);
+        if (top.length === 0) return null;
+        return (
+          <Card className="mt-6 border-border/60 p-6">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Anunciantes mais ativos nos comparáveis
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {top.map(([name, n]) => (
+                <Badge key={name} variant="secondary" className="text-xs">
+                  {name} <span className="ml-1 opacity-70">· {n}</span>
+                </Badge>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Block 6: concorrentes diretos */}
       <div className="mt-6">
