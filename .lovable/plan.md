@@ -1,76 +1,119 @@
-## Diagnóstico — o que está e o que NÃO está funcionando
+## Achados ao ler a doc do Chaves na Mão PLP/PDP
 
-Li `src/lib/study-runner.ts`, `src/lib/gecko.functions.ts` e `src/lib/gecko-adapter.ts`. O fluxo cobre o básico (params por portal, paginação adaptativa, parsing tolerante), mas tem **5 problemas reais** que afetam Chaves na Mão. Listo na ordem de impacto.
+A doc revela que nossa integração com Chaves está **subutilizando muito** o que o portal aceita, e que o adapter está lendo **os campos errados** do payload do Chaves (por isso muitos imóveis caem como "sem preço/área"). Resumo dos gaps:
 
-### Bug 1 — PDP do Chaves é chamado como se fosse Zap (crítico)
-Em `study-runner.ts` linha 485:
-```ts
-const pdp = await geckoPdp({ data: { url: p.url } });
-```
-`geckoPdp` tem `target` default = `"zapimoveis.com.br"`. Ou seja: todo comparável vindo do Chaves enriquece via PDP do Zap → a chamada falha silenciosamente ou volta `notFound`, e o imóvel pode ser marcado `removido = true` indevidamente, sumindo do relatório. Também queima 1 crédito por imóvel sem retorno útil.
+### Gap 1 — Adapter lê o shape errado do Chaves (impacto alto)
+Hoje `geckoItemToProperty` assume o shape do Zap (`prices.mainValue`, `usableAreas`, `bedrooms`, `parkingSpaces`, `images[].url`, `advertiser.mainPhone`). O Chaves usa outra estrutura:
 
-**Correção:** detectar o portal pelo `p.portal` (ou pelo host da URL) e passar `target: "chavesnamao.com.br"` quando aplicável.
+| Campo | Zap | Chaves |
+|---|---|---|
+| Preço | `prices.mainValue` | `prices.rawPrice` |
+| Condomínio | `prices.monthlyCondoFee` | `prices.condominiumFee` |
+| IPTU | `prices.iptu` | `prices.iptuValue` |
+| Área útil | `usableAreas[0]` | `area.useful` |
+| Quartos | `bedrooms[0]` | `counts.bedrooms.count` |
+| Banheiros | `bathrooms[0]` | `counts.bathrooms.count` |
+| Suítes | `suites[0]` | `counts.suites.count` |
+| Vagas | `parkingSpaces[0]` | `counts.garages.count` |
+| Imagem | `images[0].url` (objeto) | `featuredImage` / `images[0]` (string) |
+| Telefone | `advertiser.mainPhone` | `advertiser.phones.cellphone` |
+| WhatsApp | `advertiser.whatsAppNumber` | (não exposto — derivar do `cellphone`) |
+| Data | `createdAt` | `updatedAt` |
+| Bairro/cidade | `address.neighborhood/city` | `address.neighborhood/city` ✓ |
+| Lat/lng | `address.latitude/longitude` | `address.latitude/longitude` ✓ |
 
-### Bug 2 — Set `exhausted` não persiste entre camadas
-`exhausted` é recriado dentro de cada chamada de `adaptivePaginate`. Se o Chaves esgotou (notFound ou sem `nextPage`) na camada "mesmo condomínio", a camada "mesmo endereço" e depois "bairro" voltam a consultá-lo. Em uma cidade que o Chaves não reconhece, isso desperdiça até **6 chamadas extras** por estudo (3 camadas × 2 retries) e ainda polui o funil com `plpNotFound` repetido.
+Hoje a tolerância parcial pega o preço em alguns casos via `parsePrice(anyItem.price)`, mas área e quartos sempre voltam `null` → todo item Chaves vira `incomplete` e é filtrado nas camadas estritas.
 
-**Correção:** mover `exhausted` para o escopo do `runStudy` (fora de `adaptivePaginate`), passar como parâmetro, e mostrar no funil "Chaves na Mão: portal esgotado/não reconhece a cidade" apenas uma vez.
+### Gap 2 — PLP do Chaves NÃO aceita `keyword` (impacto crítico)
+A doc lista os inputs aceitos: `city`, `state`, `neighborhood`, `propertyTypes`, `amenities`, `bedrooms`, `bathrooms`, `parkingSpots`, `priceMin/Max`, `areaMin/Max`, `directOwner`, `condominium`, `includeLaunches`, `sort`, `latitude`, `longitude`. **Não tem `keyword`.** Nossas camadas:
+- **Camada 1 (mesmo condomínio)** passa `keyword: edificio` → Chaves ignora → busca genérica → 0 matches do prédio → créditos gastos à toa.
+- **Camada 2 (mesmo endereço)** passa `keyword: "rua X bairro"` → mesmo problema.
+- **Camada 3 (bairro)** passa `keyword: "tipo bairro"` mas não passa o campo `neighborhood` dedicado.
 
-### Bug 3 — `totalResults` mistura Zap + Chaves
-Linha 196: `totalResultsUpstream = Math.max(...)`. Se Zap retorna 5.000 e Chaves retorna 30, o funil mostra 5.000 e atribui ao "portal" no singular. Engana a leitura.
+### Gap 3 — Filtros nativos do Chaves estão sendo strippados
+Há 2 turns a gente "stripou tudo" pro Chaves achando que quebrava. A doc confirma que ele aceita: `bedrooms`, `bathrooms`, `parkingSpots`, `priceMin/Max`, `areaMin/Max`, `latitude`, `longitude` (com filtro 2 km no próprio worker do Gecko). Hoje a gente envia só `city + businessType + keyword` — perde toda capacidade de filtro nativo. **Atenção:** `bedrooms/bathrooms/parkingSpots` aceitam só **1 valor por request** no Chaves (a doc é explícita).
 
-**Correção:** acumular `totalResults` por portal (`totalResultsPerTarget[t]`) e renderizar uma linha por portal no funil.
+### Gap 4 — `propertyTypes` (plural, aliases pt) não é mapeado
+Chaves usa aliases lowercase: `apartment`, `house`, `penthouse`, `land`, `commercial_room`, `loft`, `flat`, `farm`. Hoje a gente strippa `propertyType` (singular, Zap-style) e não envia nada. Resultado: a busca volta TODOS os tipos do bairro misturados.
 
-### Bug 4 — Stats per-portal não distinguem camada
-`perPortal[t].recebidos` soma condo + endereço + bairro. Se o Chaves só retorna na camada bairro, parece que respondeu em todas. Difícil debugar onde o portal funciona.
+### Gap 5 — Lat/lng do Chaves também serve (impacto médio)
+A doc diz que o próprio worker aplica raio de 2 km quando `latitude/longitude` são enviados. Hoje a gente strippa do Chaves. Com o geocoding que já temos, dá pra mandar e cortar muito anúncio fora.
 
-**Correção:** trocar contadores únicos por `{layer, recebidos, aproveitados}` e logar/funilar por camada quando houver dados.
-
-### Bug 5 — Chaves recebe `state: ""` sempre
-A doc do Chaves na Mão (URLs `/imoveis/SP/sao-paulo/...`) sugere que o portal **precisa** de UF. O override atual zera o state porque "Chaves quebra com UF code" — mas o sintoma original pode ter sido outro (ex.: priceMin/Max). Sem state, a chance de notFound aumenta em cidades comuns a múltiplos estados (São José, Boa Vista, etc.).
-
-**Correção:** manter `state` (UF, 2 letras) na chamada do Chaves; remover só os filtros que comprovadamente quebram (bedrooms/price/area/lat/lng/radius, que já estavam fora). Adicionar um teste rápido em Settings → "Testar Chaves" com e sem UF pra confirmar.
-
-### O que JÁ está correto (não mexer)
-- Parsing tolerante em `gecko-adapter.ts` (price/area/quartos em formatos BR e EN).
-- `bedrooms/price/area/lat/lng` strippados do body do Chaves no server.
-- `propertyType` enviado só para Zap.
-- Paginação adaptativa pára quando atinge TARGET=8 ou portal exhausted.
+### Gap 6 — `updatedAt` como proxy de DOM e `gmb.rating` para anunciante
+PDP do Chaves não tem `createdAt`. Usar `updatedAt` (já indica frescor do anúncio). `gmb.rating` pode alimentar `advertiserRating`.
 
 ---
 
 ## Plano de implementação
 
-Tudo em **`src/lib/study-runner.ts`** (1 arquivo). Sem mudanças em UI, sem mudanças no engine de relatório.
+Tudo dividido em 3 arquivos. Sem mudanças em UI/relatório.
 
-1. **Fix PDP target por portal**
-   - Mapa `PORTAL_TO_TARGET = { "Zap Imóveis": "zapimoveis.com.br", "Chaves na Mão": "chavesnamao.com.br" }`.
-   - Na chamada PDP (linha ~485): `geckoPdp({ data: { url: p.url, target: PORTAL_TO_TARGET[p.portal] ?? "zapimoveis.com.br" } })`.
+### 1) `src/lib/gecko-adapter.ts` — adapter dual-shape
+- Criar `chavesItemToProperty(item, portal)` que lê os caminhos corretos:
+  - preço: `prices.rawPrice` || `prices.maxPrice`
+  - condomínio: `prices.condominiumFee`
+  - iptu: `prices.iptuValue`
+  - área: `area.useful` || `area.total`
+  - quartos: `counts.bedrooms.count`
+  - banheiros: `counts.bathrooms.count`
+  - suítes: `counts.suites.count`
+  - vagas: `counts.garages.count`
+  - imagem: `featuredImage` || `images[0]` (string)
+  - bairro/cidade/estado/lat/lng: `address.*`
+  - anunciante: `advertiser.name`, `advertiser.phones.cellphone`, `advertiser.creci`
+  - whatsApp: derivar do `cellphone` removendo máscara (link `wa.me/55…`) quando `phones.public === true`
+  - amenidades: `privativeAmenities` + `commonAmenities` concatenados
+  - data: `updatedAt` → `diasMercado`
+- No `geckoItemToProperty(item, portal)` existente, **detectar** o shape: se `portal === "Chaves na Mão"` OU `item.counts?.bedrooms` existe → delegar para `chavesItemToProperty`. Caso contrário, manter código atual (Zap).
+- No `enrichWithPdp`: já desce 1 nível (`outer.data`). Após descer, chama o mesmo `geckoItemToProperty(inner, p.portal)`, que vai despachar corretamente.
 
-2. **`exhausted` persistente entre camadas**
-   - Declarar `const exhausted = new Set<PortalTarget>()` no topo do `runStudy`.
-   - `adaptivePaginate` recebe-o por referência; passa a respeitar e a popular esse Set.
-   - Adicionar uma única linha no funil: `${PORTAL_TARGETS[t]}: portal esgotado` quando exhausted após a corrida.
+### 2) `src/lib/gecko.functions.ts` — aceitar campos do Chaves
+- Estender `plpInput` com campos opcionais: `neighborhood` (string), `propertyTypes` (array string), `amenities` (array string), `directOwner` (bool), `condominium` (bool), `includeLaunches` (bool), `sort` (string).
+- No handler, montar o body:
+  - `neighborhood` enviado quando presente.
+  - `propertyTypes` enviado quando target === `chavesnamao.com.br`.
+  - `propertyType` (singular, UPPERCASE) continua só para Zap.
+  - `directOwner`, `condominium`, `includeLaunches`, `amenities`, `sort` enviados quando presentes (úteis para Chaves; harmless ignorados pelo Zap, mas só enviar quando target === Chaves para não poluir).
+- Manter `bedrooms`/`price`/`area` como já está — funciona pros dois agora.
 
-3. **`totalResults` e `plpNotFound` por portal**
-   - `totalResultsPerTarget: Record<PortalTarget, number>`.
-   - No funil: uma linha por portal com `Total disponível em ${nome}: ${n}`.
-   - `plpNotFoundPerTarget` já existe — só checar que cada portal aparece no funil apenas se relevante.
+### 3) `src/lib/study-runner.ts` — params por portal corretos
+- Novo mapa `mapTipoToChavesAlias`:
+  ```ts
+  apartamento → "apartment"
+  apto → "apartment"
+  cobertura → "penthouse"
+  casa → "house"
+  sobrado → "house"
+  studio → "flat"
+  kitnet → "flat"
+  loft → "loft"
+  terreno → "land"
+  sala/comercial → "commercial_room"
+  ```
+- Override per-portal no `adaptivePaginate`, **camada bairro**:
+  ```ts
+  t === "chavesnamao.com.br" ? {
+    city, state, businessType,
+    neighborhood: bairro || undefined,
+    propertyTypes: chavesAlias ? [chavesAlias] : undefined,
+    // Chaves: 1 valor por request
+    bedrooms: bedroomsList?.length ? [bedroomsList[0]] : undefined,
+    priceMin, priceMax, areaMin, areaMax,
+    latitude: geoLat, longitude: geoLng,
+  } : params
+  ```
+- **Camadas condomínio/endereço (keyword-only):** Chaves não suporta keyword → **pular Chaves nessas camadas**. No `adaptivePaginate`, quando `layerKey === "condominio"` ou `"endereco"`, remover Chaves de `remaining`. Adicionar ao funil uma única linha: `Chaves na Mão: pulado em camadas de keyword (não suportado pela API)`.
+- Manter strip de `radius` (não é input do Chaves; o worker aplica 2 km fixo).
 
-4. **Stats per-portal por camada (debug)**
-   - Trocar `perPortal[t] = { recebidos, aproveitados, descartados }` por `perPortal[t][layer]`.
-   - No funil final, agregar e mostrar: `Chaves na Mão (condomínio: 0, endereço: 0, bairro: 12) → 5 aproveitados`.
-
-5. **Reativar `state` para o Chaves**
-   - No override per-portal de `adaptivePaginate`, manter `state: params.state` (UF) também para Chaves.
-   - Manter strip apenas de `propertyType`/`bedrooms`/`price`/`area`/`lat`/`lng`/`radius` (que já estão fora pelo build do body em Chaves).
-
-### Validação após implementar
+### Validação
 - `tsgo` (typecheck).
-- Rodar um estudo em uma cidade que o Chaves cobre (ex.: Sorocaba/SP) e conferir no funil que aparece "Chaves na Mão" com `recebidos > 0` e que comparáveis Chaves chegam ao relatório com `condominio`/`diasMercado` preenchidos (sinal de PDP correto).
-- Rodar em cidade obscura e confirmar que `Chaves: portal esgotado` aparece **uma vez só** (não 3).
-- Conferir contagem total de requisições no rodapé do funil — deve cair em ~30% para cidades onde o Chaves dá notFound.
+- Rodar estudo em **Curitiba/PR, Centro, apartamento 3 quartos** (mesmo exemplo da doc).
+  - Funil deve mostrar `Chaves na Mão: total disponível no portal: ~33000`.
+  - Comparáveis Chaves devem ter preço, área e quartos preenchidos (não vão mais cair em `incomplete`).
+  - Funil deve mostrar `Chaves na Mão: pulado em camadas keyword` quando edifício/endereço informados.
+- Confirmar que comparáveis Chaves carregam `latitude/longitude` (vão entrar no filtro Haversine corretamente).
 
-### Fora do escopo (proponho para depois)
-- Geocoding também para Chaves (atualmente sem efeito pois Chaves não tem lat/lng nos itens — passaria pelo filtro Haversine sem ser cortado).
-- Dicionário de tradução de `propertyType` para o vocabulário do Chaves (`apartamento`/`casa` em pt) caso a doc confirme suporte.
+### Fora do escopo
+- Toggle de UI para `amenities`/`directOwner` no formulário (a doc oferece, mas sem demanda explícita).
+- Paginação por URL pública (`url:` no PLP) — mantemos o fluxo por filtros.
+- Aceitar `bedrooms` como range no Chaves — a API limita a 1 valor; podemos rodar PLPs separados por valor de quartos, mas isso duplica créditos. Sem ganho claro agora.
