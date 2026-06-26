@@ -132,7 +132,14 @@ export async function runStudy(
   const autoExpand = overrides.autoExpand ?? true;
   const edificio = (overrides.edificio ?? input.edificio ?? "").trim();
   const priorizarEdificio = (overrides.priorizarEdificio ?? !!edificio) && !!edificio;
-  const enderecoRaw = (input.endereco ?? "").trim();
+  // Combine endereço + número (se ambos vieram do form em campos separados,
+  // o número vira parte do endereço completo para o matcher).
+  const enderecoBase = (input.endereco ?? "").trim();
+  const numeroBase = (input.numero ?? "").trim();
+  const jaTemNumero = /\b\d{1,6}\b/.test(enderecoBase);
+  const enderecoRaw = numeroBase && !jaTemNumero
+    ? `${enderecoBase}, ${numeroBase}`.trim()
+    : enderecoBase;
   const usarEndereco = enderecoRaw.replace(/\s+/g, " ").length >= 4;
   const maxPages = Math.min(3, Math.max(1, overrides.maxPages ?? 3));
   const radiusKm = Math.min(5, Math.max(1, overrides.radiusKm ?? 2));
