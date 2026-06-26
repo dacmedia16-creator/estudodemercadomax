@@ -1,6 +1,6 @@
 import { mockProperties, type MockProperty } from "./mock-properties";
 import type { ComparableProperty, StudyInput, StudyResult, FieldMode, FieldKey } from "./study-types";
-import { DEFAULT_FIELD_MODES } from "./study-types";
+import { DEFAULT_FIELD_MODES, DEFAULT_ACM, type AcmAdjustments } from "./study-types";
 
 const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / Math.max(arr.length, 1);
 
@@ -174,3 +174,31 @@ export const formatBRL = (n: number | null | undefined) => {
   if (n === null || n === undefined || !Number.isFinite(n)) return "—";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 };
+
+export interface AcmComputed {
+  multiplicador: number;
+  valorM2Avaliado: number;
+  descontoReforma: number;
+  valorSugerido: number;
+  valorMaximoPublicacao: number;
+  valorMinimoFechamento: number;
+}
+
+/** Calcula o resumo no estilo da ACM clássica usada por corretores. */
+export function computeAcm(study: StudyResult, adj?: Partial<AcmAdjustments>): AcmComputed {
+  const a: AcmAdjustments = { ...DEFAULT_ACM, ...(study.acm ?? {}), ...(adj ?? {}) };
+  const mult = (a.localizacao / 100) * (a.conservacao / 100) * (a.idade / 100) * (a.padrao / 100);
+  const valorM2Avaliado = Math.round(study.precoM2Medio * mult);
+  const area = study.input.areaUtil || 0;
+  const descontoReforma = Math.round(a.reformaPorM2 * area);
+  const valorSugerido = Math.max(0, valorM2Avaliado * area - descontoReforma);
+  const margem = (a.margemPublicacaoPct || 0) / 100;
+  return {
+    multiplicador: mult,
+    valorM2Avaliado,
+    descontoReforma,
+    valorSugerido: Math.round(valorSugerido),
+    valorMaximoPublicacao: Math.round(valorSugerido * (1 + margem)),
+    valorMinimoFechamento: Math.round(valorSugerido * (1 - margem)),
+  };
+}

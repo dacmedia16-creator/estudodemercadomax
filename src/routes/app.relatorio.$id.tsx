@@ -16,6 +16,7 @@ import { formatBRL } from "@/lib/study-engine";
 import type { StudyResult, SearchOverrides } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
 import { CriteriosEditor } from "@/components/criterios-editor";
+import { AcmPanel } from "@/components/acm-panel";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -177,6 +178,13 @@ function ReportPage() {
         </div>
         <p className="text-base leading-relaxed text-foreground">{study.diagnostico}</p>
       </Card>
+
+      {/* Block 3.2: ACM */}
+      {study.comparaveis.length > 0 && (
+        <div className="mt-6">
+          <AcmPanel study={study} onChange={setStudy} />
+        </div>
+      )}
 
       {/* Block 3.5: critérios da busca */}
       <div className="mt-6">

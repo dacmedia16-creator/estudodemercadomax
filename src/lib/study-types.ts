@@ -57,7 +57,30 @@ export interface StudyResult {
   funilBusca?: { etapa: string; total: number }[];
   overridesAplicados?: SearchOverrides;
   revisao?: number;
+  /** Ajustes ACM (Análise Comparativa de Mercado) — editáveis no relatório. */
+  acm?: AcmAdjustments;
 }
+
+export interface AcmAdjustments {
+  /** Fatores percentuais (100 = neutro, range típico 80–120). */
+  localizacao: number;
+  conservacao: number;
+  idade: number;
+  padrao: number;
+  /** Custo de reforma estimado por m² em R$. */
+  reformaPorM2: number;
+  /** Margem de negociação aplicada ao valor de publicação (%). */
+  margemPublicacaoPct: number;
+}
+
+export const DEFAULT_ACM: AcmAdjustments = {
+  localizacao: 100,
+  conservacao: 100,
+  idade: 100,
+  padrao: 100,
+  reformaPorM2: 0,
+  margemPublicacaoPct: 5,
+};
 
 export interface SearchOverrides {
   keyword?: string;
