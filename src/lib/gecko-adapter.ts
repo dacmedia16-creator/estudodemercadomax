@@ -69,6 +69,7 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
   // Chaves na Mão often returns price/priceValue/sale.price as number or BR string).
   const preco =
     parsePrice(item.prices?.mainValue) ||
+    parsePrice(item.prices?.price) ||
     parsePrice(anyItem.price) ||
     parsePrice(anyItem.priceValue) ||
     parsePrice(anyItem.salePrice) ||
@@ -139,17 +140,50 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
   const url: string = item.url ?? anyItem.link ?? anyItem.permalink ?? "";
   const id: string = (item.id ?? anyItem.listingId ?? anyItem.code ?? url) || crypto.randomUUID();
 
+  // ---- Enrichment fields (mostly populated by PDP) ----
+  const condominio =
+    (typeof item.prices?.monthlyCondoFee === "number" ? item.prices.monthlyCondoFee : 0) ||
+    parsePrice(anyItem.condoFee) ||
+    parsePrice(anyItem.condominium) ||
+    0;
+  const iptu =
+    (typeof item.prices?.iptu === "number" ? item.prices.iptu : 0) ||
+    parsePrice(anyItem.iptu) ||
+    0;
+
+  const latitude =
+    typeof item.address?.latitude === "number" ? item.address.latitude : undefined;
+  const longitude =
+    typeof item.address?.longitude === "number" ? item.address.longitude : undefined;
+
+  const createdAtStr = item.createdAt ?? anyItem.createdAt ?? "";
+  let diasMercado: number | undefined;
+  if (createdAtStr) {
+    const t = Date.parse(createdAtStr);
+    if (!isNaN(t)) diasMercado = Math.max(0, Math.floor((Date.now() - t) / 86400000));
+  }
+
+  const adv = item.advertiser ?? {};
+  const advertiserPhone = adv.mainPhone || adv.phoneNumbers?.[0] || undefined;
+  const advertiserWhatsapp = adv.whatsAppNumber || undefined;
+  const advertiserCreci = adv.creci || undefined;
+  const advertiserRating =
+    typeof adv.rating?.score === "number" ? adv.rating.score : undefined;
+
+  const mainAmenities = Array.isArray(item.mainAmenities) ? item.mainAmenities : undefined;
+  const infoTags = Array.isArray(item.infoTags) ? item.infoTags : undefined;
+
   return {
     id,
     portal,
-    titulo: (desc || `Imóvel em ${bairro}`).slice(0, 80),
+    titulo: (item.title || desc || `Imóvel em ${bairro}`).slice(0, 80),
     url,
     bairro,
     cidade,
     estado,
     preco,
-    condominio: 0,
-    iptu: 0,
+    condominio,
+    iptu,
     areaUtil,
     quartos,
     suites,
@@ -161,5 +195,55 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     imagem,
     dataColeta: new Date().toISOString().slice(0, 10),
     incomplete,
+    latitude,
+    longitude,
+    diasMercado,
+    publicationType: item.publicationType,
+    mainAmenities,
+    infoTags,
+    advertiserPhone: advertiserPhone || undefined,
+    advertiserWhatsapp: advertiserWhatsapp || undefined,
+    advertiserCreci,
+    advertiserRating,
+    virtualTourUrl: item.virtualTourUrl,
+  };
+}
+
+/**
+ * Merge enrichment fields from a PDP payload into an existing property.
+ * The PDP response shape is `{ source, type, data: {...real fields...} }`
+ * (one level deeper than PLP items).
+ */
+export function enrichWithPdp(p: MockProperty, pdpData: unknown): MockProperty {
+  if (!pdpData || typeof pdpData !== "object") return p;
+  const outer = pdpData as Record<string, any>;
+  // pdp.data shape: { source, type, parser, data: { ...item-shaped... } }
+  const inner = (outer.data && typeof outer.data === "object" ? outer.data : outer) as Record<string, any>;
+  const enriched = geckoItemToProperty(inner as GeckoItem, p.portal);
+  if (!enriched) return p;
+  // Keep original id/url/title/imagem if PDP didn't bring them — prefer PDP values when present.
+  return {
+    ...p,
+    condominio: enriched.condominio || p.condominio,
+    iptu: enriched.iptu || p.iptu,
+    latitude: enriched.latitude ?? p.latitude,
+    longitude: enriched.longitude ?? p.longitude,
+    diasMercado: enriched.diasMercado ?? p.diasMercado,
+    publicationType: enriched.publicationType ?? p.publicationType,
+    mainAmenities: enriched.mainAmenities ?? p.mainAmenities,
+    infoTags: enriched.infoTags ?? p.infoTags,
+    advertiserPhone: enriched.advertiserPhone ?? p.advertiserPhone,
+    advertiserWhatsapp: enriched.advertiserWhatsapp ?? p.advertiserWhatsapp,
+    advertiserCreci: enriched.advertiserCreci ?? p.advertiserCreci,
+    advertiserRating: enriched.advertiserRating ?? p.advertiserRating,
+    virtualTourUrl: enriched.virtualTourUrl ?? p.virtualTourUrl,
+    diferenciais: enriched.diferenciais.length ? enriched.diferenciais : p.diferenciais,
+    anunciante: p.anunciante !== "—" ? p.anunciante : enriched.anunciante,
+    areaUtil: p.areaUtil || enriched.areaUtil,
+    quartos: p.quartos || enriched.quartos,
+    banheiros: p.banheiros || enriched.banheiros,
+    vagas: p.vagas || enriched.vagas,
+    suites: p.suites || enriched.suites,
+    descricao: p.descricao || enriched.descricao,
   };
 }
