@@ -44,6 +44,66 @@ export function mapTipoToChavesAlias(tipo: string): string | undefined {
   return CHAVES_TYPE_MAP[tipo.trim().toLowerCase()];
 }
 
+/**
+ * Tipo families — usadas para descartar comparáveis incompatíveis (ex.: "Casa
+ * de condomínio" entrando num estudo de "Apartamento"). Cada família tem
+ * tokens positivos (qualquer um basta para classificar) e tokens negativos
+ * (qualquer um desclassifica a partir de outra família).
+ */
+const TIPO_FAMILIES: Record<string, { pos: string[]; neg: string[] }> = {
+  apartamento: {
+    pos: ["apartamento", "apto", "cobertura", "flat", "studio", "kitnet", "loft", "duplex", "garden"],
+    neg: ["casa ", "casa,", "casa.", "casa-", "sobrado", "chacara", "sitio", "terreno", "galpao", "sala comercial", "loja"],
+  },
+  casa: {
+    pos: ["casa", "sobrado", "casa terrea", "casa de condominio"],
+    neg: ["apartamento", "apto ", "cobertura", "studio", "kitnet", "flat ", "sala comercial", "galpao", "terreno"],
+  },
+  terreno: { pos: ["terreno", "lote", "area"], neg: ["apartamento", "casa", "sala", "galpao"] },
+  comercial: { pos: ["sala comercial", "loja", "galpao", "comercial", "ponto"], neg: ["apartamento", "casa", "terreno"] },
+};
+
+function familyOfTipo(tipo: string): keyof typeof TIPO_FAMILIES | null {
+  const t = normalizeText(tipo);
+  if (!t) return null;
+  if (["apartamento", "apto", "cobertura", "flat", "studio", "kitnet", "loft"].includes(t)) return "apartamento";
+  if (["casa", "sobrado", "casa de condominio"].includes(t)) return "casa";
+  if (["terreno", "lote"].includes(t)) return "terreno";
+  if (["comercial", "sala", "sala comercial", "loja", "galpao"].includes(t)) return "comercial";
+  return null;
+}
+
+/**
+ * Retorna true se o imóvel pertence à mesma família de tipo do desejado.
+ * Quando não conseguimos classificar com confiança (anúncio sem palavras-chave),
+ * mantemos (`true`) para não derrubar resultados legítimos do mesmo prédio.
+ */
+export function isSameTipoFamily(
+  p: { titulo?: string; descricao?: string },
+  tipoDesejado: string,
+): boolean {
+  const fam = familyOfTipo(tipoDesejado);
+  if (!fam) return true;
+  const hay = normalizeText(`${p.titulo ?? ""} ${p.descricao ?? ""}`);
+  if (!hay) return true;
+  const me = TIPO_FAMILIES[fam];
+  // Token positivo da família desejada → aceita.
+  const hasPos = me.pos.some((tok) => hay.includes(tok));
+  if (hasPos) {
+    // Mesmo com pos, se o título começa com "Casa" e família é apartamento, derruba.
+    // (cobre "Casa de condomínio à venda...")
+    if (fam === "apartamento" && /^casa\b/.test(hay)) return false;
+    return true;
+  }
+  // Sem token positivo: rejeita se houver token de OUTRA família claramente.
+  for (const [otherFam, def] of Object.entries(TIPO_FAMILIES)) {
+    if (otherFam === fam) continue;
+    if (def.pos.some((tok) => hay.includes(tok))) return false;
+  }
+  // Ambíguo — preserva.
+  return true;
+}
+
 export function normalizeText(s: string): string {
   return s
     .normalize("NFD")
