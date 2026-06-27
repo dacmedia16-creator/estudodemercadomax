@@ -338,13 +338,16 @@ function ReportPage() {
                     {c.publicationType === "PREMIUM" && (
                       <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-amber-500/60 text-amber-600">Premium</Badge>
                     )}
+                    {(c.aproximado || c.incomplete) && (!c.areaUtil || c.areaUtil <= 0) && (
+                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-muted-foreground/40 text-muted-foreground">Área não informada</Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.bairro}</TableCell>
-                  <TableCell className="text-right">{c.areaUtil}m²</TableCell>
-                  <TableCell className="text-right">{c.quartos}</TableCell>
+                  <TableCell className="text-right">{c.areaUtil > 0 ? `${c.areaUtil}m²` : "—"}</TableCell>
+                  <TableCell className="text-right">{c.quartos > 0 ? c.quartos : "—"}</TableCell>
                   <TableCell className="text-right">{c.vagas}</TableCell>
                   <TableCell className="text-right font-semibold">{formatBRL(c.preco)}</TableCell>
-                  <TableCell className="text-right">{formatBRL(c.precoM2)}</TableCell>
+                  <TableCell className="text-right">{c.precoM2 > 0 ? formatBRL(c.precoM2) : "—"}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{c.condominio ? formatBRL(c.condominio) : "—"}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{c.iptu ? formatBRL(c.iptu) : "—"}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{typeof c.diasMercado === "number" ? `${c.diasMercado}d` : "—"}</TableCell>
