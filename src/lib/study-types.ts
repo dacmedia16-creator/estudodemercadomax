@@ -32,6 +32,8 @@ export interface ComparableProperty extends MockProperty {
   similaridade: number;
   mesmoCondominio?: boolean;
   mesmoEndereco?: boolean;
+  /** "busca" (default) ou "manual" quando adicionado por URL pelo usuário. */
+  origem?: "busca" | "manual";
 }
 
 export interface StudyResult {
