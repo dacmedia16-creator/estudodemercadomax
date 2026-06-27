@@ -59,6 +59,16 @@ function similarity(
   return Math.round((score / total) * 100);
 }
 
+/** Versão pública do cálculo de similaridade (para imóveis adicionados manualmente). */
+export function computeSimilarity(
+  input: StudyInput,
+  p: MockProperty,
+  fieldModes?: Partial<Record<FieldKey, FieldMode>>,
+): number {
+  const modes: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(fieldModes ?? {}) };
+  return similarity(input, p, modes);
+}
+
 export function generateStudy(
   input: StudyInput,
   properties?: MockProperty[],
