@@ -1,44 +1,38 @@
-## Causa raiz
+## Objetivo
+Adicionar um 4º modo **"Preferir"** aos Campos Extras, que **prioriza** imóveis com o item selecionado (boost na similaridade e badge "match exato"), mas **não exclui** os que não têm — diferente do "Obrigatório" que elimina.
 
-Na tabela, todos os anúncios da OLX aparecem com **250m² / 3 quartos / 4 vagas** porque o `study-runner` está **copiando os valores do imóvel do usuário** quando o PLP não traz área/quartos:
+## Mudanças
 
-```ts
-// src/lib/study-runner.ts (Layer "Mesmo prédio")
-if (p.incomplete) {
-  if (!p.areaUtil) p.areaUtil = input.areaUtil;   // ← vira 250
-  if (!p.quartos) p.quartos  = input.quartos;     // ← vira 3
-  p.aproximado = true;
-}
-```
+### 1. `src/lib/study-types.ts`
+- Estender o tipo:
+  ```ts
+  export type FieldMode = "ignore" | "soft" | "prefer" | "hard";
+  ```
+- `DEFAULT_FIELD_MODES`: manter como está (continua usando `soft` por padrão).
+- Comentário do JSDoc atualizado explicando:
+  - `prefer`: igual ao `soft` na busca (não filtra), mas com peso **dobrado** na similaridade e marca de "match preferido" quando bate.
 
-A intenção era “mesmo condomínio costuma ter mesma planta”, mas o efeito real é **mascarar os dados reais dos anúncios** — inclusive `R$/m²` calculado fica errado.
-A OLX PLP raramente devolve `useful_area`, então cai sempre nesse fallback.
+### 2. `src/lib/study-engine.ts`
+- Onde a similaridade é calculada por campo, ler o modo:
+  - `ignore` → peso 0
+  - `soft` → peso normal
+  - `prefer` → peso ×2 + bônus fixo (~+5 pts) quando o comparável atende ao critério; sem penalidade extra quando não atende
+  - `hard` → mantém comportamento atual (filtro duro upstream)
+- Adicionar flag `preferenciaAtendida?: boolean` em `ComparableProperty` quando todos os campos `prefer` foram atendidos (usado para badge na UI).
 
-## Correção
+### 3. `src/lib/study-runner.ts`
+- No estágio de filtro pós-busca, só aplicar exclusão para modos `hard`. Modos `prefer` **não filtram nada** — só sinalizam pra etapa de ranking.
+- Garantir que os parâmetros nativos do portal (Zap/Chaves PLP filters de piscina, vagas, etc.) **só** são enviados quando o modo é `hard`. `prefer` busca amplo e prioriza localmente.
 
-### 1. `src/lib/study-runner.ts` — remover o backfill silencioso
-- Excluir o bloco que sobrescreve `areaUtil`/`quartos` do `p` com `input.*` no layer “Mesmo prédio”.
-- Manter `incomplete` e `aproximado` apenas como sinalização — sem inventar números.
-- Para itens “mesmo prédio” incompletos: tentar **enriquecer via PDP** (já temos `geckoPdp` + `enrichWithPdp`). Hoje o PDP só roda nos 3 primeiros e só se faltar `condominio`. Vamos:
-  - Ampliar a condição de PDP para incluir `!p.areaUtil || !p.quartos || p.incomplete`.
-  - Subir o limite de PDP de 3 → até 6 (apenas dos que estão visivelmente incompletos), para cobrir os “mesmo prédio”.
-- Se o PDP ainda não trouxer área/quartos, deixar `0` (a UI já mostra `—`/oculta) em vez de chutar os valores do usuário.
+### 4. `src/components/criterios-editor.tsx`
+- Adicionar `<SelectItem value="prefer">Preferir</SelectItem>` no Select de cada campo, entre "Preferência" e "Obrigatório".
+- Atualizar o texto explicativo do painel:
+  > **Ignorar**: só no relatório. **Preferência**: pesa um pouco. **Preferir**: prioriza quem tem, mas inclui quem não tem. **Obrigatório**: elimina quem não bate.
 
-### 2. `src/lib/gecko-adapter.ts` (`olxItemToProperty`) — endurecer parsing
-- Adicionar mais chaves possíveis para área da OLX PLP: `size`, `square_meters`, `total_area_useful`, e fallback no `subtitle`.
-- Não usar regex genérica `m²` em `desc` quando `desc` é só o título (evitar pegar “250m²” vindo do prompt de busca).
+### 5. `src/routes/app.relatorio.$id.tsx` (tabela de comparáveis)
+- Quando `preferenciaAtendida` for true, mostrar um badge sutil **"Match preferido"** no cartão/linha do comparável.
 
-### 3. UI (`src/routes/app.relatorio.$id.tsx` + tabela comparativa)
-- Quando `areaUtil === 0` (ou `incomplete`), mostrar `—` no “Área” e `—` no “R$/m²” em vez de exibir o valor herdado.
-- Adicionar badge discreto **“Área não informada”** no título, se incompleto.
-
-### 4. `study-engine` — proteger métricas
-- Em `recomputeStudy`/`generateStudy`: filtrar itens com `areaUtil <= 0` ao calcular `precoMedioM2`, `avgArea` e ACM (já tem guardas parciais; garantir consistência).
-
-## Resultado esperado
-- Cada anúncio passa a refletir a área real retornada pelo portal/PDP.
-- Quando o portal não devolve área, o card mostra `—` em vez de `250m²` falso.
-- O preço médio e o R$/m² da tabela ficam corretos.
-- Consumo de PDP sobe um pouco (até +3 chamadas) — vou avisar no funil de requisições.
-
-Sem mudanças de design visual além do `—` e do badge.
+## Fora do escopo
+- Não mexer no fluxo de busca por CEP, ACM, ou layout do PDF.
+- `DEFAULT_FIELD_MODES` permanece igual — usuário precisa escolher "Preferir" manualmente.
+- Sem migração de estudos antigos — `prefer` só se aplica em reexecuções/novos estudos.
