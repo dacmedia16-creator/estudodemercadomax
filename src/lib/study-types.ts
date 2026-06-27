@@ -114,7 +114,16 @@ export interface SearchOverrides {
   fieldModes?: Partial<Record<FieldKey, FieldMode>>;
 }
 
-export type FieldMode = "ignore" | "soft" | "hard";
+/**
+ * Modos disponíveis para cada campo extra:
+ * - "ignore": campo só aparece no relatório, não afeta busca nem similaridade.
+ * - "soft":   pesa normalmente na similaridade, sem eliminar nada.
+ * - "prefer": prioriza imóveis que atendem ao critério (peso dobrado + bônus
+ *             na similaridade e badge "Match preferido"), mas NÃO elimina
+ *             os que não atendem.
+ * - "hard":   imóveis que não batem são removidos do resultado final.
+ */
+export type FieldMode = "ignore" | "soft" | "prefer" | "hard";
 export type FieldKey =
   | "suites"
   | "banheiros"
