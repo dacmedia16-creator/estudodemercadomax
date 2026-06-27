@@ -332,6 +332,9 @@ function ReportPage() {
                     {!c.mesmoCondominio && c.mesmoEndereco && (
                       <Badge variant="outline" className="mt-1 text-[9px] border-primary/60 text-primary">Mesmo endereço</Badge>
                     )}
+                    {c.preferenciaAtendida && (
+                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-success/60 text-success">Match preferido</Badge>
+                    )}
                     {c.removido && (
                       <Badge variant="outline" className="mt-1 text-[9px] border-destructive/60 text-destructive">Anúncio removido</Badge>
                     )}

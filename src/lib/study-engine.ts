@@ -8,16 +8,34 @@ function similarity(
   input: StudyInput,
   p: MockProperty,
   modes: Record<FieldKey, FieldMode>,
-): number {
+): { score: number; preferenciaAtendida: boolean } {
   let score = 0;
   let total = 0;
+  let preferTotal = 0;
+  let preferMet = 0;
   const w = (weight: number, match: number) => {
     score += weight * match;
     total += weight;
   };
-  /** Modo "ignore" zera o peso do campo. Soft/Hard usam o peso normal. */
+  /**
+   * Modo "ignore" zera o peso. "soft"/"hard" usam o peso normal.
+   * "prefer" dobra o peso e adiciona bônus de até +5 pts quando o match >= 0.85,
+   * sem penalizar quando o critério não é atendido (não elimina, só prioriza).
+   */
   const wf = (key: FieldKey, weight: number, match: number) => {
-    if (modes[key] === "ignore") return;
+    const mode = modes[key];
+    if (mode === "ignore") return;
+    if (mode === "prefer") {
+      const boosted = weight * 2;
+      score += boosted * match;
+      total += boosted;
+      preferTotal++;
+      if (match >= 0.85) {
+        score += 5;
+        preferMet++;
+      }
+      return;
+    }
     w(weight, match);
   };
   w(20, p.bairro === input.bairro ? 1 : input.bairrosProximos.includes(p.bairro) ? 0.6 : 0.1);
@@ -56,7 +74,10 @@ function similarity(
     : 0.5;
   wf("diferenciais", 15, diffMatch);
   w(10, 1 - Math.min(Math.abs(p.preco - input.valorPretendido) / Math.max(input.valorPretendido, 1), 1));
-  return Math.round((score / total) * 100);
+  return {
+    score: Math.round((score / total) * 100),
+    preferenciaAtendida: preferTotal > 0 && preferMet === preferTotal,
+  };
 }
 
 /** Versão pública do cálculo de similaridade (para imóveis adicionados manualmente). */
@@ -66,7 +87,7 @@ export function computeSimilarity(
   fieldModes?: Partial<Record<FieldKey, FieldMode>>,
 ): number {
   const modes: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(fieldModes ?? {}) };
-  return similarity(input, p, modes);
+  return similarity(input, p, modes).score;
 }
 
 export function generateStudy(
@@ -80,11 +101,15 @@ export function generateStudy(
   const source = usingExternal ? properties! : mockProperties;
   const filtered = source
     .filter((p) => (usingExternal ? true : allBairros.includes(p.bairro) || p.cidade === input.cidade))
-    .map<ComparableProperty>((p) => ({
-      ...p,
-      precoM2: Math.round(p.preco / p.areaUtil),
-      similaridade: similarity(input, p, modes),
-    }))
+    .map<ComparableProperty>((p) => {
+      const sim = similarity(input, p, modes);
+      return {
+        ...p,
+        precoM2: Math.round(p.preco / p.areaUtil),
+        similaridade: sim.score,
+        preferenciaAtendida: sim.preferenciaAtendida,
+      };
+    })
     .sort((a, b) => b.similaridade - a.similaridade);
 
   // Portal interleaving: when more than one portal returned results, ensure
