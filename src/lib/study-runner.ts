@@ -1,6 +1,6 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
-import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily, mapDiferenciaisToZapAmenities, isStructuralDiferencial } from "@/lib/gecko-adapter";
+import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily, mapDiferenciaisToZapAmenities, isStructuralDiferencial, detectPortalFromUrl } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
 import { DEFAULT_FIELD_MODES } from "@/lib/study-types";
@@ -975,4 +975,35 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+/**
+ * Busca um único imóvel pela URL do anúncio (Zap, Chaves na Mão ou OLX) via PDP.
+ * Usada quando o usuário adiciona manualmente um imóvel ao estudo.
+ */
+export async function fetchPropertyByUrl(url: string): Promise<MockProperty> {
+  const trimmed = (url ?? "").trim();
+  if (!trimmed) throw new Error("Informe a URL do anúncio.");
+  const detected = detectPortalFromUrl(trimmed);
+  if (!detected) {
+    throw new Error("URL não reconhecida. Use um link de Zap Imóveis, Chaves na Mão ou OLX.");
+  }
+  const res = await geckoPdp({ data: { url: trimmed, target: detected.target } });
+  if (!res.ok) {
+    throw new Error(res.errorMessage || res.errorCode || `Falha na PDP (${res.status})`);
+  }
+  if (res.notFound) {
+    throw new Error("Anúncio não encontrado (PDP retornou notFound). O link pode estar inativo.");
+  }
+  if (!res.data || typeof res.data !== "object") {
+    throw new Error("PDP não retornou dados utilizáveis.");
+  }
+  const outer = res.data as Record<string, unknown>;
+  const inner = (outer.data && typeof outer.data === "object" ? outer.data : outer) as Record<string, unknown>;
+  const property = geckoItemToProperty(inner as any, detected.portal);
+  if (!property) {
+    throw new Error("Não foi possível extrair preço/área do anúncio.");
+  }
+  if (!property.url) property.url = trimmed;
+  return property;
 }
