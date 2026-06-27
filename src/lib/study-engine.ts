@@ -226,7 +226,7 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
     precoM2: c.areaUtil > 0 ? Math.round(c.preco / c.areaUtil) : c.precoM2 ?? 0,
   }));
   const precos = list.map((p) => p.preco);
-  const precosM2 = list.map((p) => p.precoM2);
+  const precosM2 = list.filter((p) => p.precoM2 > 0).map((p) => p.precoM2);
   const precoMedio = precos.length ? Math.round(avg(precos)) : 0;
   const precoM2Medio = precosM2.length ? Math.round(avg(precosM2)) : 0;
   const menorPreco = precos.length ? Math.min(...precos) : 0;
@@ -247,7 +247,8 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
         ? `Seu imóvel está abaixo da média de mercado em ${input.bairro}. Há espaço para reajuste de valor — a faixa recomendada vai de ${fmt(faixaMin)} a ${fmt(faixaMax)}, o que pode aumentar a margem sem comprometer a velocidade de venda.`
         : `Seu imóvel está bem posicionado em relação ao mercado de ${input.bairro}. A faixa competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Reforce os diferenciais para acelerar a negociação.`;
 
-  const avgArea = list.length ? avg(list.map((p) => p.areaUtil)) : input.areaUtil;
+  const areas = list.filter((p) => p.areaUtil > 0).map((p) => p.areaUtil);
+  const avgArea = areas.length ? avg(areas) : input.areaUtil;
   const avgQuartos = list.length ? avg(list.map((p) => p.quartos)) : input.quartos;
   const pontosFortes: string[] = [];
   if (input.areaUtil >= avgArea) pontosFortes.push("Metragem acima da média da região");
