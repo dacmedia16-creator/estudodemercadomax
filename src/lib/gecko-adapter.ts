@@ -149,6 +149,19 @@ export function normalizeText(s: string): string {
     .trim();
 }
 
+/** Identifica o portal a partir da URL colada pelo usuário. */
+export function detectPortalFromUrl(url: string): { target: "zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br"; portal: "Zap Imóveis" | "Chaves na Mão" | "OLX" } | null {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes("zapimoveis.com.br")) return { target: "zapimoveis.com.br", portal: "Zap Imóveis" };
+    if (host.includes("chavesnamao.com.br")) return { target: "chavesnamao.com.br", portal: "Chaves na Mão" };
+    if (host.includes("olx.com.br")) return { target: "olx.com.br", portal: "OLX" };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function firstNumber(v: number | number[] | undefined): number | null {
   if (typeof v === "number" && !isNaN(v)) return v;
   if (Array.isArray(v) && v.length > 0 && typeof v[0] === "number") return v[0];
