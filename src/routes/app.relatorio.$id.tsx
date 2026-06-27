@@ -590,10 +590,10 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
                 <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.titulo}</div>
                 <div style={{ fontSize: "7pt", color: "#666" }}>{c.bairro}</div>
               </td>
-              <td className="num">{c.areaUtil}</td>
-              <td className="num">{c.quartos}</td>
+              <td className="num">{c.areaUtil > 0 ? c.areaUtil : "—"}</td>
+              <td className="num">{c.quartos > 0 ? c.quartos : "—"}</td>
               <td className="num"><b>{formatBRL(c.preco)}</b></td>
-              <td className="num">{formatBRL(c.precoM2)}</td>
+              <td className="num">{c.precoM2 > 0 ? formatBRL(c.precoM2) : "—"}</td>
               <td className="num">{c.similaridade}%</td>
             </tr>
           ))}
