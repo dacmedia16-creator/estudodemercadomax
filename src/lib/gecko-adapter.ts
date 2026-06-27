@@ -546,13 +546,19 @@ function olxItemToProperty(itemRaw: Record<string, any>, portal: string): MockPr
     return null;
   };
 
-  const hay = `${titulo} ${desc}`;
+  // Only use the long description as fallback haystack — the title alone
+  // often echoes the search query (e.g. "...250m²") and would poison every row.
+  const longDesc = typeof desc === "string" && desc.length > titulo.length + 10 ? desc : "";
+  const hay = longDesc;
   const quartosRaw =
     attrNum("rooms", "real_estate_rooms", "imovel_quartos") ??
-    extractNumber(hay, [/(\d+)\s*quartos?/i, /(\d+)\s*dorm/i]);
+    (hay ? extractNumber(hay, [/(\d+)\s*quartos?/i, /(\d+)\s*dorm/i]) : null);
   const areaUtilRaw =
-    attrNum("real_estate_useful_area", "area_util", "useful_area", "real_estate_total_area") ??
-    extractNumber(hay, [/(\d+(?:[.,]\d+)?)\s*m[²2]/i]);
+    attrNum(
+      "real_estate_useful_area", "area_util", "useful_area",
+      "real_estate_total_area", "size", "square_meters", "total_area_useful",
+    ) ??
+    (hay ? extractNumber(hay, [/(\d+(?:[.,]\d+)?)\s*m[²2]\b/i]) : null);
 
   const incomplete = quartosRaw === null || !areaUtilRaw || areaUtilRaw <= 0;
   const quartos = quartosRaw ?? 0;

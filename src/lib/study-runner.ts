@@ -403,14 +403,10 @@ export async function runStudy(
         }
         condoMatches = condoTipoOk
           .map((p) => {
-            // Same-building proxy: if PLP lacked area/quartos, use the
-            // user's own values — apartments in the same condo usually
-            // share floor plans.
-            if (p.incomplete) {
-              if (!p.areaUtil) p.areaUtil = input.areaUtil;
-              if (!p.quartos) p.quartos = input.quartos;
-              p.aproximado = true;
-            }
+            // Mark incomplete same-building items as approximate so the UI
+            // can show "—" / a badge. Do NOT copy the user's own values —
+            // that masks the real listing data and breaks R$/m².
+            if (p.incomplete) p.aproximado = true;
             return p;
           });
         condoMatches.forEach((p) => mesmoCondominioIds.add(p.id));
@@ -834,10 +830,17 @@ export async function runStudy(
       warningMsg = `Critério ampliado para encontrar comparáveis: ${chosenLayer}.`;
     }
 
-    // PDP only for top 3 comparables missing condominium data.
-    const top = properties
-      .slice(0, 3)
-      .filter((p) => p.url && (!p.condominio || p.condominio === 0 || !p.diasMercado || !p.advertiserPhone));
+    // PDP enrichment:
+    //  - Always for items missing core fields (área/quartos) — usually
+    //    "mesmo prédio" da OLX, que vinha mascarado com os valores do usuário.
+    //  - Para os 3 primeiros, também enriquece condomínio / DOM / contato.
+    const needsCore = (p: typeof properties[number]) =>
+      !!p.url && (!p.areaUtil || p.areaUtil <= 0 || !p.quartos || p.incomplete);
+    const needsExtras = (p: typeof properties[number]) =>
+      !!p.url && (!p.condominio || p.condominio === 0 || !p.diasMercado || !p.advertiserPhone);
+    const coreTargets = properties.filter(needsCore).slice(0, 6);
+    const extraTargets = properties.slice(0, 3).filter((p) => needsExtras(p) && !coreTargets.includes(p));
+    const top = [...coreTargets, ...extraTargets];
     let pdpNotFound = 0;
     await Promise.allSettled(
       top.map(async (p) => {
