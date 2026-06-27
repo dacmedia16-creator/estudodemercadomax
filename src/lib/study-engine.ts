@@ -212,3 +212,70 @@ export function computeAcm(study: StudyResult, adj?: Partial<AcmAdjustments>): A
     valorMinimoFechamento: Math.round(valorSugerido * (1 - margem)),
   };
 }
+
+/**
+ * Recalcula médias, faixa, status, diagnóstico e pontos fortes/atenção a partir
+ * da lista de comparáveis fornecida, preservando o restante do estudo (id,
+ * input, ACM, overrides, etc.). Usado quando o usuário remove ou adiciona
+ * imóveis manualmente no relatório.
+ */
+export function recomputeStudy(prev: StudyResult, comparaveis: ComparableProperty[]): StudyResult {
+  const input = prev.input;
+  const list = comparaveis.map((c) => ({
+    ...c,
+    precoM2: c.areaUtil > 0 ? Math.round(c.preco / c.areaUtil) : c.precoM2 ?? 0,
+  }));
+  const precos = list.map((p) => p.preco);
+  const precosM2 = list.map((p) => p.precoM2);
+  const precoMedio = precos.length ? Math.round(avg(precos)) : 0;
+  const precoM2Medio = precosM2.length ? Math.round(avg(precosM2)) : 0;
+  const menorPreco = precos.length ? Math.min(...precos) : 0;
+  const maiorPreco = precos.length ? Math.max(...precos) : 0;
+  const faixaMin = Math.round(precoMedio * 0.93);
+  const faixaMax = Math.round(precoMedio * 1.07);
+  const precoM2Pretendido = input.areaUtil > 0 ? Math.round(input.valorPretendido / input.areaUtil) : 0;
+  const diff = precoMedio > 0 ? (input.valorPretendido - precoMedio) / precoMedio : 0;
+  const status: StudyResult["status"] =
+    diff < -0.08 ? "Abaixo da média" : diff > 0.08 ? "Acima da média" : "Dentro da média";
+
+  const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+  const diagnostico = list.length === 0
+    ? `Nenhum imóvel compatível foi encontrado nesta busca. Tente ampliar os critérios (área, preço, bairros próximos) no painel "Ajustar critérios" abaixo.`
+    : status === "Acima da média"
+      ? `Com base nos ${list.length} imóveis encontrados em ${input.bairro} e região, este imóvel está posicionado acima da média de mercado. Para aumentar a competitividade, recomenda-se trabalhar uma faixa entre ${fmt(faixaMin)} e ${fmt(faixaMax)}, destacando metragem, localização e diferenciais.`
+      : status === "Abaixo da média"
+        ? `Seu imóvel está abaixo da média de mercado em ${input.bairro}. Há espaço para reajuste de valor — a faixa recomendada vai de ${fmt(faixaMin)} a ${fmt(faixaMax)}, o que pode aumentar a margem sem comprometer a velocidade de venda.`
+        : `Seu imóvel está bem posicionado em relação ao mercado de ${input.bairro}. A faixa competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Reforce os diferenciais para acelerar a negociação.`;
+
+  const avgArea = list.length ? avg(list.map((p) => p.areaUtil)) : input.areaUtil;
+  const avgQuartos = list.length ? avg(list.map((p) => p.quartos)) : input.quartos;
+  const pontosFortes: string[] = [];
+  if (input.areaUtil >= avgArea) pontosFortes.push("Metragem acima da média da região");
+  if (input.quartos >= avgQuartos) pontosFortes.push("Quantidade de quartos competitiva");
+  if (input.diferenciais.length >= 4) pontosFortes.push("Boa quantidade de diferenciais");
+  if (input.vagas >= 2) pontosFortes.push("Vagas de garagem valorizam o imóvel");
+  if (pontosFortes.length === 0) pontosFortes.push("Localização em bairro consolidado");
+
+  const pontosAtencao: string[] = [];
+  if (status === "Acima da média") pontosAtencao.push("Preço acima da média de mercado");
+  if (input.condominio > 900) pontosAtencao.push("Condomínio elevado em relação à concorrência");
+  if (input.diferenciais.length < 3) pontosAtencao.push("Poucos diferenciais em relação à concorrência");
+  if (input.areaUtil < avgArea * 0.85) pontosAtencao.push("Metragem abaixo da média");
+  if (pontosAtencao.length === 0) pontosAtencao.push("Necessário destacar melhor o anúncio para se diferenciar");
+
+  return {
+    ...prev,
+    comparaveis: list,
+    precoMedio,
+    precoM2Medio,
+    menorPreco,
+    maiorPreco,
+    faixaMin,
+    faixaMax,
+    precoM2Pretendido,
+    status,
+    diagnostico,
+    pontosFortes,
+    pontosAtencao,
+  };
+}
