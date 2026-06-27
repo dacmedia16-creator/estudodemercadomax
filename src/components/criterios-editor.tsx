@@ -278,7 +278,7 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
                 <div className="text-sm font-medium">Campos extras (preferências)</div>
                 <div className="text-xs text-muted-foreground">
                   Escolha como cada campo extra influencia a busca.
-                  <span className="ml-1"><strong>Ignorar</strong>: só no relatório. <strong>Preferência</strong>: pesa na similaridade. <strong>Obrigatório</strong>: elimina quem não bate.</span>
+                  <span className="ml-1"><strong>Ignorar</strong>: só no relatório. <strong>Preferência</strong>: pesa na similaridade. <strong>Preferir</strong>: prioriza quem tem, mas inclui quem não tem. <strong>Obrigatório</strong>: elimina quem não bate.</span>
                 </div>
               </div>
               <Button
