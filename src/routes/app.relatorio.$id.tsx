@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,12 +13,13 @@ import {
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
 import { formatBRL, computeAcm } from "@/lib/study-engine";
-import type { StudyResult, SearchOverrides } from "@/lib/study-types";
+import type { StudyResult, SearchOverrides, ComparableProperty } from "@/lib/study-types";
 import { DEFAULT_ACM } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
 import { CriteriosEditor } from "@/components/criterios-editor";
 import { AcmPanel } from "@/components/acm-panel";
 import { PrintSlides } from "@/components/print-slides";
+import { ComparaveisManager } from "@/components/comparaveis-manager";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -44,9 +45,14 @@ function ReportPage() {
   const [sort, setSort] = useState<SortKey>("maior-similaridade");
   const [rerunning, setRerunning] = useState(false);
   const [rerunWarning, setRerunWarning] = useState<string | null>(null);
+  // Snapshot dos comparáveis que vieram da última busca — usado para
+  // restaurar a lista quando o usuário desfaz exclusões/inclusões manuais.
+  const originalsRef = useRef<ComparableProperty[]>([]);
 
   useEffect(() => {
-    setStudy(studyStore.get(id) ?? null);
+    const s = studyStore.get(id) ?? null;
+    setStudy(s);
+    originalsRef.current = s ? [...s.comparaveis] : [];
   }, [id]);
 
   const handleRerun = async (overrides: SearchOverrides) => {
@@ -60,6 +66,7 @@ function ReportPage() {
       result.revisao = (study.revisao ?? 0) + 1;
       studyStore.save(result);
       setStudy(result);
+      originalsRef.current = [...result.comparaveis];
       setRerunWarning(warning);
       if (fellBack) toast.error(warning ?? "Falha ao buscar — exibindo dados de demonstração.");
       else toast.success(`Busca reexecutada · ${result.comparaveis.length} comparáveis`);
@@ -215,6 +222,15 @@ function ReportPage() {
           onRerun={handleRerun}
           loading={rerunning}
           warning={rerunWarning}
+        />
+      </div>
+
+      {/* Block 3.6: gerenciar comparáveis manualmente (excluir / incluir por link) */}
+      <div className="mt-6 print:hidden">
+        <ComparaveisManager
+          study={study}
+          originals={originalsRef.current}
+          onChange={setStudy}
         />
       </div>
 
