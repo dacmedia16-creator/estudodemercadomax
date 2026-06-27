@@ -1,34 +1,37 @@
-# Por que o layout ficou assim
+# Excluir/incluir imóveis por link e recalcular o estudo
 
-Na rota `src/routes/app.relatorio.$id.tsx` os componentes `PrintOnePager` e `PrintSlides` são montados sempre no DOM, sem nenhuma classe que os esconda em tela:
+Permitir, na tela do relatório, remover comparáveis indesejados e adicionar imóveis manualmente colando a URL do anúncio (Zap, Chaves na Mão ou OLX). Após qualquer mudança, recalcular médias, ACM, faixa sugerida e gráficos. Mudanças valem só na sessão atual (não persistem após reexecução da busca).
 
-```tsx
-<PrintOnePager study={study} sorted={sorted} />
-<PrintSlides study={study} sorted={sorted} />
+## Mudanças
 
-<div className="... print-hide-on-print"> {/* relatório normal */} </div>
-```
+### 1. `src/lib/study-engine.ts`
+- Extrair função `recomputeStudy(study, comparaveis)` que recebe a lista atualizada e devolve um novo `StudyResult` com `precoMedio`, `precoMedioM2`, `faixaSugerida`, `status`, `distribuicao`, `bairros`, `tendencia`, `acm` recalculados a partir dos comparáveis passados (hoje essa lógica está dentro de `generateStudy`).
 
-Todo o CSS deles (`.print-onepager`, `.print-slides`, `.slide-page`, etc.) vive dentro de `@media print` em `src/styles.css`. Logo, na tela esses elementos aparecem como texto puro empilhado — é o que você está vendo ("Slide 2 / Imóvel analisado / Tipo / Apartamento ..."). Provavelmente algo quebrou a regra anterior que mantinha esses blocos ocultos (ou a regra nunca existiu).
+### 2. `src/lib/gecko-adapter.ts` / detecção de portal por URL
+- Adicionar `detectPortalFromUrl(url)` → `"zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br" | null`.
 
-# Correção
+### 3. `src/lib/study-runner.ts`
+- Exportar `fetchSinglePropertyByUrl(url, input)`: faz uma chamada PDP (`type: "pdp"`, `target: portal`, `url`) via `gecko.functions.ts`, normaliza com o parser do portal correto e retorna um `Comparavel` marcado com `origem: "manual"` (novo campo opcional em `study-types.ts`).
+- Sem fallback de busca: se a PDP falhar, devolve erro.
 
-1. Em `src/styles.css`, adicionar regra **fora** do `@media print`:
-   ```css
-   .print-onepager, .print-slides { display: none; }
-   ```
-   Dentro de `@media print` continuam as regras que mostram um deles conforme o modo (`print-mode-slides` mostra slides e esconde onepager; padrão mostra onepager).
+### 4. `src/lib/study-types.ts`
+- `Comparavel`: novo campo opcional `origem?: "busca" | "manual"`.
 
-2. Garantir que `.print-hide-on-print` continue só escondendo o conteúdo normal durante a impressão (não mexer).
+### 5. Novo componente `src/components/comparaveis-manager.tsx`
+- Lista os comparáveis atuais com botão "Remover" (lixeira) em cada linha/card.
+- Input para colar URL + botão "Adicionar imóvel": valida portal, chama `fetchSinglePropertyByUrl`, mostra loading e toast de sucesso/erro, evita duplicar pela URL.
+- Botão "Restaurar originais" volta à lista que veio da busca.
+- Badge "Adicionado manualmente" nos itens com `origem: "manual"`.
 
-3. Verificar visualmente:
-   - Tela `/app/relatorio/:id`: só o relatório interativo aparece (sem o texto cru de slides/onepager).
-   - "Exportar PDF": gera o one-pager A4.
-   - "Apresentação para proprietário": adiciona `print-mode-slides` no `<html>`, abre print, gera os slides 16:9.
-   - Após imprimir, remover a classe `print-mode-slides` (já é feito hoje) para a tela voltar ao normal.
+### 6. `src/routes/app.relatorio.$id.tsx`
+- Manter `study` como estado local; após qualquer add/remove chamar `recomputeStudy` e atualizar o estado (sem persistir no `studyStore` automaticamente — só na sessão).
+- Renderizar `ComparaveisManager` acima/junto da tabela de comparáveis existente.
+- Toast informando "Estudo recalculado".
+- Quando o usuário reexecutar a busca pelo `CriteriosEditor`, as alterações manuais são descartadas (comportamento esperado pela escolha "só sessão atual").
 
-# Arquivo afetado
+## Detalhes técnicos
 
-- `src/styles.css` (apenas adicionar 1 regra base).
-
-Nada de lógica de negócio muda; é só correção de visibilidade na tela.
+- Reaproveita `gecko.functions.ts` (`extract`) com `type: "pdp"` — sem novos endpoints.
+- `recomputeStudy` usa as mesmas funções já existentes para gerar `acm` (fatores atuais preservados) e estatísticas; nada muda no PDF/slides porque eles leem do `study` em estado.
+- Funil de busca (`funilBusca`) ganha entrada informativa "Ajuste manual: +X / -Y" apenas em memória, sem alterar contagem de créditos persistida.
+- Sem mudanças em rotas, sem backend novo, sem persistência adicional.
