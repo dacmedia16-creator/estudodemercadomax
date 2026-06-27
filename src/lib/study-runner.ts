@@ -480,7 +480,7 @@ export async function runStudy(
       let amenitiesToSend: string[] | undefined;
       if (fieldModesEff.diferenciais === "hard" && allAmenities.length > 0) {
         amenitiesToSend = allAmenities;
-      } else if (fieldModesEff.diferenciais === "soft" && allAmenities.length >= 3) {
+      } else if ((fieldModesEff.diferenciais === "soft" || fieldModesEff.diferenciais === "prefer") && allAmenities.length >= 3) {
         // Envia apenas os 2 amenities mais "decisivos" — guia a busca sem ser restritivo.
         const priority = ["POOL", "GYM", "FURNISHED", "GOURMET_BALCONY", "BARBECUE_GRILL"];
         const sorted = [...allAmenities].sort(
