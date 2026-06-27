@@ -298,10 +298,11 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
                     value={form.fieldModes[k]}
                     onValueChange={(v) => set("fieldModes", { ...form.fieldModes, [k]: v as FieldMode })}
                   >
-                    <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ignore">Ignorar</SelectItem>
                       <SelectItem value="soft">Preferência</SelectItem>
+                      <SelectItem value="prefer">Preferir</SelectItem>
                       <SelectItem value="hard">Obrigatório</SelectItem>
                     </SelectContent>
                   </Select>
