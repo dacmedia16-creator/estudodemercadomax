@@ -34,6 +34,8 @@ export interface ComparableProperty extends MockProperty {
   mesmoEndereco?: boolean;
   /** "busca" (default) ou "manual" quando adicionado por URL pelo usuário. */
   origem?: "busca" | "manual";
+  /** True quando todos os campos em modo "prefer" foram atendidos por este imóvel. */
+  preferenciaAtendida?: boolean;
 }
 
 export interface StudyResult {
