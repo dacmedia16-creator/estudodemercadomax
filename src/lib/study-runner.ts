@@ -403,14 +403,10 @@ export async function runStudy(
         }
         condoMatches = condoTipoOk
           .map((p) => {
-            // Same-building proxy: if PLP lacked area/quartos, use the
-            // user's own values — apartments in the same condo usually
-            // share floor plans.
-            if (p.incomplete) {
-              if (!p.areaUtil) p.areaUtil = input.areaUtil;
-              if (!p.quartos) p.quartos = input.quartos;
-              p.aproximado = true;
-            }
+            // Mark incomplete same-building items as approximate so the UI
+            // can show "—" / a badge. Do NOT copy the user's own values —
+            // that masks the real listing data and breaks R$/m².
+            if (p.incomplete) p.aproximado = true;
             return p;
           });
         condoMatches.forEach((p) => mesmoCondominioIds.add(p.id));
