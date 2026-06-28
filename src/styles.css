@@ -499,6 +499,7 @@
   border: 1px solid #e5e5e5;
   border-radius: 6px;
 }
+.print-slides-screen .acm-page + .acm-page { margin-top: 16px; }
 
 @media print {
   @page {
@@ -666,6 +667,10 @@
     height: 210mm;
     min-height: 210mm;
     overflow: hidden;
+  }
+  .print-slides .acm-page + .acm-page {
+    page-break-before: always;
+    break-before: page;
   }
 
   /* Em impressão, escondemos a pré-visualização em tela para não duplicar */
