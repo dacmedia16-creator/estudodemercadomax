@@ -50,9 +50,18 @@ function ReportPage() {
   const originalsRef = useRef<ComparableProperty[]>([]);
 
   useEffect(() => {
-    const s = studyStore.get(id) ?? null;
-    setStudy(s);
-    originalsRef.current = s ? [...s.comparaveis] : [];
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = (await studyStore.get(id)) ?? null;
+        if (cancelled) return;
+        setStudy(s);
+        originalsRef.current = s ? [...s.comparaveis] : [];
+      } catch (err) {
+        if (!cancelled) toast.error((err as Error).message);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [id]);
 
   const handleRerun = async (overrides: SearchOverrides) => {
@@ -64,7 +73,7 @@ function ReportPage() {
       // Keep same id so the URL stays valid; increment revision counter.
       result.id = study.id;
       result.revisao = (study.revisao ?? 0) + 1;
-      studyStore.save(result);
+      await studyStore.save(result);
       setStudy(result);
       originalsRef.current = [...result.comparaveis];
       setRerunWarning(warning);
@@ -156,7 +165,10 @@ function ReportPage() {
           <Button variant="outline" size="sm" className="gap-2" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copiado!"); }}>
             <Share2 className="h-4 w-4" /> Compartilhar
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => { studyStore.save(study); toast.success("Estudo salvo!"); }}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={async () => {
+            try { await studyStore.save(study); toast.success("Estudo salvo!"); }
+            catch (err) { toast.error((err as Error).message); }
+          }}>
             <Save className="h-4 w-4" /> Salvar
           </Button>
           <Link to="/app/novo-estudo"><Button size="sm" className="gap-2"><Plus className="h-4 w-4" /> Novo estudo</Button></Link>

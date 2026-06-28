@@ -1,3 +1,4 @@
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -8,7 +9,7 @@ Retorne APENAS os campos que conseguir identificar com confiança. Não invente 
 Tipos válidos: Apartamento, Casa, Cobertura, Sobrado, Studio, Kitnet, Sala, Terreno.
 Finalidade: "Venda" ou "Aluguel". Estado: UF de 2 letras maiúsculas.`;
 
-export const parseQueryAi = createServerFn({ method: "POST" })
+export const parseQueryAi = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => inputSchema.parse(d))
   .handler(async ({ data }) => {
     const key = process.env.LOVABLE_API_KEY;
