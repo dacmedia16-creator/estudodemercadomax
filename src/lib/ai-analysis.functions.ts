@@ -58,7 +58,68 @@ Regras críticas:
   da mediana.
 - Justifique cada faixa com 1–2 frases curtas, em português brasileiro, tom
   profissional, sem jargão.
-- Não invente dados que não estão no payload.`;
+- Não invente dados que não estão no payload.
+
+FORMATO DE SAÍDA — OBRIGATÓRIO:
+Responda APENAS com um único objeto JSON válido (sem markdown, sem \`\`\`, sem
+comentários). Estrutura exata:
+{
+  "resumo": "string (2-3 frases)",
+  "faixaRecomendada": {
+    "entrada": número em R$,
+    "ideal": número em R$,
+    "teto": número em R$
+  },
+  "posicionamento": "string (1-2 frases)",
+  "riscos": ["string", ...] (até 5),
+  "recomendacoes": ["string", ...] (até 5)
+}`;
+
+const outputSchema = z.object({
+  resumo: z.string().min(1),
+  faixaRecomendada: z.object({
+    entrada: z.number(),
+    ideal: z.number(),
+    teto: z.number(),
+  }),
+  posicionamento: z.string().min(1),
+  riscos: z.array(z.string()).default([]),
+  recomendacoes: z.array(z.string()).default([]),
+});
+
+function extractJson(text: string): unknown | null {
+  if (!text) return null;
+  // Tenta direto
+  try { return JSON.parse(text); } catch { /* segue */ }
+  // Remove cercas markdown
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) {
+    try { return JSON.parse(fence[1]); } catch { /* segue */ }
+  }
+  // Extrai primeiro objeto {...} balanceado
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        const slice = text.slice(start, i + 1);
+        try { return JSON.parse(slice); } catch { return null; }
+      }
+    }
+  }
+  return null;
+}
 
 export const analisarMercadoIa = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -69,7 +130,7 @@ export const analisarMercadoIa = createServerFn({ method: "POST" })
 
     try {
       const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-      const { generateText, Output } = await import("ai");
+      const { generateText } = await import("ai");
       const gateway = createLovableAiGatewayProvider(key);
 
       const prompt = `Imóvel analisado:
@@ -81,33 +142,49 @@ ${JSON.stringify(data.mercado, null, 2)}
 Top comparáveis (até 15):
 ${JSON.stringify(data.comparaveis, null, 2)}
 
-Gere a análise estruturada respeitando o piso de mercado.`;
+Gere a análise estruturada respeitando o piso de mercado. Responda SOMENTE com o JSON pedido.`;
 
-      const { experimental_output: out } = await generateText({
+      const result = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
         system: SYSTEM,
         prompt,
-        experimental_output: Output.object({
-          schema: z.object({
-            resumo: z.string().describe("Diagnóstico em 2–3 frases."),
-            faixaRecomendada: z.object({
-              entrada: z.number().describe("Preço de entrada agressivo (vende rápido)"),
-              ideal: z.number().describe("Preço ideal equilibrado"),
-              teto: z.number().describe("Preço máximo para publicar (com margem de negociação)"),
-            }),
-            posicionamento: z.string().describe("1–2 frases comparando com os mais baratos e os mais caros."),
-            riscos: z.array(z.string()).max(5),
-            recomendacoes: z.array(z.string()).max(5).describe("Ações concretas para o corretor"),
-          }),
-        }),
       });
+
+      const raw = (result.text ?? "").trim();
+      console.log("[ai-analysis] raw length:", raw.length, "preview:", raw.slice(0, 200));
+      const parsed = extractJson(raw);
+      if (!parsed) {
+        // Fallback: usar percentis do mercado se a IA falhou em estruturar
+        const m = data.mercado;
+        const base = m.median ?? m.precoMedio;
+        const fallback = {
+          resumo: raw.slice(0, 600) || "A IA não retornou uma análise estruturada. Faixa calculada a partir dos percentis do mercado.",
+          faixaRecomendada: {
+            entrada: Math.round(m.p25 ?? base * 0.95),
+            ideal: Math.round(base),
+            teto: Math.round(m.p75 ?? base * 1.05),
+          },
+          posicionamento: "Faixa derivada da distribuição de preços dos comparáveis (P25 / mediana / P75).",
+          riscos: ["Análise qualitativa indisponível — revise manualmente."],
+          recomendacoes: ["Tente gerar a análise novamente em instantes."],
+        };
+        const safe = outputSchema.parse(fallback);
+        return { ok: true as const, data: { ...safe, geradoEm: new Date().toISOString() } };
+      }
+
+      const validated = outputSchema.safeParse(parsed);
+      if (!validated.success) {
+        console.error("[ai-analysis] schema invalid:", validated.error.issues);
+        return { ok: false as const, error: "A IA respondeu em formato inesperado. Tente novamente." };
+      }
 
       return {
         ok: true as const,
-        data: { ...out, geradoEm: new Date().toISOString() },
+        data: { ...validated.data, geradoEm: new Date().toISOString() },
       };
     } catch (e) {
       const msg = (e as Error).message || "Falha na análise";
+      console.error("[ai-analysis] error:", msg);
       const m = /status\s+(\d{3})/i.exec(msg);
       const status = m ? Number(m[1]) : undefined;
       if (status === 402) return { ok: false as const, error: "Créditos de IA esgotados. Adicione créditos no workspace." };

@@ -67,7 +67,13 @@ export function AiAnalysisCard({ study, onChange }: Props) {
       };
       const res = await callAi({ data: payload });
       if (!res.ok) {
+        console.error("[AiAnalysisCard]", res.error);
         toast.error(res.error);
+        return;
+      }
+      if (!res.data?.resumo || !res.data?.faixaRecomendada) {
+        console.error("[AiAnalysisCard] resposta incompleta", res.data);
+        toast.error("A IA retornou uma resposta incompleta. Tente novamente.");
         return;
       }
       const next: StudyResult = { ...study, aiAnalysis: res.data };
