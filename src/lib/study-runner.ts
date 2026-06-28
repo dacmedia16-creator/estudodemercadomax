@@ -440,7 +440,7 @@ export async function runStudy(
             if (seen.has(key)) continue;
             seen.add(key);
             const p = geckoItemToProperty(it, portalName);
-            if (p) {
+            if (p && passesFinalidadeGuard(p)) {
               all.push(p);
               perPortal[t][layerKey].aproveitados++;
             } else {
