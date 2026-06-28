@@ -729,6 +729,18 @@ export async function runStudy(
       }
     }
     funilBusca.push({ etapa: "Retornados pela API", total: mainProperties.length });
+    if (removidosFinalidade > 0) {
+      funilBusca.push({
+        etapa: `Removidos por finalidade incompatível (estudo de ${finalidade})`,
+        total: removidosFinalidade,
+      });
+    }
+    if (removidosPrecoFaixa > 0) {
+      funilBusca.push({
+        etapa: `Removidos por preço fora da faixa de ${finalidade.toLowerCase()}`,
+        total: removidosPrecoFaixa,
+      });
+    }
     funilBusca.push({ etapa: "Com dados completos", total: normalizedComplete.length });
     if (descartadosIncompletos > 0) {
       funilBusca.push({ etapa: "Sem área/quartos na listagem (descartados do filtro estrito)", total: descartadosIncompletos });
