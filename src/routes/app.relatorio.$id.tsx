@@ -165,7 +165,10 @@ function ReportPage() {
           <Button variant="outline" size="sm" className="gap-2" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copiado!"); }}>
             <Share2 className="h-4 w-4" /> Compartilhar
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => { studyStore.save(study); toast.success("Estudo salvo!"); }}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={async () => {
+            try { await studyStore.save(study); toast.success("Estudo salvo!"); }
+            catch (err) { toast.error((err as Error).message); }
+          }}>
             <Save className="h-4 w-4" /> Salvar
           </Button>
           <Link to="/app/novo-estudo"><Button size="sm" className="gap-2"><Plus className="h-4 w-4" /> Novo estudo</Button></Link>
