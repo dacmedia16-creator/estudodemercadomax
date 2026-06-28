@@ -1,75 +1,39 @@
-# Autenticação + estudos por usuário
+## Problema
 
-## 1. Habilitar Lovable Cloud
-Habilitar o backend integrado (Postgres + Auth + RLS). Sem ele não há como isolar dados por usuário de forma segura.
+Os logs mostram que suas tentativas de cadastro com a senha `12345678` foram bloqueadas pelo Supabase com o erro:
 
-## 2. Autenticação Email + Senha
-- Rota pública `/auth` com tabs **Entrar** e **Criar conta** (validação Zod, mensagens em PT-BR).
-- Cadastro sem confirmação de email (login imediato), com `emailRedirectTo = window.location.origin`.
-- Listener global `onAuthStateChange` em `__root.tsx` (filtrado em SIGNED_IN/OUT/USER_UPDATED) para invalidar router/queries.
-- Botão **Sair** no header de `/app` com teardown correto (cancelQueries → clear → signOut → navigate replace `/auth`).
-- Avatar do header mostra as iniciais do email do usuário logado.
+> "Password is known to be weak and easy to guess, please choose a different one." (código `weak_password`, motivo `pwned`)
 
-## 3. Proteção de rotas (todo /app protegido)
-- Criar layout gerenciado `src/routes/_authenticated/route.tsx` (`ssr: false`, redireciona para `/auth`).
-- Mover **todas** as rotas atuais de `app.*` para `_authenticated/app.*`:
-  `app.tsx`, `app.index.tsx`, `app.novo-estudo.tsx`, `app.relatorio.$id.tsx`, `app.estudos.tsx`, `app.relatorios.tsx`, `app.comparativos.tsx`, `app.configuracoes.tsx`, `app.exemplo.tsx`, `app.carregando.tsx`.
-- Landing `/` e `/auth` permanecem públicas. Botão "Entrar" na landing.
+Isso acontece porque ativamos a proteção contra **senhas vazadas (HIBP)** — qualquer senha que já apareceu em vazamentos públicos é recusada, mesmo tendo 8+ caracteres. `12345678` está entre as mais vazadas do mundo.
 
-## 4. Persistência dos estudos no banco (com RLS)
-Migrar de `localStorage` para Postgres.
+Além disso, a mensagem que aparece na tela está vindo crua em inglês, porque o tradutor de erros que escrevi só detectava a palavra "pwned" (que está no código do erro, não no texto). Por isso parece que "não acontece nada" / mensagem confusa.
 
-### Schema
-```sql
-create table public.studies (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  payload jsonb not null,        -- StudyResult completo (input, comparáveis, ACM, etc.)
-  titulo text generated always as (payload->'input'->>'bairro') stored,
-  cidade text generated always as (payload->'input'->>'cidade') stored,
-  status text generated always as (payload->>'status') stored,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+## Plano de correção
 
-grant select, insert, update, delete on public.studies to authenticated;
-grant all on public.studies to service_role;
+1. **Melhorar a mensagem de erro na tela `/auth`**
+   - Detectar também `weak_password`, `known to be weak`, `easy to guess` e o campo `error.code` retornado pelo Supabase, não só a string "pwned".
+   - Mostrar uma mensagem clara em português: *"Esta senha é muito comum ou apareceu em vazamentos. Escolha outra (ex.: combine letras, números e um símbolo)."*
+   - Cobrir também: `email_address_invalid`, `over_email_send_rate_limit`, `signup_disabled`, `user_already_exists`.
 
-alter table public.studies enable row level security;
+2. **Reforçar o aviso preventivo no formulário de cadastro**
+   - Texto curto abaixo do campo Senha: *"Mínimo 8 caracteres. Senhas comuns como `12345678` ou `senha123` serão recusadas."*
+   - Pequeno indicador visual quando a senha for óbvia (verificação local rápida contra uma lista das ~20 piores) para evitar até a chamada de rede.
 
-create policy "owner select" on public.studies for select to authenticated using (auth.uid() = user_id);
-create policy "owner insert" on public.studies for insert to authenticated with check (auth.uid() = user_id);
-create policy "owner update" on public.studies for update to authenticated using (auth.uid() = user_id);
-create policy "owner delete" on public.studies for delete to authenticated using (auth.uid() = user_id);
-```
+3. **Não alterar a política de segurança**
+   - Manter HIBP ligado (é uma boa prática e foi pedido na etapa anterior).
+   - Não diminuir o tamanho mínimo nem desligar a verificação.
 
-### Acesso
-- Substituir `src/lib/study-store.ts` por server functions com `requireSupabaseAuth`:
-  `listStudies`, `getStudy(id)`, `saveStudy(payload)`, `deleteStudy(id)`.
-- Atualizar `app.estudos.tsx`, `app.relatorio.$id.tsx`, `app.novo-estudo.tsx` (loading) e `app.carregando.tsx` para usar TanStack Query + as novas server fns.
-- Estudos antigos do localStorage são **descartados** (conforme escolha) — adicionar `localStorage.removeItem('rip:studies')` no primeiro login.
-- Branding (logo/cor) em Configurações continua em localStorage por dispositivo (não é dado sensível).
+## Como você consegue criar a conta agora (sem esperar a correção)
 
-## 5. Segurança das APIs externas (auditoria)
-Confirmar e manter dentro de server functions (já estão hoje, validar que nada vaze ao cliente):
-- **GeckoAPI**: token `GECKOAPI_TOKEN` lido apenas em `src/lib/gecko.functions.ts` via `process.env`. Adicionar `.middleware([requireSupabaseAuth])` em `geckoPlp`, `geckoPdp`, `geckoTest`, `geckoTestPlp`, `geckoStatus` para impedir uso anônimo do nosso crédito.
-- **Geocode (Nominatim)** e **ViaCEP**: server-side em `geocode.functions.ts` — adicionar mesma middleware.
-- **Lovable AI Gateway** (`query-parser.functions.ts`): exige auth + lê `LOVABLE_API_KEY` server-side (já é o caso). Confirmar.
-- Diagnóstico em Configurações continua funcionando porque o usuário estará logado.
+Use qualquer senha que **não** seja óbvia. Exemplos que passam na verificação:
+- `Radar!Imovel2026`
+- `corretor.pro#88`
+- `MinhaCasa$Sorocaba9`
 
-## 6. Configurações de Auth (Lovable Cloud)
-- Desativar confirmação de email (login imediato após signup).
-- Ativar **Leaked password protection** (HIBP) via `configure_auth`.
-- Configurar **Site URL** e **Redirect URLs** com a URL atual.
+Evite: sequências (`12345678`, `abcdefgh`), nome próprio simples, `senha123`, `qwerty…`, datas de nascimento.
 
-## 7. Pós-implementação
-- Banner uma única vez: "Seus estudos agora ficam salvos na sua conta na nuvem."
-- Atualizar `__root.tsx` head com title/description corretos do Radar Imobiliário Pro.
+## Detalhes técnicos (apenas para referência)
 
-## Detalhes técnicos
-- Cliente browser: `@/integrations/supabase/client` (publishable key).
-- Server fns autenticadas: `.middleware([requireSupabaseAuth])` + `context.supabase` (RLS aplica).
-- Bearer attacher já vem do template — registrar em `src/start.ts` se ainda não estiver.
-- Todas as server fns que tocam `studies` retornam DTOs simples (sem clients/SDK).
-- `_authenticated/route.tsx` é o único gate; nenhum `beforeLoad` adicional nas rotas filhas.
-- Nada de `supabaseAdmin` em código de rota — só publishable + RLS por `auth.uid()`.
+- Arquivo afetado: `src/routes/auth.tsx` — função `translateAuthError` será trocada por uma versão que olha `error.code` do `AuthError` do `supabase-js` em vez de fazer match por substring no texto em inglês.
+- Nenhuma migração nem mudança no backend é necessária.
+- Sem mudanças em RLS ou nas server functions.
