@@ -51,7 +51,7 @@ function NovoEstudo() {
     cidade: "Curitiba",
     estado: "PR",
     bairro: "Água Verde",
-    bairrosProximos: ["Batel", "Portão", "Vila Izabel"],
+    bairrosProximos: [],
     areaUtil: 110,
     quartos: 3,
     suites: 1,
@@ -224,12 +224,6 @@ function NovoEstudo() {
             <Field label="Cidade"><Input value={data.cidade} onChange={(e) => update("cidade", e.target.value)} /></Field>
             <Field label="Estado"><Input value={data.estado} onChange={(e) => update("estado", e.target.value)} maxLength={2} /></Field>
             <Field label="Bairro principal"><Input value={data.bairro} onChange={(e) => update("bairro", e.target.value)} /></Field>
-            <Field label="Bairros próximos (separados por vírgula)">
-              <Input
-                value={(data.bairrosProximos ?? []).join(", ")}
-                onChange={(e) => update("bairrosProximos", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
-              />
-            </Field>
             <Field label="Endereço aproximado (opcional)" className="md:col-span-2">
               <Input value={data.endereco ?? ""} onChange={(e) => update("endereco", e.target.value)} placeholder="Ex: Rua Brasílio Itiberê, 1500" />
             </Field>

@@ -1,16 +1,11 @@
 ## Objetivo
-Sempre iniciar o novo estudo com **todos os portais selecionados** (Zap, Chaves na Mão, OLX e quaisquer outros listados em `PORTAIS`).
+Remover o campo **"Bairros próximos"** do formulário de novo estudo.
 
 ## Mudanças
 
 **`src/routes/app.novo-estudo.tsx`**
-- No estado inicial (`useState` do `data`), trocar `portais: ["Zap Imóveis"]` por `portais: PORTAIS.map(p => p.nome)` para já vir tudo marcado.
-- No `useEffect` que lê `localStorage["portal.chavesnamao"]`: manter Chaves na Mão sempre incluído por padrão (default `true` quando a chave não existe), e só removê-lo se o usuário tiver desativado explicitamente em Configurações. Mesma lógica para qualquer outro portal com toggle persistido (OLX, se houver).
-- Não alterar `togglePortal` — usuário continua podendo desmarcar manualmente no passo "Portais".
-
-**`src/routes/app.exemplo.tsx`**
-- Atualizar o estudo de exemplo para incluir todos os portais (`portais: ["Zap Imóveis", "Chaves na Mão", "OLX"]`) para refletir o novo padrão.
+- Remover o `<Label>` + `<Input>` de "Bairros próximos (separados por vírgula)" do passo 1.
+- Manter `bairrosProximos: []` no estado inicial (apenas como array vazio) para não quebrar o tipo `StudyInput` nem a lógica do runner/adapter que consome esse campo.
 
 ## Fora do escopo
-- Nenhuma mudança em `study-runner`, adapter, tipos ou backend — a lógica de busca já respeita o array `portais` recebido.
-- Nenhum ajuste em estudos já salvos.
+- Não alterar `StudyInput`, `CriteriosEditor` (onde o usuário ainda pode adicionar bairros próximos no painel de ajuste de critérios do relatório), nem a lógica de busca.
