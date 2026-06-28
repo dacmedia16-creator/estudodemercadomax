@@ -1,46 +1,38 @@
 ## Objetivo
-Tornar **dacmedia16@gmail.com** super admin do sistema, com poderes para criar/listar/excluir usuários e ver estudos de todos.
+Permitir que o super admin visualize (e gerencie) os estudos de todos os usuários da plataforma a partir do painel de Administração.
 
-## 1. Banco de dados (migration)
+## Contexto atual
+- RLS já permite ao admin ler/editar/excluir qualquer estudo em `public.studies` (políticas "Admins can view/update/delete all studies").
+- `src/lib/study-store.ts` lista estudos apenas do usuário logado (`auth.uid()`), então hoje o admin não enxerga os dos outros.
+- Já existe `src/routes/app.admin.tsx` com gestão de usuários e o hook `useIsAdmin`.
 
-Criar a infraestrutura padrão de roles:
+## Mudanças
 
-- `enum public.app_role` com valores `admin`, `user`.
-- Tabela `public.user_roles` (id, user_id → auth.users, role) com RLS, GRANTs, e policies:
-  - usuário autenticado vê os próprios roles;
-  - apenas admin pode inserir/excluir roles (via `has_role`).
-- Função `public.has_role(_user_id, _role)` SECURITY DEFINER (padrão antirecursão).
-- Trigger em `auth.users` (AFTER INSERT) que concede `admin` automaticamente quando `lower(email) = 'dacmedia16@gmail.com'` — assim, mesmo que a conta seja recriada no futuro, continua sendo admin.
-- Seed: se já existir um `auth.users` com esse email, inserir o role `admin` agora.
-- Estender RLS de `public.studies`: além de "dono", admin pode `SELECT/UPDATE/DELETE` qualquer estudo (via `has_role(auth.uid(),'admin')`).
+### 1. Server functions de admin para estudos
+Em `src/lib/admin.functions.ts` (ou novo `admin-studies.functions.ts`), adicionar funções protegidas por `requireSupabaseAuth` + checagem `has_role('admin')`:
+- `listAllStudies()` → retorna todos os estudos com `user_id`, cidade, bairro, status, datas e payload resumido.
+- `getStudyByIdAsAdmin(id)` → retorna um estudo específico independentemente do dono.
+- `deleteStudyAsAdmin(id)` → remove estudo de qualquer usuário.
+- Enriquecer cada estudo com o e-mail do dono via `supabaseAdmin.auth.admin.getUserById` (cache simples em memória por request) para exibir "quem fez".
 
-## 2. Server functions (`src/lib/admin.functions.ts`)
+### 2. Nova aba "Estudos" no painel admin
+Em `src/routes/app.admin.tsx`, transformar a tela em abas (`Usuários` | `Estudos`). A aba Estudos mostra tabela com:
+- Data, usuário (e-mail), cidade/bairro, status, ações (Abrir / Excluir).
+- Filtro por usuário e busca por cidade/bairro.
+- "Abrir" navega para `/app/estudo/$id` (a rota atual já carrega via RLS — o admin enxerga porque a policy permite).
 
-Todas com `requireSupabaseAuth` + checagem `has_role(userId,'admin')`; usam `supabaseAdmin` (carregado dinâmico) para Auth Admin API:
+### 3. Carregamento do estudo como admin
+Confirmar que `src/lib/study-store.ts > getStudy(id)` usa server function autenticada que apenas filtra por `id` (RLS faz o resto). Se hoje filtra por `user_id = auth.uid()`, remover essa restrição extra para o admin (ou simplesmente confiar na RLS, removendo o `.eq('user_id', userId)`).
 
-- `listUsers()` → `supabaseAdmin.auth.admin.listUsers()` (página única, paginável depois).
-- `createUser({ email, password, isAdmin })` → `supabaseAdmin.auth.admin.createUser({ email_confirm: true })`, e se `isAdmin` insere role.
-- `deleteUser({ id })` → `supabaseAdmin.auth.admin.deleteUser(id)`; bloqueia auto-delete e bloqueia deletar o próprio super admin de email fixo.
-- `setUserAdmin({ id, isAdmin })` → insere/remove role `admin`.
-- `getMeRoles()` → retorna roles do usuário corrente (para o frontend exibir menu Admin).
+### 4. UI/UX
+- Badge "Admin" na linha quando o estudo não pertence ao admin logado.
+- Confirmação antes de excluir estudo de outro usuário.
+- Vazio: "Nenhum estudo cadastrado na plataforma".
 
-## 3. Frontend
-
-- **Hook `useIsAdmin()`** (`src/hooks/use-is-admin.ts`): consulta `getMeRoles` via React Query.
-- **Menu lateral** (`src/components/app-sidebar.tsx` ou equivalente da `/app`): mostrar item **Administração** apenas se `isAdmin`.
-- **Nova rota `/app/admin` (`src/routes/app.admin.tsx`)**: 
-  - Listagem de usuários (email, criado em, último login, badge "Admin").
-  - Botão **Novo usuário** abre modal (email, senha, checkbox "É administrador").
-  - Ações por linha: alternar admin, excluir (com confirmação).
-  - `beforeLoad` chama `getMeRoles`; se não-admin, `redirect` para `/app/novo-estudo` com toast.
-- **Rota `/app/estudos`**: nada muda na UI; a policy expandida já permite o admin ver todos. Adicionar (apenas quando admin) uma coluna "Dono" mostrando o email do criador, buscado por uma server fn `listStudyOwners(ids)` que usa `supabaseAdmin` para resolver `user_id → email` (somente admin).
-
-## 4. Segurança
-
-- Nenhum role é editável pelo próprio usuário (policies negam INSERT/DELETE em `user_roles` sem `has_role admin`).
-- Todas as ações administrativas validam role no servidor — checagem no frontend é só UX.
-- `supabaseAdmin` continua importado dinamicamente dentro de cada handler.
+## Fora de escopo
+- Editar estudos de terceiros (apenas visualizar/excluir nesta entrega).
+- Métricas agregadas/dashboard de uso (pode vir depois).
 
 ## Detalhes técnicos
-- Edits/criações de arquivos: `src/lib/admin.functions.ts`, `src/hooks/use-is-admin.ts`, `src/routes/app.admin.tsx`, ajustes no sidebar e em `app.estudos.tsx`.
-- Migration única com enum + tabela + função + trigger + seed + policies de `studies`.
+- Todas as novas server functions devem chamar `has_role(userId, 'admin')` no início e retornar 403 caso contrário.
+- Usar `supabaseAdmin` (import dinâmico dentro do handler) só para resolver e-mails via Auth Admin API; as leituras de `studies` continuam pelo client RLS do contexto (`context.supabase`), que já enxerga tudo como admin.
