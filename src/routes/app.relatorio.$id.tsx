@@ -65,6 +65,33 @@ function ReportPage() {
     return () => { cancelled = true; };
   }, [id]);
 
+  // Auto-export quando a tela é aberta com ?auto=onepager ou ?auto=slides
+  // (usado pela central de Relatórios para disparar export sem cliques extras).
+  useEffect(() => {
+    if (!study) return;
+    const params = new URLSearchParams(window.location.search);
+    const auto = params.get("auto");
+    if (auto !== "onepager" && auto !== "slides") return;
+    const html = document.documentElement;
+    if (auto === "slides") {
+      html.classList.add("print-mode-slides");
+      toast.info("Configure como Paisagem · 'Salvar como PDF'.");
+    } else {
+      toast.info("Use 'Salvar como PDF' na impressão.");
+    }
+    const cleanup = () => {
+      html.classList.remove("print-mode-slides");
+      window.removeEventListener("afterprint", cleanup);
+      // Limpa o query param para não reimprimir em refresh.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("auto");
+      window.history.replaceState({}, "", url.toString());
+    };
+    window.addEventListener("afterprint", cleanup);
+    const t = setTimeout(() => window.print(), 400);
+    return () => { clearTimeout(t); window.removeEventListener("afterprint", cleanup); };
+  }, [study]);
+
   const handleRerun = async (overrides: SearchOverrides) => {
     if (!study) return;
     setRerunning(true);
