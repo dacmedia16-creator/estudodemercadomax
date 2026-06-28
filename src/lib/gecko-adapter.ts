@@ -195,6 +195,44 @@ function parsePrice(v: unknown): number {
   return 0;
 }
 
+/**
+ * Detecta a finalidade (Venda × Aluguel) a partir do payload bruto.
+ * Olha campos estruturados primeiro (Zap pricingInfos, Chaves businessType,
+ * OLX category/listingType) e cai para heurística de URL.
+ */
+function detectFinalidade(raw: Record<string, any>): "Venda" | "Aluguel" | undefined {
+  // Zap: listing.pricingInfos[].businessType: "SALE" | "RENTAL"
+  const pricing = raw?.pricingInfos ?? raw?.listing?.pricingInfos;
+  if (Array.isArray(pricing) && pricing.length) {
+    const bts = pricing
+      .map((p) => String(p?.businessType ?? "").toUpperCase())
+      .filter(Boolean);
+    if (bts.includes("SALE")) return "Venda";
+    if (bts.includes("RENTAL")) return "Aluguel";
+  }
+  // Generic businessType / transactionType / listingType
+  const bt = String(
+    raw?.businessType ?? raw?.transactionType ?? raw?.listingType ?? raw?.adType ?? "",
+  ).toUpperCase();
+  if (/SALE|VENDA|VENDER|SELL/.test(bt)) return "Venda";
+  if (/RENT|ALUGUEL|LOCAC|ALUGAR/.test(bt)) return "Aluguel";
+  // OLX category/subcategory IDs
+  const catName = String(
+    raw?.category?.name ?? raw?.subcategory?.name ?? raw?.category ?? "",
+  ).toLowerCase();
+  if (/aluguel|locac/.test(catName)) return "Aluguel";
+  if (/venda/.test(catName)) return "Venda";
+  // URL heuristic — last resort
+  const url = String(raw?.url ?? raw?.link ?? raw?.permalink ?? "").toLowerCase();
+  if (/\/(aluguel|locacao|locação|rent)\b/.test(url)) return "Aluguel";
+  if (/\/(venda|sale|comprar)\b/.test(url)) return "Venda";
+  // Rent-shaped price field present without sale price
+  if ((raw?.rentPrice || raw?.rent?.price) && !(raw?.salePrice || raw?.sale?.price || raw?.price)) {
+    return "Aluguel";
+  }
+  return undefined;
+}
+
 export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóveis"): MockProperty | null {
   const anyItem = item as unknown as Record<string, any>;
 
@@ -229,10 +267,8 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     parsePrice(anyItem.price) ||
     parsePrice(anyItem.priceValue) ||
     parsePrice(anyItem.salePrice) ||
-    parsePrice(anyItem.rentPrice) ||
     parsePrice(anyItem.prices?.[0]?.value) ||
     parsePrice(anyItem.sale?.price) ||
-    parsePrice(anyItem.rent?.price) ||
     extractNumber(desc, [/R\$\s*([\d.,]+)/i]) ||
     0;
   if (!preco) return null;
@@ -364,6 +400,7 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     advertiserRating,
     virtualTourUrl: item.virtualTourUrl,
     agregadoCount,
+    finalidade: detectFinalidade(anyItem),
   };
 }
 
@@ -494,6 +531,7 @@ function chavesItemToProperty(item: Record<string, any>, portal: string): MockPr
     advertiserRating,
     virtualTourUrl: item.media?.tour360 || undefined,
     agregadoCount: undefined,
+    finalidade: detectFinalidade(item),
   };
 }
 
@@ -634,6 +672,7 @@ function olxItemToProperty(itemRaw: Record<string, any>, portal: string): MockPr
     advertiserRating: undefined,
     virtualTourUrl: undefined,
     agregadoCount: undefined,
+    finalidade: detectFinalidade(item),
   };
 }
 

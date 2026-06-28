@@ -215,6 +215,26 @@ export async function runStudy(
     const strictLocal = (p: MockProperty) =>
       matchesType(p) && inBairro(p) && quartosOk(p, 0) && areaInRange(p, 0) && priceInRange(p, 0);
 
+    // ---- Finalidade × preço sanity guards ----
+    // Anúncios de aluguel vazam em camadas de keyword livre (ex.: nome de
+    // condomínio) e contaminam médias. Descartamos por finalidade declarada
+    // e, como fallback, por faixa de preço incompatível.
+    let removidosFinalidade = 0;
+    let removidosPrecoFaixa = 0;
+    const passesFinalidadeGuard = (p: MockProperty): boolean => {
+      if (p.finalidade && p.finalidade !== finalidade) {
+        removidosFinalidade++;
+        return false;
+      }
+      if (finalidade === "Venda") {
+        if (p.preco > 0 && p.preco < 50_000) { removidosPrecoFaixa++; return false; }
+        if (p.areaUtil > 0 && p.preco / p.areaUtil < 500) { removidosPrecoFaixa++; return false; }
+      } else if (finalidade === "Aluguel") {
+        if (p.preco > 50_000) { removidosPrecoFaixa++; return false; }
+      }
+      return true;
+    };
+
     // ---- Anchor (mesmo prédio / endereço) typology filter ----
     // Para itens com dado, exige quartos ±1 e área dentro do range.
     // Itens sem área/quartos passam — são enriquecidos via PDP antes do filtro.
@@ -420,7 +440,7 @@ export async function runStudy(
             if (seen.has(key)) continue;
             seen.add(key);
             const p = geckoItemToProperty(it, portalName);
-            if (p) {
+            if (p && passesFinalidadeGuard(p)) {
               all.push(p);
               perPortal[t][layerKey].aproveitados++;
             } else {
@@ -709,6 +729,18 @@ export async function runStudy(
       }
     }
     funilBusca.push({ etapa: "Retornados pela API", total: mainProperties.length });
+    if (removidosFinalidade > 0) {
+      funilBusca.push({
+        etapa: `Removidos por finalidade incompatível (estudo de ${finalidade})`,
+        total: removidosFinalidade,
+      });
+    }
+    if (removidosPrecoFaixa > 0) {
+      funilBusca.push({
+        etapa: `Removidos por preço fora da faixa de ${finalidade.toLowerCase()}`,
+        total: removidosPrecoFaixa,
+      });
+    }
     funilBusca.push({ etapa: "Com dados completos", total: normalizedComplete.length });
     if (descartadosIncompletos > 0) {
       funilBusca.push({ etapa: "Sem área/quartos na listagem (descartados do filtro estrito)", total: descartadosIncompletos });
