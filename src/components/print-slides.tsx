@@ -193,6 +193,35 @@ export function PrintSlides({
   );
 }
 
+/**
+ * Wrapper extra usado pelo botão "Exportar PDF" (one-pager A4): renderiza
+ * apenas as páginas "Argumentos para o Proprietário" e "Carta ao Proprietário"
+ * para que entrem no PDF padrão. Reutiliza a classe `.print-slides` para
+ * herdar todos os estilos existentes; a classe extra `.print-owner-pages`
+ * controla visibilidade no @media print/screen (ver `src/styles.css`).
+ */
+export function PrintOwnerPages({
+  study,
+  sorted,
+}: {
+  study: StudyResult;
+  sorted: StudyResult["comparaveis"];
+}) {
+  const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
+  const branding = brandingStore.get();
+  const data = new Date(study.createdAt).toLocaleDateString("pt-BR");
+  const styleVars = {
+    ["--acm-brand" as string]: branding.brandColor,
+    ["--acm-accent" as string]: branding.accentColor,
+  } as React.CSSProperties;
+  return (
+    <section className="print-slides print-owner-pages" style={styleVars}>
+      <OwnerPersuasionPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
+      <OwnerLetterPage study={study} acm={acm} dataStr={data} brandName={branding.brandName} />
+    </section>
+  );
+}
+
 /* -------------------------------------------------------------------------
  * Página 2 — "Argumentos para o Proprietário"
  * Material pronto para o corretor defender uma redução / ajuste de preço.
