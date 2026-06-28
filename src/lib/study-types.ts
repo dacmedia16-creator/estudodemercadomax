@@ -107,6 +107,13 @@ export interface SearchOverrides {
   /** Search radius in km around the geocoded address (1–5). Default 2 when geo is available. */
   radiusKm?: number;
   /**
+   * Quando true (default), aplica os limites de quartos (±1) e área (±25%)
+   * também nas camadas "Mesmo prédio" e "Mesmo endereço" — evita listar
+   * tipologias diferentes do mesmo condomínio (ex.: 1 dorm/45 m² quando
+   * o imóvel base é 3 dorm/140 m²).
+   */
+  filtrarAncoras?: boolean;
+  /**
    * Per-field mode for the "extra" property attributes (suites, vagas, etc.).
    * - "ignore": campo só aparece no relatório, não afeta busca nem similaridade.
    * - "soft":   pesa na similaridade mas não elimina nada.
