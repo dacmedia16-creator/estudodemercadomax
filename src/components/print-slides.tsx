@@ -488,3 +488,156 @@ function initials(name: string) {
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("");
 }
+
+/* -------------------------------------------------------------------------
+ * Página 3 — "Carta ao Proprietário"
+ * Linguagem direta, sem jargão técnico. Pensada para imprimir e entregar
+ * na mão do dono do imóvel.
+ * ----------------------------------------------------------------------- */
+function OwnerLetterPage({
+  study,
+  acm,
+  dataStr,
+  brandName,
+}: {
+  study: StudyResult;
+  acm: ReturnType<typeof computeAcm>;
+  dataStr: string;
+  brandName: string;
+}) {
+  const { input, comparaveis, stats } = study;
+  const pretendido = input.valorPretendido;
+  const sugerido = acm.valorSugerido;
+  const gap = pretendido - sugerido;
+  const gapPct = sugerido > 0 ? (gap / sugerido) * 100 : 0;
+  const totalComps = comparaveis.length;
+  const abaixoCount = comparaveis.filter((c) => c.preco > 0 && c.preco < pretendido).length;
+  const menorPreco = comparaveis.reduce(
+    (min, c) => (c.preco > 0 && (min === 0 || c.preco < min) ? c.preco : min),
+    0,
+  );
+  const precoM2Pretendido = input.areaUtil > 0 ? pretendido / input.areaUtil : 0;
+  const m2Medio = study.precoM2Medio;
+  const acimaMedia = m2Medio > 0 && precoM2Pretendido > 0 ? ((precoM2Pretendido - m2Medio) / m2Medio) * 100 : 0;
+
+  const faixa = study.aiAnalysis?.faixaRecomendada ?? (stats
+    ? { entrada: stats.p25 * (input.areaUtil || 1), ideal: stats.median * (input.areaUtil || 1), teto: stats.p75 * (input.areaUtil || 1) }
+    : { entrada: sugerido * 0.95, ideal: sugerido, teto: sugerido * 1.05 });
+
+  const cidadeBairro = [input.bairro, input.cidade].filter(Boolean).join(", ");
+
+  // Cor do destaque conforme a posição do preço pretendido
+  const tone: "ok" | "ajustar" | "alto" =
+    gapPct > 8 ? "alto" : gapPct > 2 ? "ajustar" : "ok";
+  const toneLabel =
+    tone === "alto" ? "Seu preço está bem acima do mercado"
+    : tone === "ajustar" ? "Vale a pena ajustar o preço"
+    : "Seu preço está alinhado ao mercado";
+
+  return (
+    <div className={`slide-page acm-page owner-letter-page owner-letter-${tone}`}>
+      <div className="acm-header">
+        <div className="acm-title">Carta ao Proprietário</div>
+        <div className="owner-letter-status">{toneLabel}</div>
+      </div>
+      <div className="acm-stripe" />
+
+      <p className="owner-letter-intro">
+        Preparei um estudo completo do seu imóvel{cidadeBairro ? ` em ${cidadeBairro}` : ""}.
+        Em 1 minuto, você entende o que o mercado está dizendo hoje e qual é o melhor preço para anunciar.
+      </p>
+
+      {/* Cartões: pretendido → sugerido → diferença */}
+      <div className="owner-letter-cards">
+        <div className="owner-letter-card">
+          <div className="owner-letter-card-lbl">Seu preço hoje</div>
+          <div className="owner-letter-card-val">{formatBRL(pretendido)}</div>
+        </div>
+        <div className="owner-letter-arrow">→</div>
+        <div className="owner-letter-card owner-letter-card-ideal">
+          <div className="owner-letter-card-lbl">Preço recomendado</div>
+          <div className="owner-letter-card-val">{formatBRL(sugerido)}</div>
+          <div className="owner-letter-card-sub">com base em {totalComps} imóveis parecidos</div>
+        </div>
+        <div className="owner-letter-card owner-letter-card-diff">
+          <div className="owner-letter-card-lbl">Diferença</div>
+          <div className="owner-letter-card-val">
+            {gap >= 0 ? "−" : "+"} {formatBRL(Math.abs(gap))}
+          </div>
+          <div className="owner-letter-card-sub">
+            {gap >= 0 ? "−" : "+"}{Math.abs(gapPct).toFixed(1)}% do recomendado
+          </div>
+        </div>
+      </div>
+
+      <div className="owner-letter-grid">
+        <div className="owner-letter-box">
+          <div className="owner-letter-box-title">O que o mercado está dizendo</div>
+          <ul className="owner-letter-list owner-letter-list-bullets">
+            <li>Analisamos <b>{totalComps}</b> imóveis parecidos com o seu na região.</li>
+            {abaixoCount > 0 && (
+              <li><b>{abaixoCount} de {totalComps}</b> estão anunciados por menos que o seu preço atual.</li>
+            )}
+            {menorPreco > 0 && menorPreco < pretendido && (
+              <li>O concorrente mais barato pede <b>{formatBRL(menorPreco)}</b> — diferença de <b>{formatBRL(pretendido - menorPreco)}</b> em relação ao seu.</li>
+            )}
+            {m2Medio > 0 && (
+              <li>O preço médio do metro quadrado na região é <b>{formatBRL(m2Medio)}/m²</b>.</li>
+            )}
+            {precoM2Pretendido > 0 && acimaMedia > 1 && (
+              <li>O seu hoje fica em <b>{formatBRL(precoM2Pretendido)}/m²</b>, cerca de <b>{acimaMedia.toFixed(0)}%</b> acima da média.</li>
+            )}
+            {precoM2Pretendido > 0 && acimaMedia <= 1 && acimaMedia >= -1 && (
+              <li>O seu hoje fica em <b>{formatBRL(precoM2Pretendido)}/m²</b>, praticamente em linha com a média.</li>
+            )}
+          </ul>
+        </div>
+
+        <div className="owner-letter-box">
+          <div className="owner-letter-box-title">Por que ajustar agora vale a pena</div>
+          <ul className="owner-letter-list owner-letter-list-checks">
+            <li><b>Mais visitas:</b> anúncios no preço certo aparecem primeiro nas buscas e geram mais contatos qualificados.</li>
+            <li><b>Vende mais rápido:</b> as primeiras semanas concentram a maior parte das propostas reais.</li>
+            <li><b>Evita desgaste:</b> imóvel parado por meses costuma acabar vendido com desconto maior do que o ajuste de hoje.</li>
+            <li><b>Comparação justa:</b> compradores olham vários imóveis lado a lado — quem está acima da média é descartado antes mesmo da visita.</li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Faixa de publicação */}
+      <div className="owner-letter-faixa">
+        <div className="owner-letter-faixa-title">Faixa que recomendamos para publicar</div>
+        <div className="owner-letter-faixa-row">
+          <div className="owner-letter-faixa-cell">
+            <div className="owner-letter-faixa-tag">Vende rápido</div>
+            <div className="owner-letter-faixa-val">{formatBRL(faixa.entrada)}</div>
+          </div>
+          <div className="owner-letter-faixa-cell owner-letter-faixa-ideal">
+            <div className="owner-letter-faixa-tag">Ideal</div>
+            <div className="owner-letter-faixa-val">{formatBRL(faixa.ideal)}</div>
+          </div>
+          <div className="owner-letter-faixa-cell">
+            <div className="owner-letter-faixa-tag">Teto para negociar</div>
+            <div className="owner-letter-faixa-val">{formatBRL(faixa.teto)}</div>
+          </div>
+        </div>
+        <div className="owner-letter-faixa-hint">
+          Publicar dentro dessa faixa coloca o seu imóvel à frente da concorrência sem abrir mão da margem de negociação.
+        </div>
+      </div>
+
+      <div className="owner-letter-cta">
+        <div className="owner-letter-cta-title">Próximo passo</div>
+        <p>
+          Vamos conversar e definir juntos o valor de publicação. Meu compromisso é vender o seu imóvel
+          pelo melhor preço possível, no menor tempo possível — sem queimar o anúncio.
+        </p>
+        <div className="owner-letter-sign">— {brandName}</div>
+      </div>
+
+      <div className="acm-page-meta">
+        {brandName} · estudo {study.id.slice(0, 8)} · {dataStr} · página 3
+      </div>
+    </div>
+  );
+}
