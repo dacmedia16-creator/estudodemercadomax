@@ -215,6 +215,26 @@ export async function runStudy(
     const strictLocal = (p: MockProperty) =>
       matchesType(p) && inBairro(p) && quartosOk(p, 0) && areaInRange(p, 0) && priceInRange(p, 0);
 
+    // ---- Finalidade × preço sanity guards ----
+    // Anúncios de aluguel vazam em camadas de keyword livre (ex.: nome de
+    // condomínio) e contaminam médias. Descartamos por finalidade declarada
+    // e, como fallback, por faixa de preço incompatível.
+    let removidosFinalidade = 0;
+    let removidosPrecoFaixa = 0;
+    const passesFinalidadeGuard = (p: MockProperty): boolean => {
+      if (p.finalidade && p.finalidade !== finalidade) {
+        removidosFinalidade++;
+        return false;
+      }
+      if (finalidade === "Venda") {
+        if (p.preco > 0 && p.preco < 50_000) { removidosPrecoFaixa++; return false; }
+        if (p.areaUtil > 0 && p.preco / p.areaUtil < 500) { removidosPrecoFaixa++; return false; }
+      } else if (finalidade === "Aluguel") {
+        if (p.preco > 50_000) { removidosPrecoFaixa++; return false; }
+      }
+      return true;
+    };
+
     // ---- Anchor (mesmo prédio / endereço) typology filter ----
     // Para itens com dado, exige quartos ±1 e área dentro do range.
     // Itens sem área/quartos passam — são enriquecidos via PDP antes do filtro.
