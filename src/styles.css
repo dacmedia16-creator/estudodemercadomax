@@ -791,6 +791,20 @@
   html.print-mode-slides .print-onepager { display: none !important; }
   html.print-mode-slides .print-slides { display: block !important; }
 
+  /* Páginas "Argumentos" + "Carta" entram no PDF padrão (após o one-pager).
+   * No modo ACM elas já vêm dentro de `PrintSlides`, então escondemos aqui
+   * para não duplicar. */
+  .print-owner-pages { display: block !important; }
+  html.print-mode-slides .print-owner-pages { display: none !important; }
+  .print-owner-pages > .acm-page {
+    page: acm;
+    height: 210mm;
+    min-height: 210mm;
+    overflow: hidden;
+    page-break-before: always;
+    break-before: page;
+  }
+
   .print-slides * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

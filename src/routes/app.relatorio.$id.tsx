@@ -18,7 +18,7 @@ import { DEFAULT_ACM } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
 import { CriteriosEditor } from "@/components/criterios-editor";
 import { AcmPanel } from "@/components/acm-panel";
-import { PrintSlides } from "@/components/print-slides";
+import { PrintSlides, PrintOwnerPages } from "@/components/print-slides";
 import { ComparaveisManager } from "@/components/comparaveis-manager";
 import { AiAnalysisCard } from "@/components/ai-analysis-card";
 import { toast } from "sonner";
@@ -160,6 +160,8 @@ function ReportPage() {
     <>
       {/* One-pager exclusivo do PDF (A4, página única) */}
       <PrintOnePager study={study} sorted={sorted} />
+      {/* Páginas "Argumentos" + "Carta ao Proprietário" — entram no PDF padrão (A4 paisagem) */}
+      <PrintOwnerPages study={study} sorted={sorted} />
       {/* Apresentação 16:9 para o proprietário (ativada via classe `print-mode-slides`) */}
       <PrintSlides study={study} sorted={sorted} />
 
