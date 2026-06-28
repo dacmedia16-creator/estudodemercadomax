@@ -690,8 +690,16 @@
   /* One-pager — executive RE/MAX layout */
   .print-onepager {
     display: block;
-    width: 100%;
+    width: 210mm;
+    height: 297mm;
+    min-height: 297mm;
+    padding: 8mm 9mm;
+    margin: 0 auto;
+    box-sizing: border-box;
+    overflow: hidden;
     color: #111;
+    page-break-after: avoid;
+    break-after: avoid-page;
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   }
   .print-onepager .op-brandbar {
