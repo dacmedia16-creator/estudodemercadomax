@@ -1,8 +1,47 @@
 import { mockProperties, type MockProperty } from "./mock-properties";
-import type { ComparableProperty, StudyInput, StudyResult, FieldMode, FieldKey } from "./study-types";
+import type { ComparableProperty, StudyInput, StudyResult, FieldMode, FieldKey, StudyStats } from "./study-types";
 import { DEFAULT_FIELD_MODES, DEFAULT_ACM, type AcmAdjustments } from "./study-types";
 
 const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / Math.max(arr.length, 1);
+
+/** Percentil simples (interpolação linear) sobre uma lista já ordenada asc. */
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  if (sorted.length === 1) return sorted[0];
+  const idx = (sorted.length - 1) * p;
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+/** Calcula a distribuição de R$/m² e mínimo de preço total. */
+export function computeStats(items: { precoM2: number; preco: number }[]): StudyStats | undefined {
+  const m2 = items.map((i) => i.precoM2).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b);
+  const totals = items.map((i) => i.preco).filter((n) => Number.isFinite(n) && n > 0);
+  if (m2.length === 0) return undefined;
+  return {
+    p10: Math.round(percentile(m2, 0.1)),
+    p25: Math.round(percentile(m2, 0.25)),
+    median: Math.round(percentile(m2, 0.5)),
+    p75: Math.round(percentile(m2, 0.75)),
+    p90: Math.round(percentile(m2, 0.9)),
+    minM2: m2[0],
+    maxM2: m2[m2.length - 1],
+    minTotal: totals.length ? Math.min(...totals) : 0,
+  };
+}
+
+/** Marca outliers de preço (R$/m² fora da banda P10×0.7..P90×1.3). */
+function flagOutliers(list: ComparableProperty[], stats?: StudyStats): ComparableProperty[] {
+  if (!stats) return list;
+  const lo = stats.p10 * 0.7;
+  const hi = stats.p90 * 1.3;
+  return list.map((c) => ({
+    ...c,
+    outlier: c.precoM2 > 0 ? c.precoM2 < lo || c.precoM2 > hi : false,
+  }));
+}
 
 function similarity(
   input: StudyInput,
@@ -137,8 +176,11 @@ export function generateStudy(
     return out.sort((a, b) => b.similaridade - a.similaridade);
   })();
 
-  const precos = top10.map((p) => p.preco);
-  const precosM2 = top10.filter((p) => p.precoM2 > 0).map((p) => p.precoM2);
+  const stats = computeStats(top10);
+  const top10WithFlags = flagOutliers(top10, stats);
+
+  const precos = top10WithFlags.map((p) => p.preco);
+  const precosM2 = top10WithFlags.filter((p) => p.precoM2 > 0).map((p) => p.precoM2);
   const precoMedio = precos.length ? Math.round(avg(precos)) : 0;
   const precoM2Medio = precosM2.length ? Math.round(avg(precosM2)) : 0;
   const menorPreco = precos.length ? Math.min(...precos) : 0;
@@ -189,7 +231,8 @@ export function generateStudy(
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     input,
-    comparaveis: top10,
+    comparaveis: top10WithFlags,
+    stats,
     precoMedio,
     precoM2Medio,
     menorPreco,
@@ -219,16 +262,53 @@ export interface AcmComputed {
   valorSugerido: number;
   valorMaximoPublicacao: number;
   valorMinimoFechamento: number;
+  /** Piso competitivo (R$ total) — quanto o sugerido pode no mínimo ficar acima do menor preço. */
+  valorPiso: number;
+  /** Quando true, o piso clampeou o sugerido para cima. */
+  pisoAplicado: boolean;
+  /** R$/m² base usado conforme a estratégia (mediana/P25/P75) — cai na média quando não há stats. */
+  baseM2: number;
 }
 
 /** Calcula o resumo no estilo da ACM clássica usada por corretores. */
 export function computeAcm(study: StudyResult, adj?: Partial<AcmAdjustments>): AcmComputed {
   const a: AcmAdjustments = { ...DEFAULT_ACM, ...(study.acm ?? {}), ...(adj ?? {}) };
   const mult = (a.localizacao / 100) * (a.conservacao / 100) * (a.idade / 100) * (a.padrao / 100);
-  const valorM2Avaliado = Math.round(study.precoM2Medio * mult);
+  // Estratégia: mediana (default), P25 (agressivo) ou P75 (premium). Cai na média se não houver stats.
+  const stats = study.stats;
+  const baseM2 = stats
+    ? a.estrategia === "agressivo" ? stats.p25
+      : a.estrategia === "premium" ? stats.p75
+      : stats.median
+    : study.precoM2Medio;
+  const valorM2Avaliado = Math.round(baseM2 * mult);
   const area = study.input.areaUtil || 0;
   const descontoReforma = Math.round(a.reformaPorM2 * area);
-  const valorSugerido = Math.max(0, valorM2Avaliado * area - descontoReforma);
+  const valorSugeridoRaw = Math.max(0, valorM2Avaliado * area - descontoReforma);
+
+  // Piso competitivo: max(P10 × área, menorPreço × 1.02). Garante que o sugerido
+  // não fica "muito longe" do mais barato do mercado.
+  let valorPiso = 0;
+  if (area > 0 && stats) {
+    const pisoPorM2 = Math.max(stats.p10, stats.minM2 * 1.02);
+    valorPiso = Math.round(pisoPorM2 * area);
+  }
+  if (study.menorPreco > 0) {
+    valorPiso = Math.max(valorPiso, Math.round(study.menorPreco * 1.02));
+  }
+
+  let valorSugerido = valorSugeridoRaw;
+  let pisoAplicado = false;
+  if (a.respeitarPiso && valorPiso > 0) {
+    const teto = valorPiso * (1 + (a.maxAcimaPisoPct ?? 8) / 100);
+    if (valorSugerido > teto) {
+      valorSugerido = teto;
+      pisoAplicado = true;
+    }
+    // Garante que não cai abaixo do piso também — não faz sentido sugerir abaixo do mais barato.
+    if (valorSugerido < valorPiso) valorSugerido = valorPiso;
+  }
+
   const margem = (a.margemPublicacaoPct || 0) / 100;
   return {
     multiplicador: mult,
@@ -237,6 +317,9 @@ export function computeAcm(study: StudyResult, adj?: Partial<AcmAdjustments>): A
     valorSugerido: Math.round(valorSugerido),
     valorMaximoPublicacao: Math.round(valorSugerido * (1 + margem)),
     valorMinimoFechamento: Math.round(valorSugerido * (1 - margem)),
+    valorPiso,
+    pisoAplicado,
+    baseM2: Math.round(baseM2),
   };
 }
 
@@ -252,8 +335,10 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
     ...c,
     precoM2: c.areaUtil > 0 ? Math.round(c.preco / c.areaUtil) : c.precoM2 ?? 0,
   }));
-  const precos = list.map((p) => p.preco);
-  const precosM2 = list.filter((p) => p.precoM2 > 0).map((p) => p.precoM2);
+  const stats = computeStats(list);
+  const listFlag = flagOutliers(list, stats);
+  const precos = listFlag.map((p) => p.preco);
+  const precosM2 = listFlag.filter((p) => p.precoM2 > 0).map((p) => p.precoM2);
   const precoMedio = precos.length ? Math.round(avg(precos)) : 0;
   const precoM2Medio = precosM2.length ? Math.round(avg(precosM2)) : 0;
   const menorPreco = precos.length ? Math.min(...precos) : 0;
@@ -293,7 +378,8 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
 
   return {
     ...prev,
-    comparaveis: list,
+    comparaveis: listFlag,
+    stats,
     precoMedio,
     precoM2Medio,
     menorPreco,

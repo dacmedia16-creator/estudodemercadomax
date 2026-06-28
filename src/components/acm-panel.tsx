@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, RotateCcw, Save } from "lucide-react";
+import { Calculator, RotateCcw, Save, ShieldCheck } from "lucide-react";
 import { computeAcm, formatBRL } from "@/lib/study-engine";
 import { DEFAULT_ACM, type AcmAdjustments, type StudyResult } from "@/lib/study-types";
 import { studyStore } from "@/lib/study-store";
@@ -82,6 +82,79 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
           </Button>
         </div>
       </div>
+
+      {/* Estratégia + piso competitivo */}
+      <div className="mb-5 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 print:hidden md:grid-cols-2">
+        <div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Estratégia de precificação
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              { v: "agressivo", label: "Agressivo", hint: "P25 · vende rápido" },
+              { v: "equilibrado", label: "Equilibrado", hint: "Mediana · default" },
+              { v: "premium", label: "Premium", hint: "P75 · posicionamento" },
+            ].map((opt) => (
+              <button
+                key={opt.v}
+                type="button"
+                onClick={() => update({ estrategia: opt.v as AcmAdjustments["estrategia"] })}
+                className={cn(
+                  "rounded-md border px-2 py-2 text-left text-[11px] leading-tight transition",
+                  (acm.estrategia ?? "equilibrado") === opt.v
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <div className="font-semibold">{opt.label}</div>
+                <div className="opacity-70">{opt.hint}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <ShieldCheck className="h-3.5 w-3.5" /> Respeitar piso de mercado
+            </div>
+            <button
+              type="button"
+              onClick={() => update({ respeitarPiso: !(acm.respeitarPiso ?? true) })}
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition",
+                (acm.respeitarPiso ?? true)
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground",
+              )}
+            >
+              {(acm.respeitarPiso ?? true) ? "ATIVO" : "INATIVO"}
+            </button>
+          </div>
+          <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Máx. acima do piso</span>
+            <span className="tabular-nums text-foreground">+{acm.maxAcimaPisoPct ?? 8}%</span>
+          </div>
+          <Slider
+            min={0}
+            max={25}
+            step={1}
+            value={[acm.maxAcimaPisoPct ?? 8]}
+            onValueChange={([v]) => update({ maxAcimaPisoPct: v })}
+            disabled={!(acm.respeitarPiso ?? true)}
+          />
+          <div className="mt-2 text-[11px] text-muted-foreground">
+            Garante que o sugerido não fica muito longe do imóvel mais barato do mercado.
+          </div>
+        </div>
+      </div>
+
+      {/* Régua de percentis */}
+      {study.stats && (
+        <PercentilRuler
+          stats={study.stats}
+          sugeridoM2={computed.valorSugerido && study.input.areaUtil > 0 ? Math.round(computed.valorSugerido / study.input.areaUtil) : computed.valorM2Avaliado}
+        />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2 print:hidden">
         <div className="space-y-5">
@@ -170,6 +243,7 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
             label="Valor sugerido"
             value={formatBRL(computed.valorSugerido)}
             highlight
+          hint={computed.pisoAplicado ? "limitado pelo piso de mercado" : undefined}
           />
           <SummaryItem
             label="Mínimo de fechamento"
@@ -186,6 +260,13 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
             label="Valor pretendido pelo cliente"
             value={formatBRL(study.input.valorPretendido)}
           />
+        {computed.valorPiso > 0 && (
+          <SummaryItem
+            label="Piso competitivo"
+            value={formatBRL(computed.valorPiso)}
+            hint="referência do mais barato"
+          />
+        )}
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Pretendido vs. sugerido
@@ -252,6 +333,69 @@ function SummaryItem({
       <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={cn("mt-1 text-base font-bold tabular-nums", highlight && "text-primary")}>{value}</div>
       {hint && <div className="mt-0.5 text-[10px] text-muted-foreground">{hint}</div>}
+    </div>
+  );
+}
+
+/** Régua visual mostrando onde o sugerido cai dentro da distribuição. */
+function PercentilRuler({
+  stats,
+  sugeridoM2,
+}: {
+  stats: NonNullable<StudyResult["stats"]>;
+  sugeridoM2: number;
+}) {
+  const min = stats.minM2;
+  const max = stats.maxM2;
+  const range = Math.max(1, max - min);
+  const pos = (v: number) => Math.max(0, Math.min(100, ((v - min) / range) * 100));
+  const sugerido = pos(sugeridoM2);
+
+  const marks: { v: number; label: string; tone: "muted" | "strong" }[] = [
+    { v: stats.p10, label: "P10", tone: "muted" },
+    { v: stats.p25, label: "P25", tone: "strong" },
+    { v: stats.median, label: "Mediana", tone: "strong" },
+    { v: stats.p75, label: "P75", tone: "strong" },
+    { v: stats.p90, label: "P90", tone: "muted" },
+  ];
+
+  return (
+    <div className="mb-5 rounded-xl border border-border bg-background p-4 print:hidden">
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <div className="font-semibold uppercase tracking-wider text-muted-foreground">
+          Distribuição de R$/m² dos comparáveis
+        </div>
+        <div className="text-muted-foreground">
+          {formatBRL(min)} → {formatBRL(max)}
+        </div>
+      </div>
+      <div className="relative h-12">
+        {/* Track com faixa P25-P75 destacada */}
+        <div className="absolute left-0 right-0 top-5 h-2 rounded-full bg-muted" />
+        <div
+          className="absolute top-5 h-2 rounded-full bg-primary/30"
+          style={{ left: `${pos(stats.p25)}%`, width: `${pos(stats.p75) - pos(stats.p25)}%` }}
+        />
+        {/* Marcas */}
+        {marks.map((m) => (
+          <div key={m.label} className="absolute top-4 -translate-x-1/2" style={{ left: `${pos(m.v)}%` }}>
+            <div className={cn("h-4 w-px", m.tone === "strong" ? "bg-foreground/70" : "bg-muted-foreground/40")} />
+            <div className={cn("mt-0.5 text-[9px] tabular-nums", m.tone === "strong" ? "text-foreground" : "text-muted-foreground")}>
+              {m.label}
+            </div>
+          </div>
+        ))}
+        {/* Indicador do sugerido */}
+        <div className="absolute top-0 -translate-x-1/2" style={{ left: `${sugerido}%` }}>
+          <div className="rounded-md bg-primary px-1.5 py-0.5 text-[9px] font-bold text-primary-foreground shadow-sm">
+            Sugerido
+          </div>
+          <div className="mx-auto mt-0.5 h-7 w-0.5 bg-primary" />
+        </div>
+      </div>
+      <div className="mt-1 text-center text-[11px] tabular-nums text-muted-foreground">
+        R$/m² sugerido: <span className="font-semibold text-foreground">{formatBRL(sugeridoM2)}</span>
+      </div>
     </div>
   );
 }

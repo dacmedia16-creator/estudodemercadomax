@@ -36,6 +36,30 @@ export interface ComparableProperty extends MockProperty {
   origem?: "busca" | "manual";
   /** True quando todos os campos em modo "prefer" foram atendidos por este imóvel. */
   preferenciaAtendida?: boolean;
+  /** True quando o preço foge muito da distribuição (P90×1.3 ou P10×0.7). */
+  outlier?: boolean;
+}
+
+export interface StudyStats {
+  /** Distribuição de R$/m² dos comparáveis. */
+  p10: number;
+  p25: number;
+  median: number;
+  p75: number;
+  p90: number;
+  minM2: number;
+  maxM2: number;
+  /** Preço total mais barato observado (R$). */
+  minTotal: number;
+}
+
+export interface AiAnalysis {
+  resumo: string;
+  faixaRecomendada: { entrada: number; ideal: number; teto: number };
+  posicionamento: string;
+  riscos: string[];
+  recomendacoes: string[];
+  geradoEm: string;
 }
 
 export interface StudyResult {
@@ -63,6 +87,10 @@ export interface StudyResult {
   revisao?: number;
   /** Ajustes ACM (Análise Comparativa de Mercado) — editáveis no relatório. */
   acm?: AcmAdjustments;
+  /** Estatísticas (percentis) calculadas a partir dos comparáveis. */
+  stats?: StudyStats;
+  /** Análise qualitativa opcional gerada por IA. */
+  aiAnalysis?: AiAnalysis;
 }
 
 export interface AcmAdjustments {
@@ -75,6 +103,17 @@ export interface AcmAdjustments {
   reformaPorM2: number;
   /** Margem de negociação aplicada ao valor de publicação (%). */
   margemPublicacaoPct: number;
+  /**
+   * Estratégia de precificação aplicada sobre os percentis dos comparáveis.
+   * - "agressivo": parte do P25 (vende rápido, ancorado nos mais baratos)
+   * - "equilibrado": parte da mediana (default, robusta a outliers)
+   * - "premium": parte do P75 (posicionamento acima do meio)
+   */
+  estrategia?: "agressivo" | "equilibrado" | "premium";
+  /** Quando true, o sugerido nunca passa do piso × (1 + maxAcimaPisoPct/100). */
+  respeitarPiso?: boolean;
+  /** Distância máxima permitida acima do piso competitivo (%). Default 8. */
+  maxAcimaPisoPct?: number;
 }
 
 export const DEFAULT_ACM: AcmAdjustments = {
@@ -84,6 +123,9 @@ export const DEFAULT_ACM: AcmAdjustments = {
   padrao: 100,
   reformaPorM2: 0,
   margemPublicacaoPct: 5,
+  estrategia: "equilibrado",
+  respeitarPiso: true,
+  maxAcimaPisoPct: 8,
 };
 
 export interface SearchOverrides {

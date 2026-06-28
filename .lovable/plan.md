@@ -1,27 +1,48 @@
+
 ## Problema
 
-O slide ACM (pré-visualização na tela e no PDF) só atualiza depois que o usuário clica em **Salvar ajustes** no painel ACM. Isso acontece porque `AcmPanel` mantém os sliders/inputs num estado local (`acm`) e só repassa para o `study` (via `onChange`) dentro do `persist()`. Como `PrintSlides` lê de `study.acm`, ele fica "congelado" até o save.
+Hoje o valor sugerido vem da fórmula ACM (média de R$/m² × multiplicadores × área − reforma). Quando há 1–2 comparáveis muito baratos puxando o piso, a média ignora esse "chão de mercado" e o sugerido fica longe do menor preço — o corretor perde competitividade.
 
-Mexer em comparáveis (excluir/incluir) já atualiza o slide, porque o `ComparaveisManager` chama `onChange` na hora.
+## Solução em duas frentes
 
-## Correção
+### 1. Ancoragem estatística no valor mínimo (determinística, sem IA)
 
-Tornar o painel ACM **reativo em tempo real**, sem perder o botão de salvar:
+Trocar a média simples por uma faixa que respeita o piso do mercado:
 
-1. `src/components/acm-panel.tsx`
-   - No `update(patch)`, além de atualizar o estado local, chamar `onChange({ ...study, acm: next })` para que o relatório e o slide reflitam o ajuste imediatamente.
-   - O botão **Salvar ajustes** continua existindo e passa a apenas persistir no `studyStore` (sem precisar mexer em estado, já que o `study` já está atualizado em memória).
-   - **Resetar** também propaga via `onChange` para voltar o slide ao neutro na hora.
-   - Sincronizar o estado local quando o `study.id` muda (caso o usuário reexecute a busca e o estudo seja substituído) usando um `useEffect` simples.
+- Calcular **percentis** dos R$/m² dos comparáveis (P10, P25, mediana, P75, P90) em vez de só média.
+- Usar **mediana** como base do valor de m² avaliado (mais robusta a outliers).
+- Adicionar um **"piso competitivo"**: max(P10, menor preço × 1,02). O valor sugerido nunca fica mais de X% acima desse piso (X configurável, default 8%).
+- Detectar **outliers** (preços > P90 × 1,3 ou < P10 × 0,7) e marcar com badge "Outlier" — opção de excluí-los do cálculo com um clique.
+- Mostrar no painel ACM: **Menor**, **P25**, **Mediana**, **Sugerido**, **P75**, **Maior** numa régua visual, com o sugerido posicionado na régua para o corretor ver onde está.
+- Novo controle "Estratégia de precificação" no painel ACM: **Agressivo (P25)** / **Equilibrado (mediana, default)** / **Premium (P75)**.
 
-2. `src/routes/app.relatorio.$id.tsx`
-   - Garantir que o `<PrintSlides variant="screen" />` (linha 522) e o `<PrintSlides />` de impressão (linha 136) recebem o `study` mais recente — já recebem, basta a propagação acima funcionar.
-   - Sem outras mudanças.
+### 2. Análise de IA opcional (Lovable AI — Gemini)
 
-Nenhuma mudança de lógica de busca/ACM/cálculos. Apenas reatividade da UI.
+Botão **"Analisar com IA"** no relatório que envia comparáveis + dados do imóvel para o Gemini via `createServerFn` e retorna:
 
-## Resultado esperado
+- **Faixa recomendada** justificada (preço de entrada, ideal, teto), considerando o piso do mercado e diferenciais.
+- **Posicionamento** vs. os 3 mais baratos e os 3 mais caros (por que está próximo/longe).
+- **Riscos de superprecificação** (tempo médio até venda esperado, chance de virar "encalhe").
+- **Recomendações de ajuste**: o que destacar no anúncio, quando reduzir, faixa de negociação.
+- Resposta estruturada com `Output.object` (Zod), salva no estudo como `study.aiAnalysis` para reabrir sem gastar crédito de novo.
 
-- Mover sliders de Localização/Conservação/Idade/Padrão → slide atualiza Valor avaliado, Valor sugerido, Máx. de publicação e os fatores no rodapé em tempo real.
-- Mudar Reforma R$/m² ou Margem → slide atualiza desconto de reforma e faixas na hora.
-- Botão **Salvar ajustes** continua persistindo no banco; reabrir o estudo mantém os valores.
+## Onde mexe
+
+- `src/lib/study-engine.ts`: novas funções `computeStats` (percentis) e `computeAcm` com `estrategia` + `pisoCompetitivo`; `StudyResult` ganha `stats` (P10/P25/median/P75/P90) e `valorPiso`.
+- `src/lib/study-types.ts`: `AcmAdjustments` ganha `estrategia: "agressivo" | "equilibrado" | "premium"` e `respeitarPiso: boolean`; `StudyResult` ganha `aiAnalysis?`.
+- `src/components/acm-panel.tsx`: régua visual com percentis + seletor de estratégia + toggle "Respeitar piso de mercado".
+- `src/components/comparaveis-manager.tsx`: badge "Outlier" + ação "Excluir do cálculo".
+- `src/components/print-slides.tsx`: mostrar a régua percentil no slide ACM.
+- `src/lib/ai-analysis.functions.ts` (novo): `createServerFn` com `requireSupabaseAuth`, usa `createLovableAiGatewayProvider` + `google/gemini-3-flash-preview` + `Output.object`, trata 402/429.
+- `src/routes/app.relatorio.$id.tsx`: botão "Analisar com IA" + card de resultado.
+- `src/lib/study-store.ts`: persistir `stats` e `aiAnalysis` no JSONB do estudo.
+
+## Por que isso resolve
+
+O valor sugerido deixa de ser "média cega" e passa a ser **mediana + piso competitivo**: por construção, ele nunca fica muito acima do menor preço (limite configurável). A IA entra como camada de **leitura qualitativa** explicando o porquê e sugerindo a faixa final, sem substituir a matemática.
+
+## Fora do escopo desta etapa
+
+- Treinar modelo próprio com histórico de vendas.
+- Previsão de tempo até venda baseada em DOM real do portal (já temos o dado, mas modelar fica para depois).
+- Comparar IA de provedores diferentes.
