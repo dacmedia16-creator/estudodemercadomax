@@ -336,3 +336,66 @@ function SummaryItem({
     </div>
   );
 }
+
+/** Régua visual mostrando onde o sugerido cai dentro da distribuição. */
+function PercentilRuler({
+  stats,
+  sugeridoM2,
+}: {
+  stats: NonNullable<StudyResult["stats"]>;
+  sugeridoM2: number;
+}) {
+  const min = stats.minM2;
+  const max = stats.maxM2;
+  const range = Math.max(1, max - min);
+  const pos = (v: number) => Math.max(0, Math.min(100, ((v - min) / range) * 100));
+  const sugerido = pos(sugeridoM2);
+
+  const marks: { v: number; label: string; tone: "muted" | "strong" }[] = [
+    { v: stats.p10, label: "P10", tone: "muted" },
+    { v: stats.p25, label: "P25", tone: "strong" },
+    { v: stats.median, label: "Mediana", tone: "strong" },
+    { v: stats.p75, label: "P75", tone: "strong" },
+    { v: stats.p90, label: "P90", tone: "muted" },
+  ];
+
+  return (
+    <div className="mb-5 rounded-xl border border-border bg-background p-4 print:hidden">
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <div className="font-semibold uppercase tracking-wider text-muted-foreground">
+          Distribuição de R$/m² dos comparáveis
+        </div>
+        <div className="text-muted-foreground">
+          {formatBRL(min)} → {formatBRL(max)}
+        </div>
+      </div>
+      <div className="relative h-12">
+        {/* Track com faixa P25-P75 destacada */}
+        <div className="absolute left-0 right-0 top-5 h-2 rounded-full bg-muted" />
+        <div
+          className="absolute top-5 h-2 rounded-full bg-primary/30"
+          style={{ left: `${pos(stats.p25)}%`, width: `${pos(stats.p75) - pos(stats.p25)}%` }}
+        />
+        {/* Marcas */}
+        {marks.map((m) => (
+          <div key={m.label} className="absolute top-4 -translate-x-1/2" style={{ left: `${pos(m.v)}%` }}>
+            <div className={cn("h-4 w-px", m.tone === "strong" ? "bg-foreground/70" : "bg-muted-foreground/40")} />
+            <div className={cn("mt-0.5 text-[9px] tabular-nums", m.tone === "strong" ? "text-foreground" : "text-muted-foreground")}>
+              {m.label}
+            </div>
+          </div>
+        ))}
+        {/* Indicador do sugerido */}
+        <div className="absolute top-0 -translate-x-1/2" style={{ left: `${sugerido}%` }}>
+          <div className="rounded-md bg-primary px-1.5 py-0.5 text-[9px] font-bold text-primary-foreground shadow-sm">
+            Sugerido
+          </div>
+          <div className="mx-auto mt-0.5 h-7 w-0.5 bg-primary" />
+        </div>
+      </div>
+      <div className="mt-1 text-center text-[11px] tabular-nums text-muted-foreground">
+        R$/m² sugerido: <span className="font-semibold text-foreground">{formatBRL(sugeridoM2)}</span>
+      </div>
+    </div>
+  );
+}
