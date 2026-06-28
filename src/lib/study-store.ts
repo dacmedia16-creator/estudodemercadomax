@@ -9,14 +9,15 @@ import type { StudyResult } from "./study-types";
 type Row = {
   id: string;
   user_id: string;
-  payload: StudyResult;
+  payload: unknown;
   created_at: string;
   updated_at: string;
 };
 
 function toResult(row: Row): StudyResult {
   // Keep the canonical id in sync with the row id (defensive).
-  return { ...row.payload, id: row.id, createdAt: row.payload.createdAt ?? row.created_at };
+  const payload = row.payload as StudyResult;
+  return { ...payload, id: row.id, createdAt: payload.createdAt ?? row.created_at };
 }
 
 export const studyStore = {
@@ -49,9 +50,10 @@ export const studyStore = {
     if (!userId) throw new Error("Sessão expirada. Entre novamente.");
 
     // Try update first (preserves created_at); insert when no row matched.
+    const payloadJson = s as unknown as never;
     const { data: updated, error: updErr } = await supabase
       .from("studies")
-      .update({ payload: s as unknown as Row["payload"] })
+      .update({ payload: payloadJson })
       .eq("id", s.id)
       .select("id,user_id,payload,created_at,updated_at")
       .maybeSingle();
@@ -60,7 +62,7 @@ export const studyStore = {
 
     const { data: inserted, error: insErr } = await supabase
       .from("studies")
-      .insert({ id: s.id, user_id: userId, payload: s as unknown as Row["payload"] })
+      .insert({ id: s.id, user_id: userId, payload: payloadJson })
       .select("id,user_id,payload,created_at,updated_at")
       .single();
     if (insErr) throw insErr;
