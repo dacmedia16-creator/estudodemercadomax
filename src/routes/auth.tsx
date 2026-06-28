@@ -58,7 +58,7 @@ function AuthPage() {
           options: { emailRedirectTo: `${window.location.origin}/app/novo-estudo` },
         });
         if (error) {
-          toast.error(translateAuthError(error.message));
+          toast.error(translateAuthError(error));
           return;
         }
         toast.success("Conta criada! Bem-vindo(a).");
@@ -68,7 +68,7 @@ function AuthPage() {
           password: parsed.data.password,
         });
         if (error) {
-          toast.error(translateAuthError(error.message));
+          toast.error(translateAuthError(error));
           return;
         }
       }
@@ -134,9 +134,7 @@ function AuthPage() {
                   disabled={loading}
                 />
                 {tab === "signup" && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Mínimo 8 caracteres. Senhas comuns são bloqueadas.
-                  </p>
+                  <PasswordHint password={password} />
                 )}
               </div>
               <Button type="submit" className="w-full gap-2" disabled={loading}>
@@ -155,11 +153,57 @@ function AuthPage() {
   );
 }
 
-function translateAuthError(msg: string): string {
-  const m = msg.toLowerCase();
-  if (m.includes("invalid login") || m.includes("invalid_credentials")) return "Email ou senha incorretos.";
-  if (m.includes("user already") || m.includes("already registered")) return "Já existe uma conta com este email. Use Entrar.";
-  if (m.includes("password") && m.includes("pwned")) return "Esta senha vazou em incidentes públicos. Escolha outra.";
-  if (m.includes("rate limit")) return "Muitas tentativas. Aguarde alguns segundos.";
-  return msg;
+// Maps Supabase Auth errors to clear, actionable Portuguese messages.
+// Prefer `error.code` (stable identifier) over substring matching on the
+// human-readable message (which is locale/version-dependent).
+function translateAuthError(error: { code?: string; message: string }): string {
+  const code = (error.code ?? "").toLowerCase();
+  const msg = (error.message ?? "").toLowerCase();
+
+  if (code === "weak_password" || msg.includes("known to be weak") || msg.includes("easy to guess") || msg.includes("pwned")) {
+    return "Esta senha é muito comum ou apareceu em vazamentos públicos. Escolha outra — combine letras maiúsculas, minúsculas, números e um símbolo.";
+  }
+  if (code === "invalid_credentials" || msg.includes("invalid login")) {
+    return "Email ou senha incorretos.";
+  }
+  if (code === "user_already_exists" || msg.includes("user already") || msg.includes("already registered")) {
+    return "Já existe uma conta com este email. Use a aba Entrar.";
+  }
+  if (code === "email_address_invalid" || msg.includes("invalid email")) {
+    return "Email inválido. Verifique o endereço informado.";
+  }
+  if (code === "signup_disabled") {
+    return "Cadastro temporariamente desativado. Tente novamente em instantes.";
+  }
+  if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit" || msg.includes("rate limit")) {
+    return "Muitas tentativas em sequência. Aguarde alguns segundos e tente de novo.";
+  }
+  if (code === "email_not_confirmed") {
+    return "Confirme seu email antes de entrar.";
+  }
+  return error.message || "Não foi possível concluir. Tente novamente.";
+}
+
+// Bloqueia o usuário cedo contra as senhas mais óbvias para evitar um
+// round-trip até o HIBP do servidor (que retornaria erro mesmo assim).
+const OBVIOUS_PASSWORDS = new Set([
+  "12345678", "123456789", "1234567890", "password", "senha123", "12341234",
+  "qwerty123", "abcdefgh", "11111111", "00000000", "iloveyou", "admin123",
+  "password1", "senhasenha", "87654321", "asdfghjk", "zxcvbnm1",
+]);
+
+function PasswordHint({ password }: { password: string }) {
+  const isObvious = password.length >= 8 && OBVIOUS_PASSWORDS.has(password.toLowerCase());
+  if (isObvious) {
+    return (
+      <p className="text-[11px] font-medium text-destructive">
+        Esta senha é muito comum e será recusada. Misture letras, números e um símbolo (ex.: <span className="font-mono">Radar!Imovel2026</span>).
+      </p>
+    );
+  }
+  return (
+    <p className="text-[11px] text-muted-foreground">
+      Mínimo 8 caracteres. Senhas comuns como <span className="font-mono">12345678</span> ou <span className="font-mono">senha123</span> são bloqueadas — combine letras, números e um símbolo.
+    </p>
+  );
 }
