@@ -151,7 +151,7 @@ function ReportPage() {
             toast.info("Configure como Paisagem · 'Salvar como PDF'.");
             setTimeout(() => window.print(), 50);
           }}>
-            <Presentation className="h-4 w-4" /> Apresentação para o proprietário
+            <Presentation className="h-4 w-4" /> Exportar ACM (1 página)
           </Button>
           <Button variant="outline" size="sm" className="gap-2" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copiado!"); }}>
             <Share2 className="h-4 w-4" /> Compartilhar

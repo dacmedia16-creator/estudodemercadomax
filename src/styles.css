@@ -312,125 +312,213 @@
   }
 
   /* -------------------------------------------------------------
-   * MODO APRESENTAÇÃO (slides 16:9) — ativado quando <html> tem a
-   * classe `print-mode-slides`. Cada `.slide-page` vira uma folha
-   * landscape 297×167mm.
+   * MODO ACM (planilha de Análise Comparativa de Mercado) —
+   * ativado quando <html> tem a classe `print-mode-slides`.
+   * Página única A4 paisagem inspirada no template VIP7 Imóveis.
+   * Cores derivam de `--acm-brand` / `--acm-accent` injetadas
+   * inline pela `<section className="print-slides">`.
    * ----------------------------------------------------------- */
-  @page slides { size: 297mm 167mm; margin: 0; }
+  @page acm { size: A4 landscape; margin: 0; }
 
   .print-slides { display: none; }
 
   html.print-mode-slides .print-onepager { display: none !important; }
   html.print-mode-slides .print-slides { display: block !important; }
 
-  .print-slides .slide-page {
-    page: slides;
+  .print-slides * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-slides .acm-page {
+    page: acm;
     width: 297mm;
-    height: 167mm;
-    padding: 12mm 16mm;
+    height: 210mm;
+    padding: 8mm 10mm;
     box-sizing: border-box;
-    page-break-after: always;
-    break-after: page;
     position: relative;
     color: #111;
     background: #fff;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-  }
-  .print-slides .slide-page:last-child { page-break-after: auto; break-after: auto; }
-  .print-slides * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    font-family: Arial, Helvetica, sans-serif;
   }
 
-  .print-slides .sl-brand {
-    font-size: 10pt; font-weight: 800; letter-spacing: 0.14em;
-    text-transform: uppercase; color: var(--primary);
+  /* Cabeçalho */
+  .print-slides .acm-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 5pt;
   }
-  .print-slides .sl-meta { font-size: 9pt; color: #666; }
-  .print-slides .sl-header {
-    display: flex; justify-content: space-between; align-items: baseline;
-    border-bottom: 1.5pt solid var(--primary); padding-bottom: 6pt;
+  .print-slides .acm-logo { display: flex; align-items: center; gap: 8pt; }
+  .print-slides .acm-logo img { max-height: 56pt; max-width: 140pt; object-fit: contain; }
+  .print-slides .acm-logo-placeholder {
+    width: 56pt; height: 56pt; border-radius: 6pt;
+    background: var(--acm-accent, #b45309); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18pt; font-weight: 800; letter-spacing: 0.04em;
   }
-  .print-slides .sl-footer {
-    margin-top: auto; padding-top: 6pt;
-    border-top: 0.5pt solid #ccc; font-size: 8pt; color: #666;
-    display: flex; justify-content: space-between;
+  .print-slides .acm-brand-name {
+    font-size: 11pt; font-weight: 800; letter-spacing: 0.06em;
+    color: var(--acm-accent, #b45309); text-transform: uppercase;
   }
-  .print-slides .sl-kicker {
-    font-size: 9pt; font-weight: 700; letter-spacing: 0.16em;
-    text-transform: uppercase; color: var(--primary); margin-bottom: 4pt;
-  }
-  .print-slides h1.sl-title { font-size: 32pt; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin: 0; }
-  .print-slides h2.sl-section { font-size: 22pt; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 10pt; }
-  .print-slides .sl-body { font-size: 11pt; line-height: 1.4; color: #333; }
-
-  /* Cover */
-  .print-slides .sl-cover {
-    background: linear-gradient(135deg, color-mix(in oklab, var(--primary) 90%, black) 0%, var(--primary) 100%);
-    color: #fff;
-    padding: 22mm 24mm;
-  }
-  .print-slides .sl-cover .sl-brand,
-  .print-slides .sl-cover .sl-meta,
-  .print-slides .sl-cover .sl-kicker { color: #fff; opacity: 0.92; }
-  .print-slides .sl-cover h1 { font-size: 44pt; font-weight: 800; line-height: 1.02; letter-spacing: -0.025em; margin: 14pt 0 8pt; }
-  .print-slides .sl-cover .sl-cover-sub { font-size: 14pt; opacity: 0.92; }
-  .print-slides .sl-cover .sl-cover-footer {
-    margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end;
-    font-size: 10pt; opacity: 0.85; border-top: 0.5pt solid rgba(255,255,255,0.35); padding-top: 8pt;
+  .print-slides .acm-title {
+    font-size: 22pt; font-weight: 700; color: #333; letter-spacing: -0.01em;
   }
 
-  /* Hero valor recomendado */
-  .print-slides .sl-hero-box {
-    border: 2pt solid var(--primary);
-    border-radius: 8pt;
-    padding: 16pt 22pt;
-    background: color-mix(in oklab, var(--primary) 6%, white);
+  /* Faixa amarela (igual ao spreadsheet original) */
+  .print-slides .acm-stripe {
+    height: 8pt; background: #ffe93f;
+    border-top: 0.75pt solid #999; border-bottom: 0.75pt solid #999;
+    margin-bottom: 4pt;
+  }
+
+  /* Tabelas ACM */
+  .print-slides .acm-table {
+    width: 100%; border-collapse: collapse; font-size: 8pt;
+    margin-bottom: 4pt;
+  }
+  .print-slides .acm-table th,
+  .print-slides .acm-table td {
+    border: 0.5pt solid #999;
+    padding: 3pt 5pt;
+    vertical-align: middle;
     text-align: center;
-    margin: 6pt 0 10pt;
   }
-  .print-slides .sl-hero-lbl { font-size: 11pt; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; color: var(--primary); }
-  .print-slides .sl-hero-value { font-size: 64pt; font-weight: 800; line-height: 1; color: var(--primary); letter-spacing: -0.03em; margin: 6pt 0 4pt; }
-  .print-slides .sl-hero-meta { font-size: 10pt; color: #555; }
-  .print-slides .sl-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
-  .print-slides .sl-pill {
-    border: 1pt solid var(--primary);
-    border-radius: 6pt; padding: 10pt 14pt; text-align: center;
+  .print-slides .acm-table thead th {
+    background: #f1f1f1;
+    font-weight: 700; font-size: 7.5pt;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: #333;
   }
-  .print-slides .sl-pill .lbl { font-size: 9pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #555; }
-  .print-slides .sl-pill .val { font-size: 20pt; font-weight: 800; color: var(--primary); margin-top: 2pt; }
-
-  /* Grids reutilizáveis */
-  .print-slides .sl-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
-  .print-slides .sl-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10pt; }
-  .print-slides .sl-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; }
-  .print-slides .sl-card {
-    border: 0.75pt solid #ddd; border-radius: 5pt; padding: 8pt 10pt;
+  .print-slides .acm-table .acm-th-main {
+    text-align: left;
+    background: #4a4a4a; color: #fff;
+    font-size: 8.5pt; letter-spacing: 0.06em;
   }
-  .print-slides .sl-card .lbl { font-size: 8pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #777; }
-  .print-slides .sl-card .val { font-size: 13pt; font-weight: 700; margin-top: 2pt; }
-
-  /* Barras ACM */
-  .print-slides .sl-bar { height: 8pt; background: #eee; border-radius: 4pt; overflow: hidden; margin-top: 4pt; }
-  .print-slides .sl-bar > span { display: block; height: 100%; background: var(--primary); }
-
-  /* Tabela slide */
-  .print-slides table.sl-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
-  .print-slides .sl-table th, .print-slides .sl-table td {
-    border-bottom: 0.5pt solid #ddd; padding: 4pt 6pt; text-align: left;
+  .print-slides .acm-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .print-slides .acm-bold { font-weight: 700; }
+  .print-slides .acm-link-cell {
+    text-align: left; display: flex; align-items: center; gap: 6pt;
+    max-width: 0;
   }
-  .print-slides .sl-table th { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.08em; color: #555; }
-  .print-slides .sl-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .print-slides .acm-row-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 14pt; height: 14pt; border-radius: 3pt;
+    background: var(--acm-brand, #15803d); color: #fff;
+    font-size: 7.5pt; font-weight: 700;
+  }
+  .print-slides .acm-link {
+    color: #1a4ed1; text-decoration: underline;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; min-width: 0;
+  }
+  .print-slides .acm-definicao-nome span:last-child {
+    font-weight: 700;
+  }
+  .print-slides .acm-empty {
+    text-align: center; color: #888; font-style: italic; padding: 10pt;
+  }
 
-  .print-slides ul.sl-list { margin: 0; padding-left: 14pt; }
-  .print-slides ul.sl-list li { font-size: 10.5pt; margin-bottom: 4pt; line-height: 1.35; }
+  /* Bloco resumo */
+  .print-slides .acm-resumo {
+    display: grid; grid-template-columns: 1fr 1.6fr; gap: 0;
+    border: 0.5pt solid #999;
+    margin-top: 2pt;
+  }
+  .print-slides .acm-resumo-left {
+    background: #f0e8d0;
+    border-right: 0.5pt solid #999;
+    display: grid; grid-template-rows: auto auto auto auto;
+  }
+  .print-slides .acm-resumo-left-row {
+    padding: 4pt 8pt; font-size: 8.5pt; text-align: center;
+    border-bottom: 0.5pt solid #c9bf9d;
+  }
+  .print-slides .acm-resumo-left-row.acm-resumo-head {
+    background: #d9d2b2; font-weight: 700; color: #4a3f1f;
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 8pt;
+  }
+  .print-slides .acm-resumo-left-row:last-child { border-bottom: none; }
+  .print-slides .acm-similares-count { font-size: 14pt; font-weight: 800; color: #4a3f1f; }
 
-  .print-slides .sl-callout {
-    border-left: 3pt solid var(--primary);
-    background: color-mix(in oklab, var(--primary) 6%, white);
-    padding: 8pt 12pt; border-radius: 0 5pt 5pt 0;
-    font-size: 10.5pt; line-height: 1.4;
+  .print-slides .acm-resumo-right {
+    display: flex; flex-direction: column;
+  }
+  .print-slides .acm-resumo-right-title {
+    background: #4a4a4a; color: #fff;
+    text-align: center; font-weight: 700; font-size: 9pt;
+    padding: 4pt; letter-spacing: 0.06em;
+    border-bottom: 0.5pt solid #999;
+  }
+  .print-slides .acm-resumo-row {
+    display: grid; grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 3pt 10pt;
+    border-bottom: 0.5pt solid #ddd;
+    font-size: 8.5pt;
+  }
+  .print-slides .acm-resumo-row:last-child { border-bottom: none; }
+  .print-slides .acm-resumo-label { color: #333; }
+  .print-slides .acm-resumo-value {
+    font-weight: 700; font-variant-numeric: tabular-nums;
+    text-align: right; min-width: 80pt;
+  }
+  .print-slides .acm-highlight-yellow {
+    background: #fff368;
+    border-bottom: 0.5pt solid #c9a300 !important;
+    padding: 6pt 10pt;
+  }
+  .print-slides .acm-highlight-yellow .acm-resumo-label {
+    font-weight: 800; text-transform: uppercase; color: #5b4a00;
+    font-size: 9pt; letter-spacing: 0.04em;
+  }
+  .print-slides .acm-highlight-yellow .acm-resumo-value {
+    color: #c00; font-size: 14pt;
+  }
+  .print-slides .acm-highlight-green {
+    background: var(--acm-brand, #15803d); color: #fff;
+    padding: 5pt 10pt;
+  }
+  .print-slides .acm-highlight-green .acm-resumo-label {
+    color: #fff; font-weight: 700; text-transform: uppercase;
+    font-size: 8.5pt; letter-spacing: 0.06em;
+  }
+  .print-slides .acm-highlight-green .acm-resumo-value {
+    color: #fff; font-size: 11pt;
+  }
+
+  /* Rodapé */
+  .print-slides .acm-footer {
+    display: grid; grid-template-columns: 1fr 2fr; gap: 6pt;
+    margin-top: 4pt;
+  }
+  .print-slides .acm-legend {
+    border: 0.5pt solid #999; background: #f7f4ea;
+    padding: 4pt 8pt; font-size: 7.5pt; color: #444;
+    display: flex; flex-direction: column; justify-content: center; gap: 2pt;
+  }
+  .print-slides .acm-fatores {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    border: 0.5pt solid #999;
+  }
+  .print-slides .acm-fator {
+    text-align: center; padding: 3pt 4pt;
+    border-right: 0.5pt solid #999; background: #e8f3f1;
+  }
+  .print-slides .acm-fator:last-child { border-right: none; }
+  .print-slides .acm-fator-label {
+    font-size: 7pt; font-weight: 700; text-transform: uppercase;
+    color: #335; letter-spacing: 0.04em;
+  }
+  .print-slides .acm-fator-value {
+    font-size: 11pt; font-weight: 800; color: #1a4d3e;
+  }
+
+  .print-slides .acm-page-meta {
+    margin-top: auto;
+    padding-top: 4pt;
+    text-align: right;
+    font-size: 7pt; color: #888;
   }
 }
