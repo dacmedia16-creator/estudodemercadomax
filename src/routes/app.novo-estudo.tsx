@@ -61,7 +61,7 @@ function NovoEstudo() {
     iptu: 220,
     valorPretendido: 780000,
     diferenciais: ["Piscina", "Churrasqueira", "Sacada"],
-    portais: ["Zap Imóveis"],
+    portais: PORTAIS.filter((p) => p.ativo).map((p) => p.nome),
   });
 
   // Seed Chaves na Mão a partir do flag global (default ligado).

@@ -1,38 +1,16 @@
 ## Objetivo
-Permitir que o super admin visualize (e gerencie) os estudos de todos os usuários da plataforma a partir do painel de Administração.
-
-## Contexto atual
-- RLS já permite ao admin ler/editar/excluir qualquer estudo em `public.studies` (políticas "Admins can view/update/delete all studies").
-- `src/lib/study-store.ts` lista estudos apenas do usuário logado (`auth.uid()`), então hoje o admin não enxerga os dos outros.
-- Já existe `src/routes/app.admin.tsx` com gestão de usuários e o hook `useIsAdmin`.
+Sempre iniciar o novo estudo com **todos os portais selecionados** (Zap, Chaves na Mão, OLX e quaisquer outros listados em `PORTAIS`).
 
 ## Mudanças
 
-### 1. Server functions de admin para estudos
-Em `src/lib/admin.functions.ts` (ou novo `admin-studies.functions.ts`), adicionar funções protegidas por `requireSupabaseAuth` + checagem `has_role('admin')`:
-- `listAllStudies()` → retorna todos os estudos com `user_id`, cidade, bairro, status, datas e payload resumido.
-- `getStudyByIdAsAdmin(id)` → retorna um estudo específico independentemente do dono.
-- `deleteStudyAsAdmin(id)` → remove estudo de qualquer usuário.
-- Enriquecer cada estudo com o e-mail do dono via `supabaseAdmin.auth.admin.getUserById` (cache simples em memória por request) para exibir "quem fez".
+**`src/routes/app.novo-estudo.tsx`**
+- No estado inicial (`useState` do `data`), trocar `portais: ["Zap Imóveis"]` por `portais: PORTAIS.map(p => p.nome)` para já vir tudo marcado.
+- No `useEffect` que lê `localStorage["portal.chavesnamao"]`: manter Chaves na Mão sempre incluído por padrão (default `true` quando a chave não existe), e só removê-lo se o usuário tiver desativado explicitamente em Configurações. Mesma lógica para qualquer outro portal com toggle persistido (OLX, se houver).
+- Não alterar `togglePortal` — usuário continua podendo desmarcar manualmente no passo "Portais".
 
-### 2. Nova aba "Estudos" no painel admin
-Em `src/routes/app.admin.tsx`, transformar a tela em abas (`Usuários` | `Estudos`). A aba Estudos mostra tabela com:
-- Data, usuário (e-mail), cidade/bairro, status, ações (Abrir / Excluir).
-- Filtro por usuário e busca por cidade/bairro.
-- "Abrir" navega para `/app/estudo/$id` (a rota atual já carrega via RLS — o admin enxerga porque a policy permite).
+**`src/routes/app.exemplo.tsx`**
+- Atualizar o estudo de exemplo para incluir todos os portais (`portais: ["Zap Imóveis", "Chaves na Mão", "OLX"]`) para refletir o novo padrão.
 
-### 3. Carregamento do estudo como admin
-Confirmar que `src/lib/study-store.ts > getStudy(id)` usa server function autenticada que apenas filtra por `id` (RLS faz o resto). Se hoje filtra por `user_id = auth.uid()`, remover essa restrição extra para o admin (ou simplesmente confiar na RLS, removendo o `.eq('user_id', userId)`).
-
-### 4. UI/UX
-- Badge "Admin" na linha quando o estudo não pertence ao admin logado.
-- Confirmação antes de excluir estudo de outro usuário.
-- Vazio: "Nenhum estudo cadastrado na plataforma".
-
-## Fora de escopo
-- Editar estudos de terceiros (apenas visualizar/excluir nesta entrega).
-- Métricas agregadas/dashboard de uso (pode vir depois).
-
-## Detalhes técnicos
-- Todas as novas server functions devem chamar `has_role(userId, 'admin')` no início e retornar 403 caso contrário.
-- Usar `supabaseAdmin` (import dinâmico dentro do handler) só para resolver e-mails via Auth Admin API; as leituras de `studies` continuam pelo client RLS do contexto (`context.supabase`), que já enxerga tudo como admin.
+## Fora do escopo
+- Nenhuma mudança em `study-runner`, adapter, tipos ou backend — a lógica de busca já respeita o array `portais` recebido.
+- Nenhum ajuste em estudos já salvos.
