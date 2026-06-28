@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Loader2, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle, CheckCircle2, RotateCcw, Copy, MessageSquareQuote } from "lucide-react";
 import { toast } from "sonner";
 import { analisarMercadoIa } from "@/lib/ai-analysis.functions";
 import { computeAcm, formatBRL } from "@/lib/study-engine";
@@ -71,7 +71,7 @@ export function AiAnalysisCard({ study, onChange }: Props) {
         toast.error(res.error);
         return;
       }
-      if (!res.data?.resumo || !res.data?.faixaRecomendada) {
+      if (!res.data?.resumo || !res.data?.faixaRecomendada || !res.data?.discursoProprietario) {
         console.error("[AiAnalysisCard] resposta incompleta", res.data);
         toast.error("A IA retornou uma resposta incompleta. Tente novamente.");
         return;
@@ -133,6 +133,48 @@ export function AiAnalysisCard({ study, onChange }: Props) {
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Posicionamento</div>
             <p className="mt-1 text-sm leading-relaxed">{ai.posicionamento}</p>
           </div>
+
+          {ai.discursoProprietario && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <MessageSquareQuote className="h-4 w-4" /> Como conversar com o proprietário
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(ai.discursoProprietario ?? "");
+                      toast.success("Discurso copiado");
+                    } catch {
+                      toast.error("Não foi possível copiar");
+                    }
+                  }}
+                >
+                  <Copy className="h-3 w-3" /> Copiar
+                </Button>
+              </div>
+              <p className="whitespace-pre-line text-sm leading-relaxed">{ai.discursoProprietario}</p>
+            </div>
+          )}
+
+          {ai.argumentosChave && ai.argumentosChave.length > 0 && (
+            <div className="rounded-lg border border-border bg-background p-4">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Argumentos de mercado
+              </div>
+              <ul className="space-y-1.5 text-sm">
+                {ai.argumentosChave.map((a, i) => (
+                  <li key={i} className="flex gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                    <span>{a}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-lg border border-warning/30 bg-warning/5 p-4">
