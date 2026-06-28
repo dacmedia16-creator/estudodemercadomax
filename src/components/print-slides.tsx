@@ -340,7 +340,7 @@ function OwnerPersuasionPage({
                   <tr key={c.id}>
                     <td>{i + 1}</td>
                     <td className="owner-imovel-cell">
-                      <div className="owner-imovel-titulo">{c.titulo || c.endereco || `Comparável ${i + 1}`}</div>
+                      <div className="owner-imovel-titulo">{c.titulo || `Comparável ${i + 1}`}</div>
                       {tag && <div className="owner-imovel-tag">{tag}</div>}
                     </td>
                     <td className="num">{c.areaUtil || "—"}</td>
