@@ -865,17 +865,28 @@
 
   /* Páginas "Argumentos" + "Carta" entram no PDF padrão (após o one-pager).
    * No modo ACM elas já vêm dentro de `PrintSlides`, então escondemos aqui
-   * para não duplicar. */
+   * para não duplicar. Aqui usamos A4 RETRATO para casar com o one-pager. */
+  @page owner { size: A4 portrait; margin: 0; }
   .print-owner-pages { display: block !important; }
   html.print-mode-slides .print-owner-pages { display: none !important; }
   .print-owner-pages > .acm-page {
-    page: acm;
-    height: 210mm;
-    min-height: 210mm;
+    page: owner;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    padding: 12mm 12mm !important;
     overflow: hidden;
     page-break-before: always;
     break-before: page;
   }
+  /* Em retrato, empilhar grids 2-col para evitar colunas estreitas */
+  .print-owner-pages .owner-grid {
+    grid-template-columns: 1fr !important;
+    gap: 6pt !important;
+  }
+  /* Tabela full-width fica confortável em retrato */
+  .print-owner-pages .owner-table { font-size: 8.5pt; }
+  .print-owner-pages .owner-block-title { font-size: 9.5pt; }
 
   .print-slides * {
     -webkit-print-color-adjust: exact !important;
