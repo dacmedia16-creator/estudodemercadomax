@@ -400,6 +400,7 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     advertiserRating,
     virtualTourUrl: item.virtualTourUrl,
     agregadoCount,
+    finalidade: detectFinalidade(anyItem),
   };
 }
 
@@ -530,6 +531,7 @@ function chavesItemToProperty(item: Record<string, any>, portal: string): MockPr
     advertiserRating,
     virtualTourUrl: item.media?.tour360 || undefined,
     agregadoCount: undefined,
+    finalidade: detectFinalidade(item),
   };
 }
 
@@ -670,6 +672,7 @@ function olxItemToProperty(itemRaw: Record<string, any>, portal: string): MockPr
     advertiserRating: undefined,
     virtualTourUrl: undefined,
     agregadoCount: undefined,
+    finalidade: detectFinalidade(item),
   };
 }
 
