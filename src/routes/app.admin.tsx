@@ -14,12 +14,13 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, ShieldCheck, Trash2, UserPlus } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Plus, Search, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
-  adminCreateUser, adminDeleteUser, adminListUsers, adminSetRole,
+  adminCreateUser, adminDeleteStudy, adminDeleteUser, adminListAllStudies, adminListUsers, adminSetRole,
 } from "@/lib/admin.functions";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/app/admin")({
   component: AdminPage,
@@ -93,16 +94,28 @@ function AdminPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-            <ShieldCheck className="h-3.5 w-3.5" /> Administração
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+        <ShieldCheck className="h-3.5 w-3.5" /> Administração
+      </div>
+      <h1 className="text-3xl font-bold tracking-tight">Painel do super admin</h1>
+      <p className="mt-1 text-muted-foreground">
+        Gerencie contas e visualize todos os estudos gerados na plataforma.
+      </p>
+
+      <Tabs defaultValue="users" className="mt-6">
+        <TabsList>
+          <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> Usuários</TabsTrigger>
+          <TabsTrigger value="studies" className="gap-2"><FileText className="h-4 w-4" /> Estudos</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="mt-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">Usuários</h2>
+            <p className="text-sm text-muted-foreground">
+              {users.length} usuário(s) cadastrado(s). Crie, promova ou remova contas.
+            </p>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Usuários</h1>
-          <p className="mt-1 text-muted-foreground">
-            {users.length} usuário(s) cadastrado(s). Crie, promova ou remova contas.
-          </p>
-        </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="h-4 w-4" /> Novo usuário</Button>
@@ -137,9 +150,9 @@ function AdminPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+        </div>
 
-      <Card className="mt-6 overflow-hidden border-border/60">
+        <Card className="mt-4 overflow-hidden border-border/60">
         {isLoading ? (
           <div className="flex items-center justify-center p-12 text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando…
@@ -207,7 +220,169 @@ function AdminPage() {
             </table>
           </div>
         )}
-      </Card>
+        </Card>
+        </TabsContent>
+
+        <TabsContent value="studies" className="mt-4">
+          <AdminStudiesTab currentUserId={null} />
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+}
+
+function AdminStudiesTab({ currentUserId }: { currentUserId: string | null }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [userFilter, setUserFilter] = useState<string>("all");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-studies"],
+    queryFn: () => adminListAllStudies(),
+  });
+
+  const studies = data?.studies ?? [];
+  const uniqueEmails = Array.from(new Set(studies.map((s) => s.email))).sort();
+
+  const filtered = studies.filter((s) => {
+    if (userFilter !== "all" && s.email !== userFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const hay = `${s.cidade ?? ""} ${s.bairro ?? ""} ${s.email}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const handleDelete = async (id: string, email: string) => {
+    try {
+      await adminDeleteStudy({ data: { id } });
+      toast.success(`Estudo de ${email} excluído.`);
+      await queryClient.invalidateQueries({ queryKey: ["admin-studies"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Estudos da plataforma</h2>
+          <p className="text-sm text-muted-foreground">
+            {studies.length} estudo(s) de {uniqueEmails.length} usuário(s).
+          </p>
+        </div>
+        <div className="flex flex-1 max-w-md items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar cidade, bairro ou email…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+          <select
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            <option value="all">Todos usuários</option>
+            {uniqueEmails.map((e) => (
+              <option key={e} value={e}>{e}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <Card className="mt-4 overflow-hidden border-border/60">
+        {isLoading ? (
+          <div className="flex items-center justify-center p-12 text-muted-foreground">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando…
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center text-muted-foreground">
+            {studies.length === 0
+              ? "Nenhum estudo cadastrado na plataforma."
+              : "Nenhum estudo encontrado com os filtros atuais."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Data</th>
+                  <th className="px-4 py-3 font-medium">Usuário</th>
+                  <th className="px-4 py-3 font-medium">Localização</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 text-right font-medium">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.map((s) => (
+                  <tr key={s.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {new Date(s.createdAt).toLocaleString("pt-BR")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{s.email}</span>
+                        {currentUserId && s.userId !== currentUserId && (
+                          <Badge variant="secondary" className="text-[10px]">de outro usuário</Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {[s.bairro, s.cidade].filter(Boolean).join(" • ") || "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {s.status ? <Badge variant="outline" className="text-xs">{s.status}</Badge> : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          onClick={() => navigate({ to: "/app/relatorio/$id", params: { id: s.id } })}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" /> Abrir
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="icon" title="Excluir estudo">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir este estudo?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                O estudo de <strong>{s.email}</strong> será removido permanentemente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(s.id, s.email)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </>
   );
 }
