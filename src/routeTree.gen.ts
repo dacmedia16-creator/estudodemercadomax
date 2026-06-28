@@ -20,6 +20,7 @@ import { Route as AppEstudosRouteImport } from './routes/app.estudos'
 import { Route as AppConfiguracoesRouteImport } from './routes/app.configuracoes'
 import { Route as AppComparativosRouteImport } from './routes/app.comparativos'
 import { Route as AppCarregandoRouteImport } from './routes/app.carregando'
+import { Route as AppAdminRouteImport } from './routes/app.admin'
 import { Route as AppRelatorioIdRouteImport } from './routes/app.relatorio.$id'
 
 const AuthRoute = AuthRouteImport.update({
@@ -77,6 +78,11 @@ const AppCarregandoRoute = AppCarregandoRouteImport.update({
   path: '/carregando',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminRoute = AppAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppRelatorioIdRoute = AppRelatorioIdRouteImport.update({
   id: '/relatorio/$id',
   path: '/relatorio/$id',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/app/admin': typeof AppAdminRoute
   '/app/carregando': typeof AppCarregandoRoute
   '/app/comparativos': typeof AppComparativosRoute
   '/app/configuracoes': typeof AppConfiguracoesRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/app/admin': typeof AppAdminRoute
   '/app/carregando': typeof AppCarregandoRoute
   '/app/comparativos': typeof AppComparativosRoute
   '/app/configuracoes': typeof AppConfiguracoesRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/app/admin': typeof AppAdminRoute
   '/app/carregando': typeof AppCarregandoRoute
   '/app/comparativos': typeof AppComparativosRoute
   '/app/configuracoes': typeof AppConfiguracoesRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/app/admin'
     | '/app/carregando'
     | '/app/comparativos'
     | '/app/configuracoes'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/app/admin'
     | '/app/carregando'
     | '/app/comparativos'
     | '/app/configuracoes'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/app/admin'
     | '/app/carregando'
     | '/app/comparativos'
     | '/app/configuracoes'
@@ -254,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCarregandoRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin': {
+      id: '/app/admin'
+      path: '/admin'
+      fullPath: '/app/admin'
+      preLoaderRoute: typeof AppAdminRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/relatorio/$id': {
       id: '/app/relatorio/$id'
       path: '/relatorio/$id'
@@ -265,6 +284,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAdminRoute: typeof AppAdminRoute
   AppCarregandoRoute: typeof AppCarregandoRoute
   AppComparativosRoute: typeof AppComparativosRoute
   AppConfiguracoesRoute: typeof AppConfiguracoesRoute
@@ -277,6 +297,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAdminRoute: AppAdminRoute,
   AppCarregandoRoute: AppCarregandoRoute,
   AppComparativosRoute: AppComparativosRoute,
   AppConfiguracoesRoute: AppConfiguracoesRoute,
