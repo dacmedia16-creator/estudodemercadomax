@@ -14,7 +14,7 @@ export const Route = createFileRoute("/auth")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Entrar — Radar Imobiliário Pro" },
+      { title: "Entrar — Estudo de Mercado Pro" },
       { name: "description", content: "Acesse sua conta para gerar e gerenciar estudos de mercado imobiliários." },
       { name: "robots", content: "noindex" },
     ],
@@ -97,7 +97,7 @@ function AuthPage() {
             <Radar className="h-5 w-5" />
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-bold">Radar Imobiliário</div>
+            <div className="text-sm font-bold">Estudo de Mercado</div>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">Pro</div>
           </div>
         </Link>

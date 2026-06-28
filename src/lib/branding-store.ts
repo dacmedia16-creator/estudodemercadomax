@@ -14,7 +14,7 @@ export interface BrandingSettings {
 
 export const DEFAULT_BRANDING: BrandingSettings = {
   logoUrl: undefined,
-  brandName: "Radar Imobiliário Pro",
+  brandName: "Estudo de Mercado Pro",
   brandColor: "#15803d",
   accentColor: "#b45309",
 };

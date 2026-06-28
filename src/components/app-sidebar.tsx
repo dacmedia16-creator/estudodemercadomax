@@ -32,7 +32,7 @@ export function AppSidebar() {
             <Radar className="h-5 w-5" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-bold text-sidebar-foreground">Radar Imobiliário</span>
+            <span className="text-sm font-bold text-sidebar-foreground">Estudo de Mercado</span>
             <span className="text-[10px] uppercase tracking-wider text-primary">Pro</span>
           </div>
         </Link>

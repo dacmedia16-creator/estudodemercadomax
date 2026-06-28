@@ -579,7 +579,7 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: "9pt", fontWeight: 700, color: "var(--primary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Radar Imobiliário Pro</div>
+          <div style={{ fontSize: "9pt", fontWeight: 700, color: "var(--primary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Estudo de Mercado Pro</div>
           <div style={{ fontSize: "7.5pt", color: "#666" }}>
             {new Date(study.createdAt).toLocaleDateString("pt-BR")}
             {typeof study.revisao === "number" && study.revisao > 0 ? ` · rev. ${study.revisao}` : ""}
@@ -684,7 +684,7 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
       </div>
 
       <div className="op-footer">
-        <span>Radar Imobiliário Pro · estudo {study.id.slice(0, 8)}</span>
+        <span>Estudo de Mercado Pro · estudo {study.id.slice(0, 8)}</span>
         <span>Gerado em {new Date(study.createdAt).toLocaleString("pt-BR")}</span>
       </div>
     </section>

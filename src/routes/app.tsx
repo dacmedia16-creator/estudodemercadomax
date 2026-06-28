@@ -58,7 +58,7 @@ function AppLayout() {
             <div className="flex items-center gap-3">
               <SidebarTrigger />
               <div className="hidden text-sm font-semibold text-muted-foreground md:block">
-                Radar Imobiliário <span className="text-primary">Pro</span>
+                Estudo de Mercado <span className="text-primary">Pro</span>
               </div>
             </div>
             <div className="flex items-center gap-3">
