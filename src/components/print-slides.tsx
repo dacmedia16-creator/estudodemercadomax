@@ -1,9 +1,12 @@
 import { computeAcm, formatBRL } from "@/lib/study-engine";
 import { DEFAULT_ACM, type StudyResult } from "@/lib/study-types";
+import { brandingStore } from "@/lib/branding-store";
 
 /**
- * Apresentação 16:9 para o proprietário. Visível somente em
- * `@media print` quando `<html>` tem a classe `print-mode-slides`.
+ * Página única estilo ACM (Análise Comparativa de Mercado) — A4 paisagem.
+ * Visível somente em `@media print` quando `<html>` tem a classe `print-mode-slides`.
+ * Layout inspirado no template VIP7 Imóveis: tabela de imóveis similares,
+ * definição do imóvel e bloco de resumo de avaliação com valor sugerido em destaque.
  */
 export function PrintSlides({
   study,
@@ -13,258 +16,206 @@ export function PrintSlides({
   sorted: StudyResult["comparaveis"];
 }) {
   const { input } = study;
-  const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
-  const top = sorted.slice(0, 6);
-  const fortes = study.pontosFortes.slice(0, 4);
-  const atencao = study.pontosAtencao.slice(0, 4);
-  const data = new Date(study.createdAt).toLocaleDateString("pt-BR");
-  const totalSlides = 6;
   const a = study.acm ?? DEFAULT_ACM;
+  const acm = computeAcm(study, a);
+  const branding = brandingStore.get();
 
-  const factor = (label: string, value: number) => {
-    // Map 80..120 -> 0..100% width.
-    const pct = Math.max(0, Math.min(100, ((value - 80) / 40) * 100));
-    const delta = value - 100;
-    return (
-      <div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10pt" }}>
-          <span style={{ fontWeight: 600 }}>{label}</span>
-          <span style={{ fontVariantNumeric: "tabular-nums", color: delta === 0 ? "#666" : delta > 0 ? "#15803d" : "#b45309" }}>
-            {value}% {delta !== 0 && <em style={{ fontStyle: "normal", fontSize: "8.5pt" }}>({delta > 0 ? "+" : ""}{delta})</em>}
-          </span>
-        </div>
-        <div className="sl-bar"><span style={{ width: `${pct}%` }} /></div>
-      </div>
-    );
-  };
+  // Até 10 comparáveis, priorizando os de maior similaridade.
+  const top = sorted.slice(0, 10);
+  const pctImovel = acm.valorSugerido > 0
+    ? Math.round((input.valorPretendido / acm.valorSugerido) * 100)
+    : 0;
 
-  const Footer = ({ n }: { n: number }) => (
-    <div className="sl-footer">
-      <span>Radar Imobiliário Pro · estudo {study.id.slice(0, 8)}</span>
-      <span>{n} / {totalSlides}</span>
-    </div>
-  );
+  // CSS vars injetadas para colorir as faixas a partir da marca do usuário.
+  const styleVars = {
+    ["--acm-brand" as string]: branding.brandColor,
+    ["--acm-accent" as string]: branding.accentColor,
+  } as React.CSSProperties;
+
+  const data = new Date(study.createdAt).toLocaleDateString("pt-BR");
 
   return (
-    <section className="print-slides">
-      {/* 1. CAPA */}
-      <div className="slide-page sl-cover">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div className="sl-brand">Radar Imobiliário Pro</div>
-          <div className="sl-meta">{data}</div>
-        </div>
-        <div style={{ marginTop: "auto" }}>
-          <div className="sl-kicker">Estudo de Mercado</div>
-          <h1>{input.tipo} em {input.bairro}</h1>
-          <div className="sl-cover-sub">
-            {input.edificio ? `${input.edificio} · ` : ""}
-            {input.endereco ? `${input.endereco}${input.numero ? `, ${input.numero}` : ""} · ` : ""}
-            {input.cidade}/{input.estado}
+    <section className="print-slides" style={styleVars}>
+      <div className="slide-page acm-page">
+        {/* Cabeçalho com logo + título */}
+        <div className="acm-header">
+          <div className="acm-logo">
+            {branding.logoUrl ? (
+              <img src={branding.logoUrl} alt={branding.brandName} />
+            ) : (
+              <div className="acm-logo-placeholder">
+                <span>{initials(branding.brandName)}</span>
+              </div>
+            )}
+            <div className="acm-brand-name">{branding.brandName}</div>
           </div>
+          <div className="acm-title">Análise Comparativa de Mercado</div>
         </div>
-        <div className="sl-cover-footer">
-          <span>Apresentação preparada para o proprietário</span>
-          <span>Finalidade: {input.finalidade}</span>
-        </div>
-      </div>
 
-      {/* 2. IMÓVEL ANALISADO */}
-      <div className="slide-page">
-        <div className="sl-header">
-          <div>
-            <div className="sl-kicker">Slide 2</div>
-            <h2 className="sl-section">Imóvel analisado</h2>
-          </div>
-          <div className="sl-meta">{input.cidade}/{input.estado}</div>
-        </div>
-        <div className="sl-grid-4" style={{ marginTop: "10pt" }}>
-          <Cell lbl="Tipo" val={input.tipo} />
-          <Cell lbl="Finalidade" val={input.finalidade} />
-          <Cell lbl="Área útil" val={`${input.areaUtil} m²`} />
-          <Cell lbl="Quartos" val={`${input.quartos}${input.suites ? ` (${input.suites} suíte${input.suites > 1 ? "s" : ""})` : ""}`} />
-          <Cell lbl="Banheiros" val={String(input.banheiros)} />
-          <Cell lbl="Vagas" val={String(input.vagas)} />
-          <Cell lbl="Andar" val={input.andar ? String(input.andar) : "—"} />
-          <Cell lbl="Ano" val={input.anoConstrucao ? String(input.anoConstrucao) : "—"} />
-          <Cell lbl="Condomínio" val={input.condominio ? formatBRL(input.condominio) : "—"} />
-          <Cell lbl="IPTU" val={input.iptu ? formatBRL(input.iptu) : "—"} />
-          <Cell lbl="Valor pretendido" val={formatBRL(input.valorPretendido)} />
-          <Cell lbl="R$/m² pretendido" val={formatBRL(study.precoM2Pretendido)} />
-        </div>
-        <div style={{ marginTop: "10pt" }}>
-          <div className="sl-kicker" style={{ marginBottom: "4pt" }}>Endereço</div>
-          <div className="sl-body">
-            {input.endereco ? `${input.endereco}${input.numero ? `, ${input.numero}` : ""}` : `${input.bairro}, ${input.cidade}/${input.estado}`}
-            {input.complemento ? ` · ${input.complemento}` : ""}
-            {input.edificio ? ` · Edifício ${input.edificio}` : ""}
-          </div>
-        </div>
-        {input.diferenciais.length > 0 && (
-          <div style={{ marginTop: "10pt" }}>
-            <div className="sl-kicker" style={{ marginBottom: "4pt" }}>Diferenciais</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "4pt" }}>
-              {input.diferenciais.map((d) => (
-                <span key={d} style={{ border: "0.75pt solid #ccc", borderRadius: "999pt", padding: "2pt 8pt", fontSize: "9pt" }}>{d}</span>
-              ))}
-            </div>
-          </div>
-        )}
-        <Footer n={2} />
-      </div>
+        {/* Faixa amarela separadora */}
+        <div className="acm-stripe" />
 
-      {/* 3. VALOR RECOMENDADO (HERO) */}
-      <div className="slide-page">
-        <div className="sl-header">
-          <div>
-            <div className="sl-kicker">Slide 3 · Avaliação ACM</div>
-            <h2 className="sl-section">Valor recomendado para venda</h2>
-          </div>
-          <div className="sl-meta">Baseado em {study.comparaveis.length} comparáveis</div>
-        </div>
-        <div className="sl-hero-box">
-          <div className="sl-hero-lbl">Valor sugerido</div>
-          <div className="sl-hero-value">{formatBRL(acm.valorSugerido)}</div>
-          <div className="sl-hero-meta">
-            Média de mercado {formatBRL(study.precoM2Medio)}/m² · status <strong>{study.status}</strong>
-          </div>
-        </div>
-        <div className="sl-pair">
-          <div className="sl-pill">
-            <div className="lbl">Mínimo de fechamento</div>
-            <div className="val">{formatBRL(acm.valorMinimoFechamento)}</div>
-          </div>
-          <div className="sl-pill">
-            <div className="lbl">Máximo de publicação</div>
-            <div className="val">{formatBRL(acm.valorMaximoPublicacao)}</div>
-          </div>
-        </div>
-        <div className="sl-callout" style={{ marginTop: "10pt" }}>
-          {study.diagnostico}
-        </div>
-        <Footer n={3} />
-      </div>
-
-      {/* 4. ANÁLISE ACM */}
-      <div className="slide-page">
-        <div className="sl-header">
-          <div>
-            <div className="sl-kicker">Slide 4</div>
-            <h2 className="sl-section">Como chegamos no valor</h2>
-          </div>
-          <div className="sl-meta">Multiplicador combinado <strong>{(acm.multiplicador * 100).toFixed(1)}%</strong></div>
-        </div>
-        <div className="sl-grid-2" style={{ gap: "14pt" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8pt" }}>
-            <div className="sl-kicker">Fatores aplicados</div>
-            {factor("Localização", a.localizacao)}
-            {factor("Conservação", a.conservacao)}
-            {factor("Idade do imóvel", a.idade)}
-            {factor("Padrão de acabamento", a.padrao)}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8pt" }}>
-            <div className="sl-kicker">Resultado</div>
-            <Cell lbl="Média de R$/m² (mercado)" val={formatBRL(study.precoM2Medio)} />
-            <Cell lbl="Valor avaliado do m²" val={formatBRL(acm.valorM2Avaliado)} />
-            <Cell lbl="Custo estimado de reforma"
-                  val={acm.descontoReforma > 0 ? `- ${formatBRL(acm.descontoReforma)} (${formatBRL(a.reformaPorM2)}/m²)` : "—"} />
-            <Cell lbl="Margem de negociação" val={`± ${a.margemPublicacaoPct}%`} />
-            <Cell lbl="Valor sugerido" val={formatBRL(acm.valorSugerido)} highlight />
-          </div>
-        </div>
-        <Footer n={4} />
-      </div>
-
-      {/* 5. COMPARÁVEIS */}
-      <div className="slide-page">
-        <div className="sl-header">
-          <div>
-            <div className="sl-kicker">Slide 5</div>
-            <h2 className="sl-section">Comparáveis de mercado</h2>
-          </div>
-          <div className="sl-meta">
-            {study.comparaveis.length} imóveis · faixa {formatBRL(study.faixaMin)} – {formatBRL(study.faixaMax)}
-          </div>
-        </div>
-        <table className="sl-table">
+        {/* Tabela: Imóveis Similares */}
+        <table className="acm-table acm-table-similares">
           <thead>
             <tr>
-              <th>Portal</th>
-              <th>Endereço / título</th>
-              <th>Bairro</th>
-              <th className="num">m²</th>
-              <th className="num">Qtos</th>
-              <th className="num">Preço</th>
-              <th className="num">R$/m²</th>
-              <th className="num">Sim.</th>
+              <th className="acm-th-main">Imóveis Similares</th>
+              <th>M²</th>
+              <th>Nº DORM</th>
+              <th>Nº SUÍTES</th>
+              <th>Nº VAGAS</th>
+              <th>VALOR CONDOMÍNIO</th>
+              <th>VALOR DE VENDA</th>
+              <th>VALOR DO M²</th>
             </tr>
           </thead>
           <tbody>
-            {top.map((c) => (
+            {top.map((c, i) => (
               <tr key={c.id}>
-                <td>{c.portal}</td>
-                <td style={{ maxWidth: "180pt" }}>
-                  <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.titulo}</div>
+                <td className="acm-link-cell">
+                  <span className="acm-row-num">{i + 1}</span>
+                  {c.url ? (
+                    <a href={c.url} className="acm-link" target="_blank" rel="noreferrer">{c.url}</a>
+                  ) : (
+                    <span className="acm-link">{c.titulo}</span>
+                  )}
                 </td>
-                <td style={{ color: "#666" }}>{c.bairro}</td>
-                <td className="num">{c.areaUtil}</td>
-                <td className="num">{c.quartos}</td>
-                <td className="num"><strong>{formatBRL(c.preco)}</strong></td>
-                <td className="num">{formatBRL(c.precoM2)}</td>
-                <td className="num">{c.similaridade}%</td>
+                <td className="num">{c.areaUtil > 0 ? c.areaUtil : "—"}</td>
+                <td className="num">{c.quartos > 0 ? c.quartos : "—"}</td>
+                <td className="num">{c.suites && c.suites > 0 ? c.suites : "—"}</td>
+                <td className="num">{c.vagas && c.vagas > 0 ? c.vagas : "—"}</td>
+                <td className="num">{c.condominio ? formatBRL(c.condominio) : "R$ 0,00"}</td>
+                <td className="num">{formatBRL(c.preco)}</td>
+                <td className="num acm-bold">{c.precoM2 > 0 ? formatBRL(c.precoM2) : "—"}</td>
               </tr>
             ))}
             {top.length === 0 && (
-              <tr><td colSpan={8} style={{ textAlign: "center", color: "#888" }}>Nenhum comparável encontrado.</td></tr>
+              <tr>
+                <td colSpan={8} className="acm-empty">Nenhum comparável encontrado.</td>
+              </tr>
             )}
           </tbody>
         </table>
-        <div className="sl-grid-3" style={{ marginTop: "10pt" }}>
-          <Cell lbl="Preço médio" val={formatBRL(study.precoMedio)} />
-          <Cell lbl="R$/m² médio" val={formatBRL(study.precoM2Medio)} />
-          <Cell lbl="Min / Max" val={`${formatBRL(study.menorPreco)} / ${formatBRL(study.maiorPreco)}`} />
-        </div>
-        <Footer n={5} />
-      </div>
 
-      {/* 6. PRÓXIMOS PASSOS */}
-      <div className="slide-page">
-        <div className="sl-header">
-          <div>
-            <div className="sl-kicker">Slide 6 · Conclusão</div>
-            <h2 className="sl-section">Próximos passos</h2>
+        {/* Tabela: Definição do imóvel analisado */}
+        <table className="acm-table acm-table-definicao">
+          <thead>
+            <tr>
+              <th className="acm-th-main">Definição do Imóvel</th>
+              <th>M²</th>
+              <th>Dorms</th>
+              <th>Suítes</th>
+              <th>Vagas</th>
+              <th>Condomínio</th>
+              <th>Cond por m²</th>
+              <th>Andar</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="acm-link-cell acm-definicao-nome">
+                <span className="acm-row-num">1</span>
+                <span>{input.edificio ? input.edificio : `${input.tipo} · ${input.bairro}`}</span>
+              </td>
+              <td className="num acm-bold">{input.areaUtil}</td>
+              <td className="num acm-bold">{input.quartos}</td>
+              <td className="num acm-bold">{input.suites ?? 0}</td>
+              <td className="num acm-bold">{input.vagas ?? 0}</td>
+              <td className="num">{input.condominio ? formatBRL(input.condominio) : "R$ —"}</td>
+              <td className="num">{input.condominio && input.areaUtil > 0 ? formatBRL(input.condominio / input.areaUtil) : "R$ —"}</td>
+              <td className="num">{input.andar ?? 0}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Bloco resumo: esquerda (reforma + nº similares) + direita (avaliação) */}
+        <div className="acm-resumo">
+          <div className="acm-resumo-left">
+            <div className="acm-resumo-left-row acm-resumo-head">Valor do m² para Reforma</div>
+            <div className="acm-resumo-left-row">{a.reformaPorM2 > 0 ? formatBRL(a.reformaPorM2) : "R$ 0,00"}</div>
+            <div className="acm-resumo-left-row acm-resumo-head">Número de Imóveis Similares</div>
+            <div className="acm-resumo-left-row acm-similares-count">{study.comparaveis.length}</div>
           </div>
-          <div className="sl-meta">Sugestão comercial</div>
-        </div>
-        <div className="sl-grid-2" style={{ marginTop: "6pt" }}>
-          <div className="sl-card" style={{ borderColor: "color-mix(in oklab, var(--primary) 40%, white)" }}>
-            <div className="lbl" style={{ color: "var(--primary)" }}>Pontos fortes</div>
-            <ul className="sl-list" style={{ marginTop: "4pt" }}>
-              {fortes.map((p) => <li key={p}>{p}</li>)}
-              {fortes.length === 0 && <li style={{ color: "#888" }}>—</li>}
-            </ul>
+
+          <div className="acm-resumo-right">
+            <div className="acm-resumo-right-title">RESUMO — AVALIAÇÃO PARA VENDA</div>
+            <ResumoRow label="Média do m²" value={formatBRL(study.precoM2Medio)} />
+            <ResumoRow label="% do imóvel" value={`${pctImovel}%`} />
+            <ResumoRow label="Valor avaliado para o m²" value={formatBRL(acm.valorM2Avaliado)} />
+            <ResumoRow
+              label="Valor de Reforma/Atualização"
+              value={acm.descontoReforma > 0 ? `- ${formatBRL(acm.descontoReforma)}` : "R$ —"}
+            />
+            <ResumoRow
+              label="Valor sugerido (considerando estado)"
+              value={formatBRL(acm.valorSugerido)}
+              variant="highlight"
+            />
+            <ResumoRow
+              label="Valor Máximo de Publicação"
+              value={formatBRL(acm.valorMaximoPublicacao)}
+              variant="success"
+            />
           </div>
-          <div className="sl-card" style={{ borderColor: "#e5b15d" }}>
-            <div className="lbl" style={{ color: "#b45309" }}>Pontos de atenção</div>
-            <ul className="sl-list" style={{ marginTop: "4pt" }}>
-              {atencao.map((p) => <li key={p}>{p}</li>)}
-              {atencao.length === 0 && <li style={{ color: "#888" }}>—</li>}
-            </ul>
+        </div>
+
+        {/* Rodapé com legenda de reforma + fatores ACM */}
+        <div className="acm-footer">
+          <div className="acm-legend">
+            <div>Reforma estética: R$ 200 – R$ 500/m²</div>
+            <div>Reforma estrutural: R$ 1.000 – R$ 2.000/m²</div>
+          </div>
+          <div className="acm-fatores">
+            <Fator label="Localização" value={a.localizacao} />
+            <Fator label="Estado de Conservação" value={a.conservacao} />
+            <Fator label="Idade" value={a.idade} />
+            <Fator label="Padrão" value={a.padrao} />
           </div>
         </div>
-        <div className="sl-callout" style={{ marginTop: "10pt" }}>
-          <strong>Recomendação:</strong> publicar a {formatBRL(acm.valorMaximoPublicacao)} e aceitar propostas a partir de {formatBRL(acm.valorMinimoFechamento)}. {study.argumentoProprietario}
+
+        <div className="acm-page-meta">
+          {branding.brandName} · estudo {study.id.slice(0, 8)} · {data}
         </div>
-        <Footer n={6} />
       </div>
     </section>
   );
 }
 
-function Cell({ lbl, val, highlight }: { lbl: string; val: string; highlight?: boolean }) {
+function ResumoRow({
+  label,
+  value,
+  variant,
+}: {
+  label: string;
+  value: string;
+  variant?: "highlight" | "success";
+}) {
+  const cls =
+    variant === "highlight" ? "acm-resumo-row acm-highlight-yellow"
+    : variant === "success" ? "acm-resumo-row acm-highlight-green"
+    : "acm-resumo-row";
   return (
-    <div className="sl-card" style={highlight ? { borderColor: "var(--primary)", background: "color-mix(in oklab, var(--primary) 6%, white)" } : undefined}>
-      <div className="lbl">{lbl}</div>
-      <div className="val" style={highlight ? { color: "var(--primary)" } : undefined}>{val}</div>
+    <div className={cls}>
+      <span className="acm-resumo-label">{label}</span>
+      <span className="acm-resumo-value">{value}</span>
     </div>
   );
+}
+
+function Fator({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="acm-fator">
+      <div className="acm-fator-label">{label}</div>
+      <div className="acm-fator-value">{value}%</div>
+    </div>
+  );
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
 }
