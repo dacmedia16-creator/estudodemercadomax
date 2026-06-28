@@ -33,6 +33,10 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorInfo, setErrorInfo] = useState<{
+    friendly: string;
+    raw: Record<string, unknown>;
+  } | null>(null);
 
   // If already signed in, bounce into the app.
   useEffect(() => {
@@ -44,6 +48,7 @@ function AuthPage() {
 
   const handle = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorInfo(null);
     const parsed = credsSchema.safeParse({ email, password });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Dados inválidos");
@@ -58,7 +63,10 @@ function AuthPage() {
           options: { emailRedirectTo: `${window.location.origin}/app/novo-estudo` },
         });
         if (error) {
-          toast.error(translateAuthError(error));
+          console.error("[auth] signup error", error);
+          const friendly = translateAuthError(error);
+          setErrorInfo({ friendly, raw: serializeAuthError(error) });
+          toast.error(friendly);
           return;
         }
         toast.success("Conta criada! Bem-vindo(a).");
@@ -68,7 +76,10 @@ function AuthPage() {
           password: parsed.data.password,
         });
         if (error) {
-          toast.error(translateAuthError(error));
+          console.error("[auth] signin error", error);
+          const friendly = translateAuthError(error);
+          setErrorInfo({ friendly, raw: serializeAuthError(error) });
+          toast.error(friendly);
           return;
         }
       }
@@ -141,6 +152,19 @@ function AuthPage() {
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tab === "signup" ? "Criar conta" : "Entrar"}
               </Button>
+              {errorInfo && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
+                  <p className="font-medium text-destructive">{errorInfo.friendly}</p>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer select-none text-[11px] font-medium text-muted-foreground hover:text-foreground">
+                      Ver detalhes técnicos
+                    </summary>
+                    <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/60 p-2 font-mono text-[11px] leading-relaxed text-foreground">
+{JSON.stringify(errorInfo.raw, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              )}
             </form>
           </Tabs>
         </Card>
@@ -182,6 +206,21 @@ function translateAuthError(error: { code?: string; message: string }): string {
     return "Confirme seu email antes de entrar.";
   }
   return error.message || "Não foi possível concluir. Tente novamente.";
+}
+
+// Extrai os campos úteis de um erro do Supabase Auth (AuthError não é
+// serializável diretamente porque os campos vivem no protótipo).
+function serializeAuthError(error: unknown): Record<string, unknown> {
+  if (!error || typeof error !== "object") return { value: String(error) };
+  const e = error as Record<string, unknown> & { message?: string; name?: string };
+  return {
+    name: e.name,
+    message: e.message,
+    code: (e as { code?: string }).code,
+    status: (e as { status?: number }).status,
+    __isAuthError: (e as { __isAuthError?: boolean }).__isAuthError,
+    cause: (e as { cause?: unknown }).cause,
+  };
 }
 
 // Bloqueia o usuário cedo contra as senhas mais óbvias para evitar um
