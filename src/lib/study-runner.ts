@@ -395,7 +395,13 @@ export async function runStudy(
           (collected) => collected.filter((p) => matchEdificio(p, edificio)).length >= TARGET,
           "condominio",
         );
-        const condoRaw = res.properties.filter((p) => matchEdificio(p, edificio));
+        const condoRawAll = res.properties.filter((p) => matchEdificio(p, edificio));
+        // Some portals devolvem condomínios homônimos em outras cidades — descarta.
+        const condoRaw = condoRawAll.filter((p) => !p.cidade || inCidade(p));
+        const removidosCidadeCondo = condoRawAll.length - condoRaw.length;
+        if (removidosCidadeCondo > 0) {
+          funilBusca.push({ etapa: `Mesmo prédio: removidos por cidade diferente`, total: removidosCidadeCondo });
+        }
         const condoTipoOk = condoRaw.filter((p) => isSameTipoFamily(p, tipo));
         const removidosTipoCondo = condoRaw.length - condoTipoOk.length;
         if (removidosTipoCondo > 0) {
@@ -429,7 +435,12 @@ export async function runStudy(
           },
           "endereco",
         );
-        enderecoMatches = res.properties.filter((p) => matchEndereco(p, enderecoRaw));
+        const enderecoAll = res.properties.filter((p) => matchEndereco(p, enderecoRaw));
+        enderecoMatches = enderecoAll.filter((p) => !p.cidade || inCidade(p));
+        const removidosCidadeEnd = enderecoAll.length - enderecoMatches.length;
+        if (removidosCidadeEnd > 0) {
+          funilBusca.push({ etapa: `Mesmo endereço: removidos por cidade diferente`, total: removidosCidadeEnd });
+        }
         const enderecoTotal = enderecoMatches.length;
         enderecoMatches = enderecoMatches.filter((p) => isSameTipoFamily(p, tipo));
         const removidosTipoEnd = enderecoTotal - enderecoMatches.length;
