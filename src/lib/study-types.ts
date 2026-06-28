@@ -60,6 +60,10 @@ export interface AiAnalysis {
   riscos: string[];
   recomendacoes: string[];
   geradoEm: string;
+  /** Texto pronto, empático e profissional para o corretor levar ao proprietário. */
+  discursoProprietario?: string;
+  /** Bullets curtos com os argumentos de mercado mais fortes. */
+  argumentosChave?: string[];
 }
 
 export interface StudyResult {

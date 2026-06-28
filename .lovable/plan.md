@@ -1,24 +1,31 @@
-## Diagnóstico
+## Objetivo
 
-Os logs do AI Gateway mostram que a chamada para o Gemini está **respondendo com sucesso (HTTP 200, ~550 tokens de saída)**, mas o card não renderiza o resultado. Causa provável: a saída estruturada (`experimental_output: Output.object(...)`) está chegando como `undefined` no servidor — o modelo retorna texto/markdown em vez de JSON puro, e o parse silencioso resulta em `res.data = { geradoEm }` sem os campos esperados (`resumo`, `faixaRecomendada`, etc.). O componente troca o placeholder por uma view "vazia" e parece não ter feito nada.
+Quando o sugerido fica abaixo do pretendido, o corretor precisa de argumentos prontos, claros e empáticos para apresentar ao proprietário sem gerar atrito. Hoje a IA devolve "riscos" e "recomendações" técnicas — falta um discurso pronto, em tom humano, focado em justificar o valor.
 
-## Correção
+## Mudanças
 
-### 1. `src/lib/ai-analysis.functions.ts`
-- Trocar `Output.object` (parse silencioso, frágil com Gemini) por uma chamada `generateText` com instrução explícita de JSON + `response_format`-equivalente via prompt rígido e parse manual com `JSON.parse` resiliente (extrair primeiro `{...}` válido).
-- Validar a saída com Zod antes de retornar; se faltar campo essencial, retornar `{ ok:false, error: "Resposta da IA inválida" }`.
-- Incluir log no servidor com tamanho/preview do texto bruto para futuras depurações.
-- Acrescentar fallback simples: se o modelo falhar em estruturar, calcular faixas a partir dos percentis (entrada=P25, ideal=mediana, teto=P75) e usar o texto livre como `resumo`.
+### 1. `src/lib/study-types.ts`
+Adicionar dois campos opcionais em `AiAnalysis`:
+- `discursoProprietario: string` — texto corrido, 4–6 frases, tom empático e profissional, pronto para o corretor ler/enviar ao dono.
+- `argumentosChave: string[]` — 3 a 5 bullets curtos com os argumentos de mercado mais fortes (ex.: "12 imóveis semelhantes anunciados entre R$ X e R$ Y", "tempo médio de venda na faixa atual é N dias", "P25 do bairro está em R$/m² Z").
 
-### 2. `src/components/ai-analysis-card.tsx`
-- Garantir que, em caso de resposta incompleta (`!res.data?.resumo`), exibir `toast.error` claro em vez de aplicar um `aiAnalysis` vazio.
-- Adicionar `console.error` com `res.error` para facilitar diagnóstico.
-- Validar `next.aiAnalysis` antes do `onChange` para não corromper o estudo salvo.
+### 2. `src/lib/ai-analysis.functions.ts`
+- Atualizar o `SYSTEM` prompt explicando o cenário: o corretor precisa convencer o proprietário, que costuma resistir quando o sugerido é menor que o pretendido. Pedir tom **acolhedor, profissional, sem culpar o dono, sempre ancorando em fato de mercado** (mediana, piso, nº de concorrentes, DOM).
+- Incluir no JSON pedido os dois campos novos (`discursoProprietario`, `argumentosChave`).
+- Atualizar `outputSchema` com os campos (`discursoProprietario` string min 1, `argumentosChave` array de strings, default `[]`).
+- Atualizar o fallback (quando a IA falha em estruturar) gerando um discurso padrão a partir dos percentis: ex. "Olhando os {N} imóveis semelhantes no {bairro}, a faixa praticada hoje vai de {min} a {max}, com mediana em {mediana}. Para garantir visitas qualificadas nas primeiras semanas…"
+- Passar no prompt o `valorPretendido` vs `valorSugerido` e a diferença percentual para a IA calibrar o tom (se pretendido > teto, ser mais firme; se está alinhado, parabenizar).
 
-### 3. Verificação
-- Rodar o botão no relatório, confirmar nos logs do gateway uma resposta nova e ver o card preenchido com resumo, faixas, riscos e recomendações.
+### 3. `src/components/ai-analysis-card.tsx`
+Adicionar dois blocos novos no card, abaixo de "Posicionamento" e antes de "Riscos/Recomendações":
+- **"Como conversar com o proprietário"** — caixa destacada (border-primary/30, bg-primary/5) com o `discursoProprietario` em texto corrido + botão **Copiar** (usa `navigator.clipboard.writeText`, toast de confirmação).
+- **"Argumentos de mercado"** — lista compacta com os bullets de `argumentosChave`, cada um com ícone de check.
 
-## Detalhes técnicos
-- O modelo segue `google/gemini-3-flash-preview` (já configurado).
-- O `requireSupabaseAuth` continua envolvendo a função; sem mudanças em RLS ou banco.
-- Sem alterações em rotas ou no schema do estudo (`aiAnalysis` permanece opcional).
+Atualizar a validação de "resposta incompleta" para considerar o novo campo `discursoProprietario` como obrigatório.
+
+## Notas técnicas
+
+- Sem mudanças de schema do banco — `aiAnalysis` continua como JSON opcional no `StudyResult`.
+- Sem novas dependências.
+- O botão "Copiar" usa a Clipboard API nativa; fallback silencioso se o navegador bloquear.
+- Mantém compatibilidade com estudos antigos: os campos novos são opcionais; o card só renderiza os blocos se vierem preenchidos.
