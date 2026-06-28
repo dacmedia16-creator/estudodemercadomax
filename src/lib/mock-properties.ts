@@ -34,6 +34,8 @@ export interface MockProperty {
   virtualTourUrl?: string;
   removido?: boolean;
   agregadoCount?: number;
+  /** Detected listing intent from the source portal. Used to drop rentals from a sale study and vice versa. */
+  finalidade?: "Venda" | "Aluguel";
 }
 
 const img = (seed: string) =>
