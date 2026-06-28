@@ -11,9 +11,11 @@ import { brandingStore } from "@/lib/branding-store";
 export function PrintSlides({
   study,
   sorted,
+  variant = "print",
 }: {
   study: StudyResult;
   sorted: StudyResult["comparaveis"];
+  variant?: "print" | "screen";
 }) {
   const { input } = study;
   const a = study.acm ?? DEFAULT_ACM;
@@ -35,7 +37,10 @@ export function PrintSlides({
   const data = new Date(study.createdAt).toLocaleDateString("pt-BR");
 
   return (
-    <section className="print-slides" style={styleVars}>
+    <section
+      className={`print-slides${variant === "screen" ? " print-slides-screen" : ""}`}
+      style={styleVars}
+    >
       <div className="slide-page acm-page">
         {/* Cabeçalho com logo + título */}
         <div className="acm-header">

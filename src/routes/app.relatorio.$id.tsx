@@ -511,6 +511,17 @@ function ReportPage() {
         </div>
       </Card>
 
+      {/* Slide ACM — pré-visualização do material exportado, ao final do relatório */}
+      <Card className="mt-6 border-border/60 p-6 print-section">
+        <div className="mb-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-primary">Slide ACM</div>
+          <div className="text-sm text-muted-foreground">
+            Pré-visualização do material gerado para apresentação ao proprietário.
+          </div>
+        </div>
+        <PrintSlides study={study} sorted={sorted} variant="screen" />
+      </Card>
+
       </div>
     </>
   );
