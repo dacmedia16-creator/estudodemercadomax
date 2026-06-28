@@ -70,7 +70,7 @@ function ReportPage() {
     setRerunning(true);
     setRerunWarning(null);
     try {
-      const { result, warning, fellBack } = await runStudy(study.input, overrides);
+      const { result, warning, fellBack } = await runStudy(study.input, overrides, undefined, study.id);
       // Keep same id so the URL stays valid; increment revision counter.
       result.id = study.id;
       result.revisao = (study.revisao ?? 0) + 1;
