@@ -20,9 +20,9 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Radar Imobiliário Pro — Estudos de mercado em minutos" },
+      { title: "Estudo de Mercado Pro — Estudos de mercado em minutos" },
       { name: "description", content: "Plataforma de inteligência de mercado para corretores: gere estudos comparativos automáticos com dados reais de portais imobiliários." },
-      { property: "og:title", content: "Radar Imobiliário Pro" },
+      { property: "og:title", content: "Estudo de Mercado Pro" },
       { property: "og:description", content: "Estudos de mercado imobiliário automáticos para corretores e imobiliárias." },
     ],
   }),
@@ -39,7 +39,7 @@ function Index() {
               <Radar className="h-5 w-5" />
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold">Radar Imobiliário</span>
+              <span className="text-sm font-bold">Estudo de Mercado</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Pro</span>
             </div>
           </Link>
@@ -206,7 +206,7 @@ function Index() {
 
       <footer className="border-t border-border py-8">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 text-sm text-muted-foreground md:flex-row">
-          <p>© {new Date().getFullYear()} Radar Imobiliário Pro</p>
+          <p>© {new Date().getFullYear()} Estudo de Mercado Pro</p>
           <p>Feito para corretores que valorizam dados.</p>
         </div>
       </footer>
