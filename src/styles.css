@@ -905,8 +905,11 @@
 
   .print-slides .acm-page {
     page: acm;
+    width: 297mm;
+    max-width: 297mm;
     height: 210mm;
     min-height: 210mm;
+    box-sizing: border-box;
     overflow: hidden;
   }
   .print-slides .acm-page + .acm-page {
