@@ -145,7 +145,7 @@ function AuthPage() {
                   disabled={loading}
                 />
                 {tab === "signup" && (
-                  <PasswordHint password={password} />
+                  <p className="text-[11px] text-muted-foreground">Mínimo 8 caracteres.</p>
                 )}
               </div>
               <Button type="submit" className="w-full gap-2" disabled={loading}>

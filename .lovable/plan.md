@@ -1,18 +1,10 @@
 ## Objetivo
-Mostrar a mensagem de erro **completa e crua** retornada pelo Supabase ao criar conta, em vez de apenas a tradução amigável.
+Permitir qualquer senha (com mínimo de 8 caracteres) ao criar conta — desativar o bloqueio de senhas vazadas (HIBP).
 
 ## Mudanças
-Arquivo: `src/routes/auth.tsx`
 
-1. No `catch` do fluxo de cadastro (e também no login, por simetria), capturar:
-   - `error.message`
-   - `error.status` / `error.code` (quando existir)
-   - `error.name`
-2. Renderizar um bloco de erro expandido contendo:
-   - Mensagem traduzida (atual) no topo
-   - Um `<details>` "Ver detalhes técnicos" com `<pre>` exibindo JSON formatado do erro completo (`code`, `status`, `name`, `message` originais)
-3. Manter o `PasswordHint` e validações existentes — nada mais muda.
-4. Logar também `console.error("[auth] signup error", error)` para inspeção no DevTools.
+1. **Supabase Auth**: chamar `configure_auth` com `password_hibp_enabled: false` (mantendo signup habilitado, sem auto-confirm, sem usuários anônimos). Isso remove o erro "senha vazada/comum".
+2. **`src/routes/auth.tsx`**: remover o `PasswordHint` (aviso sobre senhas comuns) e simplificar o texto de ajuda abaixo do campo de senha para apenas "Mínimo 8 caracteres". A tradução de erro HIBP fica no código como fallback, mas não será mais acionada.
 
-## Como você verá
-Ao falhar o cadastro, aparecerá a caixa de erro com a mensagem em PT e logo abaixo um expansor com o payload exato (ex.: `{"code":"weak_password","message":"Password should...","status":422}`), o que torna trivial identificar a causa real.
+## Observação
+A validação local mínima de 8 caracteres é mantida (limite do próprio Supabase). Se quiser permitir senhas ainda mais curtas, é preciso alterar a política mínima de senha no Supabase — me avise.
