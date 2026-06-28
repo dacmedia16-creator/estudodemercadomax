@@ -50,9 +50,18 @@ function ReportPage() {
   const originalsRef = useRef<ComparableProperty[]>([]);
 
   useEffect(() => {
-    const s = studyStore.get(id) ?? null;
-    setStudy(s);
-    originalsRef.current = s ? [...s.comparaveis] : [];
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = (await studyStore.get(id)) ?? null;
+        if (cancelled) return;
+        setStudy(s);
+        originalsRef.current = s ? [...s.comparaveis] : [];
+      } catch (err) {
+        if (!cancelled) toast.error((err as Error).message);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [id]);
 
   const handleRerun = async (overrides: SearchOverrides) => {
@@ -64,7 +73,7 @@ function ReportPage() {
       // Keep same id so the URL stays valid; increment revision counter.
       result.id = study.id;
       result.revisao = (study.revisao ?? 0) + 1;
-      studyStore.save(result);
+      await studyStore.save(result);
       setStudy(result);
       originalsRef.current = [...result.comparaveis];
       setRerunWarning(warning);
