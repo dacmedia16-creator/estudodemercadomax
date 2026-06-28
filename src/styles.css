@@ -527,5 +527,6 @@
   }
 
   /* Em impressão, escondemos a pré-visualização em tela para não duplicar */
-  .print-slides-screen { display: none !important; }
+  html .print-slides-screen,
+  html.print-mode-slides .print-slides-screen { display: none !important; }
 }
