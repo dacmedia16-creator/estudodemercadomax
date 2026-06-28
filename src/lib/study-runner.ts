@@ -610,6 +610,15 @@ export async function runStudy(
     }
 
     onStep?.(2);
+    // Sanity: descarta imóveis de outras cidades (bairros homônimos, condomínios em rede).
+    if (!buscaLivre) {
+      const beforeCidade = mainProperties.length;
+      mainProperties = mainProperties.filter((p) => !p.cidade || inCidade(p));
+      const removidosCidade = beforeCidade - mainProperties.length;
+      if (removidosCidade > 0) {
+        funilBusca.push({ etapa: `Removidos por cidade diferente`, total: removidosCidade });
+      }
+    }
     // Apply user-controlled radius filter (when geocoding succeeded).
     let removidosRaio = 0;
     if (geoLat && geoLng) {
