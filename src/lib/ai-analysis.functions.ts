@@ -60,6 +60,14 @@ Regras críticas:
   profissional, sem jargão.
 - Não invente dados que não estão no payload.
 
+CENÁRIO DE USO:
+O corretor frequentemente precisa convencer o proprietário a ajustar o valor
+pretendido para baixo. Proprietários ficam emocionalmente resistentes. Você
+precisa entregar um discurso PRONTO, em tom acolhedor e profissional, que o
+corretor possa ler ou enviar diretamente ao dono — sem culpar o proprietário,
+sempre ancorando em fatos de mercado (mediana, piso, nº de concorrentes
+anunciados, faixa praticada, tempo médio de venda).
+
 FORMATO DE SAÍDA — OBRIGATÓRIO:
 Responda APENAS com um único objeto JSON válido (sem markdown, sem \`\`\`, sem
 comentários). Estrutura exata:
@@ -72,7 +80,9 @@ comentários). Estrutura exata:
   },
   "posicionamento": "string (1-2 frases)",
   "riscos": ["string", ...] (até 5),
-  "recomendacoes": ["string", ...] (até 5)
+  "recomendacoes": ["string", ...] (até 5),
+  "discursoProprietario": "string (4-6 frases, tom acolhedor, em 1ª pessoa do plural ('observamos', 'sugerimos'), pronto para o corretor ler ao dono — começar reconhecendo o valor do imóvel, depois trazer os dados de mercado, fechar com um caminho claro)",
+  "argumentosChave": ["string", ...] (3 a 5 bullets curtos, cada um com 1 fato concreto do mercado — ex.: 'X imóveis semelhantes anunciados entre R$ A e R$ B', 'mediana do bairro em R$/m² Y', 'piso competitivo em R$ Z')
 }`;
 
 const outputSchema = z.object({
@@ -85,6 +95,8 @@ const outputSchema = z.object({
   posicionamento: z.string().min(1),
   riscos: z.array(z.string()).default([]),
   recomendacoes: z.array(z.string()).default([]),
+  discursoProprietario: z.string().min(1),
+  argumentosChave: z.array(z.string()).default([]),
 });
 
 function extractJson(text: string): unknown | null {
@@ -142,7 +154,17 @@ ${JSON.stringify(data.mercado, null, 2)}
 Top comparáveis (até 15):
 ${JSON.stringify(data.comparaveis, null, 2)}
 
-Gere a análise estruturada respeitando o piso de mercado. Responda SOMENTE com o JSON pedido.`;
+Diferença entre pretendido e sugerido: ${(() => {
+  const p = data.imovel.valorPretendido;
+  const s = data.mercado.valorSugerido ?? data.mercado.precoMedio;
+  if (!p || !s) return "n/d";
+  const diff = ((p - s) / s) * 100;
+  return `${diff > 0 ? "+" : ""}${diff.toFixed(1)}% (pretendido vs sugerido)`;
+})()}
+
+Gere a análise estruturada respeitando o piso de mercado. Calibre o tom do
+discursoProprietario: se o pretendido está muito acima do teto, seja firme
+mas empático; se está alinhado, reforce a estratégia. Responda SOMENTE com o JSON pedido.`;
 
       const result = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
@@ -157,6 +179,9 @@ Gere a análise estruturada respeitando o piso de mercado. Responda SOMENTE com 
         // Fallback: usar percentis do mercado se a IA falhou em estruturar
         const m = data.mercado;
         const base = m.median ?? m.precoMedio;
+        const n = data.comparaveis.length;
+        const fmt = (v: number) =>
+          v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
         const fallback = {
           resumo: raw.slice(0, 600) || "A IA não retornou uma análise estruturada. Faixa calculada a partir dos percentis do mercado.",
           faixaRecomendada: {
@@ -167,6 +192,19 @@ Gere a análise estruturada respeitando o piso de mercado. Responda SOMENTE com 
           posicionamento: "Faixa derivada da distribuição de preços dos comparáveis (P25 / mediana / P75).",
           riscos: ["Análise qualitativa indisponível — revise manualmente."],
           recomendacoes: ["Tente gerar a análise novamente em instantes."],
+          discursoProprietario:
+            `Analisamos ${n} imóveis semelhantes ao seu em ${data.imovel.bairro}, ` +
+            `${data.imovel.cidade}. A faixa praticada hoje vai de ${fmt(m.menorPreco)} a ${fmt(m.maiorPreco)}, ` +
+            `com a mediana em ${fmt(base)}. Para garantir visitas qualificadas já nas primeiras semanas e ` +
+            `evitar que o anúncio "esfrie" no portal, sugerimos posicionar entre ${fmt(Math.round(m.p25 ?? base * 0.95))} ` +
+            `e ${fmt(Math.round(m.p75 ?? base * 1.05))}. Esse valor preserva margem de negociação e ao mesmo tempo nos ` +
+            `coloca competitivos frente aos outros anúncios ativos hoje.`,
+          argumentosChave: [
+            `${n} imóveis semelhantes analisados nos portais`,
+            `Faixa praticada: ${fmt(m.menorPreco)} a ${fmt(m.maiorPreco)}`,
+            `Mediana do mercado: ${fmt(base)}`,
+            m.valorPiso ? `Piso competitivo identificado em ${fmt(m.valorPiso)}` : `R$/m² médio: ${fmt(m.precoM2Medio)}`,
+          ],
         };
         const safe = outputSchema.parse(fallback);
         return { ok: true as const, data: { ...safe, geradoEm: new Date().toISOString() } };
