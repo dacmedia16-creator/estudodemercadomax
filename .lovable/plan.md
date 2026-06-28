@@ -1,64 +1,89 @@
+## Objetivo
+Adicionar uma **terceira página** ao PDF (modo ACM/slides) — uma "Carta ao Proprietário" — com layout limpo, linguagem acessível (sem jargão de corretor) e foco em convencer o dono do imóvel a ajustar o preço.
 
-# Página de Convencimento do Proprietário no PDF
+Hoje o PDF tem 2 páginas:
+1. ACM (dashboard técnico) — para o corretor
+2. "Argumentos para o Proprietário" — material de apoio para a conversa do corretor
 
-Hoje o slide ACM (A4 paisagem) mostra a tabela de comparáveis e o valor sugerido, mas não entrega ao corretor um material pronto para **defender uma redução de preço** com o proprietário. Vou adicionar uma segunda página ao PDF dedicada a isso, usando dados que já temos no estudo (`stats`, `comparaveis`, `acm`, `aiAnalysis`).
+Falta uma página feita **para entregar na mão do proprietário**, em tom direto e claro.
 
-## O que vai aparecer na nova página
+## O que muda
+Arquivo único: `src/components/print-slides.tsx` (+ estilos em `src/styles.css`).
 
-1. **Cabeçalho com a “tese”**
-   - Valor pretendido pelo proprietário × Valor sugerido pela ACM
-   - Diferença em R$ e %
-   - Selo de status (Acima / Dentro / Abaixo da média)
+Adicionar componente `OwnerLetterPage` renderizado após `OwnerPersuasionPage` dentro do mesmo `<section className="print-slides">`. Aparece tanto na pré-visualização em tela quanto no PDF impresso (mesma regra das outras páginas).
 
-2. **Bloco "Por que o preço atual afasta compradores"** (fatos do mercado)
-   - Posição do preço pretendido entre P10–P90 dos comparáveis (ex.: “seu preço está no topo 10% da região”).
-   - R$/m² pretendido vs. mediana e teto do bairro.
-   - Quantos comparáveis estão abaixo do preço pretendido (“X de Y imóveis semelhantes custam menos”).
-   - Menor preço total observado no mesmo perfil.
-   - Tempo médio no mercado (DOM) quando disponível, destacando anúncios antigos como sinal de preço alto.
+## Estrutura da página (A4 paisagem, igual às outras)
 
-3. **Tabela "Os 5 concorrentes diretos mais baratos"**
-   - Top 5 comparáveis ordenados por preço (mesmo prédio/endereço primeiro quando houver).
-   - Colunas: endereço/edifício, área, dorms, R$ total, R$/m², link.
-   - Cada linha com a diferença % vs. o imóvel do proprietário — visualmente mostra que existe oferta melhor.
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ [Logo] ESTUDO DE MERCADO PRO          Carta ao Proprietário     │
+│ ─── faixa colorida ───                                          │
+│                                                                 │
+│ Olá, {nome}! Preparei este estudo do seu imóvel em              │
+│ {bairro, cidade}. Resumo em 1 minuto:                           │
+│                                                                 │
+│ ┌──────────────────┐  ┌──────────────────┐ ┌──────────────────┐ │
+│ │ SEU PREÇO HOJE   │  │ PREÇO IDEAL      │ │ DIFERENÇA        │ │
+│ │ R$ 1.180.000     │→ │ R$ 1.121.951     │ │ - R$ 58.049 (5%) │ │
+│ └──────────────────┘  └──────────────────┘ └──────────────────┘ │
+│                                                                 │
+│ ┌─ O QUE O MERCADO ESTÁ DIZENDO ──────────────────────────────┐ │
+│ │ • Analisamos 9 imóveis parecidos com o seu na região        │ │
+│ │ • 6 deles estão anunciados por menos que o seu preço atual  │ │
+│ │ • O concorrente mais barato pede R$ 1.099.950               │ │
+│ │ • O preço médio por m² da região é R$ 11.771                │ │
+│ │ • O seu, no preço atual, fica R$ 12.041/m² (acima da média) │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│ ┌─ POR QUE AJUSTAR AGORA VALE A PENA ─────────────────────────┐ │
+│ │ ✓ Mais visitas: anúncios no preço certo aparecem 1º no Zap  │ │
+│ │ ✓ Vende mais rápido (média de X dias menor*)                │ │
+│ │ ✓ Evita "queima" do anúncio — quem fica meses parado        │ │
+│ │   acaba aceitando descontos maiores depois                  │ │
+│ │ ✓ Compradores comparam: se o seu está acima, nem visitam    │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│ ┌─ FAIXA QUE RECOMENDAMOS PUBLICAR ───────────────────────────┐ │
+│ │   R$ 1.099.000   ←   R$ 1.121.951   →   R$ 1.178.049        │ │
+│ │   vende rápido      ideal               teto p/ negociar    │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│ Próximo passo: vamos conversar e definir juntos o melhor       │
+│ valor de publicação. — {corretor / brandName}                  │
+│                                                                 │
+│ Estudo {id} · {data}                                            │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-4. **Bloco "Faixa recomendada de publicação"**
-   - Entrada / Ideal / Teto vindos de `aiAnalysis.faixaRecomendada` (ou calculados a partir de `stats` quando a IA não rodou).
-   - Valor máximo de publicação (já calculado no ACM) com margem de negociação destacada.
-   - Mini-simulação: “publicando a R$ X, seu imóvel entra no top 25% mais competitivos”.
+## Conteúdo dinâmico (sem nada inventado)
+Tudo derivado de campos que **já existem** no estudo — sem novas chamadas de API, sem mexer em runner/engine:
+- `input.proprietario` (se existir) ou saudação genérica "Olá!"
+- `input.bairro`, `input.cidade`
+- `input.valorPretendido` vs `acm.valorSugerido` → diferença R$ e %
+- `study.comparaveis.length`, contagem `abaixo do preço pretendido`, menor preço
+- `study.precoM2Medio`, R$/m² pretendido
+- `study.aiAnalysis?.argumentosChave` quando disponível, **reescritos em tom de proprietário** (frases curtas, sem "anúncios penalizados em ranking de portal"); fallback determinístico próprio (separado do `buildFallbackArgs` técnico).
+- Faixa: `aiAnalysis.faixaRecomendada` ou derivada de `stats` (P25/median/P75), igual à página 2.
+- Assinatura usa `branding.brandName`.
 
-5. **Bloco "Argumentos prontos para a conversa"**
-   - Usa `aiAnalysis.discursoProprietario` e `aiAnalysis.argumentosChave` quando existirem.
-   - Fallback determinístico (sem IA) montado a partir das estatísticas: 4–6 bullets do tipo
-     - “Há N imóveis equivalentes anunciados por até R$ X a menos.”
-     - “O R$/m² pretendido está Y% acima da mediana do bairro.”
-     - “Imóveis nessa faixa de preço ficam em média Z dias no portal.”
-     - “Reduzindo para R$ W, o imóvel passa a competir com a metade inferior do mercado e tende a vender mais rápido.”
+## Tom e linguagem
+- Frases curtas, 2ª pessoa ("seu imóvel", "você"), sem termos como "percentil", "P90", "ranking PLP", "ACM".
+- Números sempre formatados em R$ (reutiliza `formatBRL`).
+- Sem tabela de concorrentes com links (essa fica na página 2 para o corretor). O proprietário vê **resumo agregado**, não lista de URLs.
+- Status colorido suave (verde "dentro do mercado" / amarelo "vale ajustar" / vermelho "muito acima").
 
-6. **Bloco "Riscos de manter o preço atual"**
-   - 3 bullets curtos: perda de relevância nos portais, queda de visitas, necessidade de descontos maiores depois.
-   - Usa `aiAnalysis.riscos` quando disponível; caso contrário, texto padrão calibrado pelo gap %.
+## Estilos
+Adicionar em `src/styles.css` (fora de `@media print`, igual `.acm-page` e `.owner-page`):
+- `.owner-letter-page` — variações da página atual: blocos com bordas arredondadas mais suaves, tipografia maior, mais respiro.
+- Cartões de preço grandes (estilo da página 1) com setas.
+- Listas com check (✓) verde para benefícios.
+- Faixa de publicação como barra horizontal com 3 marcadores.
 
-7. **Rodapé**
-   - Marca/corretor (do `branding-store`), data, ID do estudo — igual à página ACM atual para manter identidade visual.
+## Não muda
+- Página 1 (ACM dashboard) intacta.
+- Página 2 (argumentos para o corretor) intacta.
+- Nenhuma alteração em `study-engine.ts`, `study-runner.ts`, `ai-analysis.functions.ts`, dados, rotas ou store.
 
-## Como o PDF vai sair
-
-- Mantém a página ACM atual como **página 1**.
-- Nova **página 2** “Argumentos para o Proprietário”, também A4 paisagem, mesmas cores da marca.
-- Continua usando o fluxo de impressão atual (`?auto=slides`) — o usuário gera o PDF do mesmo jeito, só que agora com 2 páginas.
-- Sem nova dependência; tudo renderizado em React + CSS print já existentes.
-
-## Detalhes técnicos (para referência)
-
-- Editar `src/components/print-slides.tsx` para renderizar dois `.slide-page` dentro do mesmo `<section className="print-slides">`, cada um com `page-break-after: always`.
-- Criar componente interno `OwnerPersuasionPage` no mesmo arquivo, recebendo `study`, `sorted`, `branding`.
-- Cálculos auxiliares (gap %, posição no percentil, contagem de comparáveis abaixo do preço, top 5 mais baratos, DOM médio) ficam em helpers locais — sem mexer em `study-engine.ts` nem em tipos.
-- Quando `study.aiAnalysis` estiver presente, usar `discursoProprietario`, `argumentosChave` e `riscos`. Quando não estiver, gerar texto determinístico a partir de `stats` e `comparaveis` — nada de chamada nova de IA no momento da impressão.
-- Ajustes em `src/styles.css` apenas para os novos blocos da página 2 (tipografia, faixas, tabela compacta), reaproveitando as CSS vars `--acm-brand` / `--acm-accent` já injetadas.
-
-## Fora do escopo
-
-- Não altera busca, scoring ou cálculo do ACM.
-- Não cria nova chamada de IA nem novo endpoint.
-- Não mexe na visualização normal do relatório na tela (só no modo slide/PDF).
+## Arquivos editados
+- `src/components/print-slides.tsx` — novo `OwnerLetterPage` + render dentro do `<section>`.
+- `src/styles.css` — novas classes `.owner-letter-*`.
