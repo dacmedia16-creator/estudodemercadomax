@@ -15,8 +15,8 @@ export interface BrandingSettings {
 export const DEFAULT_BRANDING: BrandingSettings = {
   logoUrl: undefined,
   brandName: "Estudo de Mercado Pro",
-  brandColor: "#15803d",
-  accentColor: "#b45309",
+  brandColor: "#003DA5",
+  accentColor: "#DC1C2E",
 };
 
 const KEY = "radar.branding.v1";
