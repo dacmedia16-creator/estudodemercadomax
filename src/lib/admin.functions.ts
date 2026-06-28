@@ -120,3 +120,43 @@ export const adminSetRole = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+export const adminListAllStudies = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { data, error } = await context.supabase
+      .from("studies")
+      .select("id,user_id,status,cidade,bairro,created_at,updated_at")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const emailById = new Map<string, string>();
+    (usersData?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
+
+    return {
+      studies: rows.map((r: any) => ({
+        id: r.id as string,
+        userId: r.user_id as string,
+        email: emailById.get(r.user_id) ?? "(usuário removido)",
+        status: (r.status as string) ?? null,
+        cidade: (r.cidade as string) ?? null,
+        bairro: (r.bairro as string) ?? null,
+        createdAt: r.created_at as string,
+        updatedAt: r.updated_at as string,
+      })),
+    };
+  });
+
+export const adminDeleteStudy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { error } = await context.supabase.from("studies").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
