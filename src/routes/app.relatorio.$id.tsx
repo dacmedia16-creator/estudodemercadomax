@@ -20,6 +20,7 @@ import { CriteriosEditor } from "@/components/criterios-editor";
 import { AcmPanel } from "@/components/acm-panel";
 import { PrintSlides } from "@/components/print-slides";
 import { ComparaveisManager } from "@/components/comparaveis-manager";
+import { AiAnalysisCard } from "@/components/ai-analysis-card";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -223,6 +224,13 @@ function ReportPage() {
       {study.comparaveis.length > 0 && (
         <div className="mt-6 print-break-before">
           <AcmPanel study={study} onChange={setStudy} />
+        </div>
+      )}
+
+      {/* Block 3.3: Análise por IA */}
+      {study.comparaveis.length > 0 && (
+        <div className="mt-6 print:hidden">
+          <AiAnalysisCard study={study} onChange={setStudy} />
         </div>
       )}
 
