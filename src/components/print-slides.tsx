@@ -184,6 +184,8 @@ export function PrintSlides({
       </div>
 
       <OwnerPersuasionPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
+
+      <OwnerLetterPage study={study} acm={acm} dataStr={data} brandName={branding.brandName} />
     </section>
   );
 }
