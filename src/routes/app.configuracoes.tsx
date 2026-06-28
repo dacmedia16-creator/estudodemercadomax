@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Building2, KeyRound, Globe, Bell, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
+import { Building2, KeyRound, Globe, Bell, CheckCircle2, XCircle, Loader2, Zap, Palette, Upload, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { geckoStatus, geckoTest, geckoTestPlp } from "@/lib/gecko.functions";
+import { brandingStore, DEFAULT_BRANDING, type BrandingSettings } from "@/lib/branding-store";
 
 export const Route = createFileRoute("/app/configuracoes")({
   component: Configuracoes,
@@ -36,6 +37,37 @@ function Configuracoes() {
     const v = localStorage.getItem("portal.olx");
     return v === null ? true : v === "1" || v === "true";
   });
+  const [branding, setBranding] = useState<BrandingSettings>(() => brandingStore.get());
+
+  const updateBranding = (patch: Partial<BrandingSettings>) => {
+    setBranding((b) => {
+      const next = { ...b, ...patch };
+      brandingStore.set(next);
+      return next;
+    });
+  };
+
+  const handleLogoUpload = (file: File | null) => {
+    if (!file) return;
+    if (file.size > 300 * 1024) {
+      toast.error("Logo muito grande (máx. 300KB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result ?? "");
+      updateBranding({ logoUrl: dataUrl });
+      toast.success("Logo atualizada!");
+    };
+    reader.onerror = () => toast.error("Falha ao ler imagem.");
+    reader.readAsDataURL(file);
+  };
+
+  const resetBranding = () => {
+    brandingStore.reset();
+    setBranding(DEFAULT_BRANDING);
+    toast.success("Marca restaurada para o padrão Radar.");
+  };
 
   const toggleChaves = (on: boolean) => {
     setChavesOn(on);
@@ -120,6 +152,94 @@ function Configuracoes() {
           <FieldInput label="WhatsApp" defaultValue="(41) 99999-9999" />
           <FieldInput label="E-mail" defaultValue="contato@exemplo.com.br" type="email" />
           <FieldInput label="Logo (URL)" defaultValue="" className="md:col-span-2" />
+        </div>
+      </Card>
+
+      <Card className="mt-6 border-border/60 p-6">
+        <SectionTitle icon={Palette} title="Marca do relatório (ACM)" />
+        <p className="mt-2 text-sm text-muted-foreground">
+          Aparece no cabeçalho e nas faixas da página de Análise Comparativa de Mercado.
+        </p>
+        <div className="mt-4 grid gap-4 md:grid-cols-[160px_1fr]">
+          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 p-3">
+            {branding.logoUrl ? (
+              <img src={branding.logoUrl} alt="Logo" className="max-h-24 max-w-[140px] object-contain" />
+            ) : (
+              <div
+                className="flex h-20 w-20 items-center justify-center rounded-md text-2xl font-extrabold text-white"
+                style={{ background: branding.accentColor }}
+              >
+                {branding.brandName.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("")}
+              </div>
+            )}
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml"
+                className="hidden"
+                onChange={(e) => handleLogoUpload(e.target.files?.[0] ?? null)}
+              />
+              <span className="inline-flex items-center gap-1 rounded-md border border-input bg-card px-2.5 py-1 text-xs font-medium">
+                <Upload className="h-3.5 w-3.5" /> {branding.logoUrl ? "Trocar" : "Enviar logo"}
+              </span>
+            </label>
+            {branding.logoUrl && (
+              <button
+                type="button"
+                onClick={() => updateBranding({ logoUrl: undefined })}
+                className="text-[10px] text-muted-foreground hover:text-destructive"
+              >
+                Remover logo
+              </button>
+            )}
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <FieldInput
+              label="Nome da marca"
+              value={branding.brandName}
+              onChange={(e) => updateBranding({ brandName: e.target.value })}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Cor primária</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={branding.brandColor}
+                    onChange={(e) => updateBranding({ brandColor: e.target.value })}
+                    className="h-9 w-12 cursor-pointer rounded-md border border-input bg-card"
+                  />
+                  <Input
+                    value={branding.brandColor}
+                    onChange={(e) => updateBranding({ brandColor: e.target.value })}
+                    className="font-mono text-xs"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Cor de destaque</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={branding.accentColor}
+                    onChange={(e) => updateBranding({ accentColor: e.target.value })}
+                    className="h-9 w-12 cursor-pointer rounded-md border border-input bg-card"
+                  />
+                  <Input
+                    value={branding.accentColor}
+                    onChange={(e) => updateBranding({ accentColor: e.target.value })}
+                    className="font-mono text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="md:col-span-2 flex items-center justify-between rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <span>Aplicado em <strong>Exportar ACM</strong> (1 página A4 paisagem).</span>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={resetBranding}>
+                <RotateCcw className="h-3.5 w-3.5" /> Restaurar padrão
+              </Button>
+            </div>
+          </div>
         </div>
       </Card>
 
