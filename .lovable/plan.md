@@ -1,48 +1,27 @@
-## Diagnóstico
+## Problema
 
-Não foi erro da API — foi como o estudo prioriza a camada **"Mesmo prédio"**.
+O slide ACM (pré-visualização na tela e no PDF) só atualiza depois que o usuário clica em **Salvar ajustes** no painel ACM. Isso acontece porque `AcmPanel` mantém os sliders/inputs num estado local (`acm`) e só repassa para o `study` (via `onChange`) dentro do `persist()`. Como `PrintSlides` lê de `study.acm`, ele fica "congelado" até o save.
 
-Quando você marca um edifício (ex.: Cannes Campolim) com `priorizarEdificio`, o `study-runner.ts` faz isto (linhas 709-711):
+Mexer em comparáveis (excluir/incluir) já atualiza o slide, porque o `ComparaveisManager` chama `onChange` na hora.
 
-```
-if (priorizarEdificio && condoMatches.length >= 1) {
-  chosen = condoMatches;   // <-- usa TODOS os imóveis do prédio
-}
-```
+## Correção
 
-Ou seja, **qualquer apartamento do mesmo condomínio entra no resultado**, mesmo que tenha 1 dormitório e 45 m² — porque o condomínio Cannes Campolim tem várias tipologias (1 dorm/45 m², 3 dorm/103 m² etc.). O filtro de quartos/área só é aplicado nas camadas de bairro/cidade, não nas âncoras de prédio/endereço.
+Tornar o painel ACM **reativo em tempo real**, sem perder o botão de salvar:
 
-O mesmo vale para a Camada 2 ("Mesmo endereço") quando ela dispara.
+1. `src/components/acm-panel.tsx`
+   - No `update(patch)`, além de atualizar o estado local, chamar `onChange({ ...study, acm: next })` para que o relatório e o slide reflitam o ajuste imediatamente.
+   - O botão **Salvar ajustes** continua existindo e passa a apenas persistir no `studyStore` (sem precisar mexer em estado, já que o `study` já está atualizado em memória).
+   - **Resetar** também propaga via `onChange` para voltar o slide ao neutro na hora.
+   - Sincronizar o estado local quando o `study.id` muda (caso o usuário reexecute a busca e o estudo seja substituído) usando um `useEffect` simples.
 
-## O que vou ajustar
+2. `src/routes/app.relatorio.$id.tsx`
+   - Garantir que o `<PrintSlides variant="screen" />` (linha 522) e o `<PrintSlides />` de impressão (linha 136) recebem o `study` mais recente — já recebem, basta a propagação acima funcionar.
+   - Sem outras mudanças.
 
-### 1. Filtro de tipologia também nas âncoras (prédio + endereço)
-Em `src/lib/study-runner.ts`, aplicar nas camadas 1 e 2 os mesmos limites de **quartos** (±1) e **área útil** (±25%) que já existem no filtro estrito. Imóveis sem dado de quartos/área seguem passando (são enriquecidos via PDP).
-
-### 2. Enriquecimento PDP antes do filtro nas âncoras
-Hoje os itens incompletos do mesmo prédio ficam com badge "Aproximado" e área "—". Vou rodar PDP nos top N (até 6) **antes** de aplicar o filtro de tipologia, para não descartar bons matches por falta de dado.
-
-### 3. Funil mais transparente
-Novas linhas:
-- `Mesmo prédio: removidos por quartos (3) ou área (105-175 m²)` — total
-- `Mesmo endereço: removidos por quartos/área` — total
-
-Assim você enxerga quantos foram cortados e por quê.
-
-### 4. Controle opcional no painel "Critérios da busca"
-Adicionar um toggle **"Aplicar critérios de quartos/área no mesmo prédio"** (ligado por padrão) em `src/components/criterios-editor.tsx`. Se você quiser ver TODAS as unidades do prédio (caso raro de comparativo de tipologias), desliga o toggle e refaz o estudo.
-
-### 5. Sem mexer na busca em si
-A pipeline (PLP → PDP → camadas) continua igual; só muda o filtro local nas âncoras. Nenhum crédito extra de API é gasto, salvo os PDPs do passo 2 (que já são limitados a 6).
-
-## Arquivos afetados
-
-- `src/lib/study-runner.ts` — aplicar filtros nas camadas `condominio` e `endereco`, novas entradas no `funilBusca`, enriquecimento PDP das âncoras.
-- `src/lib/study-types.ts` — novo campo opcional `filtrarAncoras?: boolean` em `SearchOverrides`.
-- `src/components/criterios-editor.tsx` — toggle "Aplicar critérios no mesmo prédio".
+Nenhuma mudança de lógica de busca/ACM/cálculos. Apenas reatividade da UI.
 
 ## Resultado esperado
 
-Para seu caso (3 dorm / 3 suítes / 140 m² no Cannes Campolim):
-- As 4 unidades de 45-103 m² / 1 qto seriam descartadas com a etiqueta `Mesmo prédio: removidos por quartos/área`.
-- Restariam só as unidades do prédio compatíveis; se < 4, o sistema cai naturalmente nas camadas de endereço/bairro como hoje.
+- Mover sliders de Localização/Conservação/Idade/Padrão → slide atualiza Valor avaliado, Valor sugerido, Máx. de publicação e os fatores no rodapé em tempo real.
+- Mudar Reforma R$/m² ou Margem → slide atualiza desconto de reforma e faixas na hora.
+- Botão **Salvar ajustes** continua persistindo no banco; reabrir o estudo mantém os valores.
