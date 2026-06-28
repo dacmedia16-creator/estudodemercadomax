@@ -22,7 +22,7 @@ function ExamplePage() {
         areaUtil: 110, quartos: 3, suites: 1, banheiros: 2, vagas: 2,
         condominio: 850, iptu: 220, valorPretendido: 820000,
         diferenciais: ["Piscina", "Academia", "Churrasqueira", "Varanda gourmet"],
-        portais: ["Zap Imóveis"],
+        portais: ["Zap Imóveis", "Chaves na Mão", "OLX"],
       });
       try {
         await studyStore.save(result);
