@@ -880,9 +880,11 @@
   .print-owner-pages > .acm-page {
     page: owner;
     width: 210mm !important;
+    max-width: 210mm !important;
     height: 297mm !important;
     min-height: 297mm !important;
     padding: 12mm 12mm !important;
+    box-sizing: border-box !important;
     overflow: hidden;
     page-break-before: always;
     break-before: page;
