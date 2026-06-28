@@ -43,7 +43,7 @@ function NovoEstudo() {
   const [step, setStep] = useState(1);
   const [cep, setCep] = useState("");
   const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "ok" | "notfound" | "error">("idle");
-  const [radiusKm, setRadiusKm] = useState<number>(2);
+  const [radiusKm] = useState<number>(5);
   const [fieldModes] = useState<Record<FieldKey, FieldMode>>({ ...DEFAULT_FIELD_MODES });
   const [data, setData] = useState<Partial<StudyInput>>({
     finalidade: "Venda",
@@ -296,60 +296,7 @@ function NovoEstudo() {
 
         {step === 4 && (
           <div>
-            <Label className="mb-3 block text-sm font-medium">Portais para busca</Label>
-            <div className="grid gap-3 md:grid-cols-3">
-              {PORTAIS.map((p) => {
-                const active = data.portais?.includes(p.nome);
-                return (
-                  <button
-                    key={p.nome}
-                    type="button"
-                    disabled={!p.ativo}
-                    onClick={() => togglePortal(p.nome)}
-                    className={cn(
-                      "flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition",
-                      active
-                        ? "border-primary bg-primary/10"
-                        : "border-border bg-card hover:border-primary/40",
-                      !p.ativo && "cursor-not-allowed opacity-50"
-                    )}
-                  >
-                    <div className="flex w-full items-center justify-between">
-                      <span className="font-semibold">{p.nome}</span>
-                      {active && <Check className="h-4 w-4 text-primary" />}
-                    </div>
-                    <span className={cn("text-xs", p.ativo ? "text-primary" : "text-muted-foreground")}>
-                      {p.ativo ? "Disponível" : "Em breve"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Também configurável em <span className="font-medium text-foreground">Configurações → Portais ativos</span>.
-            </p>
-            <div className="mt-6 rounded-xl border border-border bg-muted/30 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <Label className="text-sm font-medium">Raio de busca</Label>
-                <span className="text-sm font-semibold text-primary">{radiusKm} km</span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={5}
-                step={1}
-                value={radiusKm}
-                onChange={(e) => setRadiusKm(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-              <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-                <span>1 km</span><span>2 km</span><span>3 km</span><span>4 km</span><span>5 km</span>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Distância máxima a partir do endereço informado (aplicado quando o geocoding identificar coordenadas).
-              </p>
-            </div>
-            <Card className="mt-6 border-warning/30 bg-warning/5 p-4 text-sm">
+            <Card className="border-warning/30 bg-warning/5 p-4 text-sm">
               <p className="text-muted-foreground">
                 <span className="font-semibold text-foreground">Pronto para gerar?</span> Vamos buscar imóveis comparáveis e montar seu relatório completo em segundos.
               </p>
