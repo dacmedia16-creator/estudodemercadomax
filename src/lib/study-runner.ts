@@ -465,6 +465,7 @@ export async function runStudy(
             if (p.incomplete) p.aproximado = true;
             return p;
           });
+        condoMatches = await enrichAndFilterAnchors(condoMatches, "Mesmo prédio");
         condoMatches.forEach((p) => mesmoCondominioIds.add(p.id));
         funilBusca.push({ etapa: `Mesmo condomínio (${res.pages} pág.)`, total: condoMatches.length });
       } catch { /* best-effort */ }
@@ -497,6 +498,7 @@ export async function runStudy(
         if (removidosTipoEnd > 0) {
           funilBusca.push({ etapa: `Mesmo endereço: removidos por tipo (${tipo})`, total: removidosTipoEnd });
         }
+        enderecoMatches = await enrichAndFilterAnchors(enderecoMatches, "Mesmo endereço");
         enderecoMatches.forEach((p) => mesmoEnderecoIds.add(p.id));
         funilBusca.push({ etapa: `Mesmo endereço (${res.pages} pág.)`, total: enderecoMatches.length });
       } catch { /* best-effort */ }
