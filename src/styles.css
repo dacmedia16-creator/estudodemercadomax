@@ -164,9 +164,198 @@
 /* Esconde blocos exclusivos de impressão na tela (apenas screen) */
 @media screen {
   .print-onepager,
-  .print-slides {
+  .print-slides:not(.print-slides-screen) {
     display: none !important;
   }
+}
+
+/* -------------------------------------------------------------
+ * ACM (Análise Comparativa de Mercado) — estilos compartilhados
+ * entre impressão e a pré-visualização em tela (`.print-slides-screen`).
+ * Cores derivam de `--acm-brand` / `--acm-accent` injetadas inline
+ * pela `<section className="print-slides">`.
+ * ----------------------------------------------------------- */
+.print-slides .acm-page {
+  width: 297mm;
+  min-height: 210mm;
+  padding: 8mm 10mm;
+  box-sizing: border-box;
+  position: relative;
+  color: #111;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.print-slides .acm-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 5pt;
+}
+.print-slides .acm-logo { display: flex; align-items: center; gap: 8pt; }
+.print-slides .acm-logo img { max-height: 56pt; max-width: 140pt; object-fit: contain; }
+.print-slides .acm-logo-placeholder {
+  width: 56pt; height: 56pt; border-radius: 6pt;
+  background: var(--acm-accent, #b45309); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18pt; font-weight: 800; letter-spacing: 0.04em;
+}
+.print-slides .acm-brand-name {
+  font-size: 11pt; font-weight: 800; letter-spacing: 0.06em;
+  color: var(--acm-accent, #b45309); text-transform: uppercase;
+}
+.print-slides .acm-title {
+  font-size: 22pt; font-weight: 700; color: #333; letter-spacing: -0.01em;
+}
+.print-slides .acm-stripe {
+  height: 8pt; background: #ffe93f;
+  border-top: 0.75pt solid #999; border-bottom: 0.75pt solid #999;
+  margin-bottom: 4pt;
+}
+.print-slides .acm-table {
+  width: 100%; border-collapse: collapse; font-size: 8pt;
+  margin-bottom: 4pt;
+}
+.print-slides .acm-table th,
+.print-slides .acm-table td {
+  border: 0.5pt solid #999;
+  padding: 3pt 5pt;
+  vertical-align: middle;
+  text-align: center;
+}
+.print-slides .acm-table thead th {
+  background: #f1f1f1;
+  font-weight: 700; font-size: 7.5pt;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: #333;
+}
+.print-slides .acm-table .acm-th-main {
+  text-align: left;
+  background: #4a4a4a; color: #fff;
+  font-size: 8.5pt; letter-spacing: 0.06em;
+}
+.print-slides .acm-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.print-slides .acm-bold { font-weight: 700; }
+.print-slides .acm-link-cell {
+  text-align: left; display: flex; align-items: center; gap: 6pt;
+  max-width: 0;
+}
+.print-slides .acm-row-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 14pt; height: 14pt; border-radius: 3pt;
+  background: var(--acm-brand, #15803d); color: #fff;
+  font-size: 7.5pt; font-weight: 700;
+}
+.print-slides .acm-link {
+  color: #1a4ed1; text-decoration: underline;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1; min-width: 0;
+}
+.print-slides .acm-definicao-nome span:last-child { font-weight: 700; }
+.print-slides .acm-empty {
+  text-align: center; color: #888; font-style: italic; padding: 10pt;
+}
+.print-slides .acm-resumo {
+  display: grid; grid-template-columns: 1fr 1.6fr; gap: 0;
+  border: 0.5pt solid #999;
+  margin-top: 2pt;
+}
+.print-slides .acm-resumo-left {
+  background: #f0e8d0;
+  border-right: 0.5pt solid #999;
+  display: grid; grid-template-rows: auto auto auto auto;
+}
+.print-slides .acm-resumo-left-row {
+  padding: 4pt 8pt; font-size: 8.5pt; text-align: center;
+  border-bottom: 0.5pt solid #c9bf9d;
+}
+.print-slides .acm-resumo-left-row.acm-resumo-head {
+  background: #d9d2b2; font-weight: 700; color: #4a3f1f;
+  text-transform: uppercase; letter-spacing: 0.04em; font-size: 8pt;
+}
+.print-slides .acm-resumo-left-row:last-child { border-bottom: none; }
+.print-slides .acm-similares-count { font-size: 14pt; font-weight: 800; color: #4a3f1f; }
+.print-slides .acm-resumo-right { display: flex; flex-direction: column; }
+.print-slides .acm-resumo-right-title {
+  background: #4a4a4a; color: #fff;
+  text-align: center; font-weight: 700; font-size: 9pt;
+  padding: 4pt; letter-spacing: 0.06em;
+  border-bottom: 0.5pt solid #999;
+}
+.print-slides .acm-resumo-row {
+  display: grid; grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 3pt 10pt;
+  border-bottom: 0.5pt solid #ddd;
+  font-size: 8.5pt;
+}
+.print-slides .acm-resumo-row:last-child { border-bottom: none; }
+.print-slides .acm-resumo-label { color: #333; }
+.print-slides .acm-resumo-value {
+  font-weight: 700; font-variant-numeric: tabular-nums;
+  text-align: right; min-width: 80pt;
+}
+.print-slides .acm-highlight-yellow {
+  background: #fff368;
+  border-bottom: 0.5pt solid #c9a300 !important;
+  padding: 6pt 10pt;
+}
+.print-slides .acm-highlight-yellow .acm-resumo-label {
+  font-weight: 800; text-transform: uppercase; color: #5b4a00;
+  font-size: 9pt; letter-spacing: 0.04em;
+}
+.print-slides .acm-highlight-yellow .acm-resumo-value { color: #c00; font-size: 14pt; }
+.print-slides .acm-highlight-green {
+  background: var(--acm-brand, #15803d); color: #fff;
+  padding: 5pt 10pt;
+}
+.print-slides .acm-highlight-green .acm-resumo-label {
+  color: #fff; font-weight: 700; text-transform: uppercase;
+  font-size: 8.5pt; letter-spacing: 0.06em;
+}
+.print-slides .acm-highlight-green .acm-resumo-value { color: #fff; font-size: 11pt; }
+.print-slides .acm-footer {
+  display: grid; grid-template-columns: 1fr 2fr; gap: 6pt;
+  margin-top: 4pt;
+}
+.print-slides .acm-legend {
+  border: 0.5pt solid #999; background: #f7f4ea;
+  padding: 4pt 8pt; font-size: 7.5pt; color: #444;
+  display: flex; flex-direction: column; justify-content: center; gap: 2pt;
+}
+.print-slides .acm-fatores {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+  border: 0.5pt solid #999;
+}
+.print-slides .acm-fator {
+  text-align: center; padding: 3pt 4pt;
+  border-right: 0.5pt solid #999; background: #e8f3f1;
+}
+.print-slides .acm-fator:last-child { border-right: none; }
+.print-slides .acm-fator-label {
+  font-size: 7pt; font-weight: 700; text-transform: uppercase;
+  color: #335; letter-spacing: 0.04em;
+}
+.print-slides .acm-fator-value {
+  font-size: 11pt; font-weight: 800; color: #1a4d3e;
+}
+.print-slides .acm-page-meta {
+  margin-top: auto;
+  padding-top: 4pt;
+  text-align: right;
+  font-size: 7pt; color: #888;
+}
+
+/* Pré-visualização em tela: enquadra a "folha" ACM dentro do relatório */
+.print-slides-screen {
+  display: block;
+  overflow-x: auto;
+  padding: 8px 0;
+}
+.print-slides-screen .acm-page {
+  margin: 0 auto;
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.08);
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
 }
 
 @media print {
