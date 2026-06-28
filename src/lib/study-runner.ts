@@ -185,6 +185,7 @@ export async function runStudy(
   const usarEndereco = enderecoRaw.replace(/\s+/g, " ").length >= 4;
   const maxPages = Math.min(3, Math.max(1, overrides.maxPages ?? 3));
   const radiusKm = Math.min(5, Math.max(1, overrides.radiusKm ?? 2));
+  const filtrarAncoras = overrides.filtrarAncoras ?? true;
   const TARGET = 8;
   const buscaLivre = !cidade || cidade.trim().length === 0;
 
@@ -212,6 +213,55 @@ export async function runStudy(
         : p.quartos >= quartosMin - tol && p.quartos <= quartosMax + tol;
     const strictLocal = (p: MockProperty) =>
       matchesType(p) && inBairro(p) && quartosOk(p, 0) && areaInRange(p, 0) && priceInRange(p, 0);
+
+    // ---- Anchor (mesmo prédio / endereço) typology filter ----
+    // Para itens com dado, exige quartos ±1 e área dentro do range.
+    // Itens sem área/quartos passam — são enriquecidos via PDP antes do filtro.
+    const enrichAndFilterAnchors = async (
+      items: MockProperty[],
+      layerLabel: "Mesmo prédio" | "Mesmo endereço",
+    ): Promise<MockProperty[]> => {
+      if (!filtrarAncoras || items.length === 0) return items;
+      const needsEnrich = items
+        .filter((p) => !!p.url && (p.incomplete || !p.areaUtil || !p.quartos))
+        .slice(0, 6);
+      if (needsEnrich.length > 0) {
+        await Promise.allSettled(
+          needsEnrich.map(async (p) => {
+            try {
+              pdpCalls++;
+              const pdpTarget = PORTAL_NAME_TO_TARGET[p.portal] ?? "zapimoveis.com.br";
+              const pdp = await geckoPdp({ data: { url: p.url, target: pdpTarget } });
+              if (pdp.ok && pdp.data && typeof pdp.data === "object" && !pdp.notFound) {
+                Object.assign(p, enrichWithPdp(p, pdp.data));
+                if (p.areaUtil && p.quartos) p.incomplete = false;
+              }
+            } catch { /* ignore */ }
+          }),
+        );
+      }
+      const before = items.length;
+      const kept = items.filter((p) => {
+        const areaOk = !p.areaUtil
+          ? true
+          : p.areaUtil >= areaMin && p.areaUtil <= areaMax;
+        const qOk = !p.quartos
+          ? true
+          : quartosMin === 0 && quartosMax === 0
+          ? true
+          : p.quartos >= quartosMin - 1 && p.quartos <= quartosMax + 1;
+        return areaOk && qOk;
+      });
+      const removed = before - kept.length;
+      if (removed > 0) {
+        const qLabel = quartosMin === quartosMax ? `${quartosMin}±1` : `${quartosMin}-${quartosMax}±1`;
+        funilBusca.push({
+          etapa: `${layerLabel}: removidos por quartos (${qLabel}) ou área (${areaMin}-${areaMax} m²)`,
+          total: removed,
+        });
+      }
+      return kept;
+    };
 
     // Adaptive pagination across all active portals — stops when
     // shouldStop(collected) is true OR every portal returned an empty page.
@@ -415,6 +465,7 @@ export async function runStudy(
             if (p.incomplete) p.aproximado = true;
             return p;
           });
+        condoMatches = await enrichAndFilterAnchors(condoMatches, "Mesmo prédio");
         condoMatches.forEach((p) => mesmoCondominioIds.add(p.id));
         funilBusca.push({ etapa: `Mesmo condomínio (${res.pages} pág.)`, total: condoMatches.length });
       } catch { /* best-effort */ }
@@ -447,6 +498,7 @@ export async function runStudy(
         if (removidosTipoEnd > 0) {
           funilBusca.push({ etapa: `Mesmo endereço: removidos por tipo (${tipo})`, total: removidosTipoEnd });
         }
+        enderecoMatches = await enrichAndFilterAnchors(enderecoMatches, "Mesmo endereço");
         enderecoMatches.forEach((p) => mesmoEnderecoIds.add(p.id));
         funilBusca.push({ etapa: `Mesmo endereço (${res.pages} pág.)`, total: enderecoMatches.length });
       } catch { /* best-effort */ }
