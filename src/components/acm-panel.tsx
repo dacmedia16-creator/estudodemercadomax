@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,21 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
   const [acm, setAcm] = useState<AcmAdjustments>({ ...DEFAULT_ACM, ...(study.acm ?? {}) });
   const computed = useMemo(() => computeAcm(study, acm), [study, acm]);
 
-  const update = (patch: Partial<AcmAdjustments>) => setAcm((cur) => ({ ...cur, ...patch }));
+  // Resync quando o estudo muda (ex.: reexecução da busca cria novo objeto).
+  useEffect(() => {
+    setAcm({ ...DEFAULT_ACM, ...(study.acm ?? {}) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [study.id, study.revisao]);
+
+  const update = (patch: Partial<AcmAdjustments>) => {
+    setAcm((cur) => {
+      const next = { ...cur, ...patch };
+      // Propaga em tempo real para o relatório/slide refletirem o ajuste
+      // sem precisar clicar em "Salvar ajustes".
+      onChange?.({ ...study, acm: next });
+      return next;
+    });
+  };
 
   const persist = async () => {
     const next: StudyResult = { ...study, acm };
@@ -35,7 +49,10 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
     }
   };
 
-  const reset = () => setAcm(DEFAULT_ACM);
+  const reset = () => {
+    setAcm(DEFAULT_ACM);
+    onChange?.({ ...study, acm: DEFAULT_ACM });
+  };
 
   const diffPretendido =
     study.input.valorPretendido > 0
