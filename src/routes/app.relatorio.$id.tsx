@@ -573,91 +573,101 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
   const atencao = study.pontosAtencao.slice(0, 4);
   return (
     <section className="print-onepager hidden print:block">
-      <div className="op-header">
-        <div>
-          <div className="op-title">{input.tipo} em {input.bairro}, {input.cidade}/{input.estado}</div>
-          <div className="op-sub">
-            {input.areaUtil} m² · {input.quartos} dorm{input.suites > 0 ? ` (${input.suites} suíte${input.suites > 1 ? "s" : ""})` : ""} · {input.vagas} vaga{input.vagas !== 1 ? "s" : ""} · {input.finalidade}
-          </div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: "9pt", fontWeight: 700, color: "var(--primary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Estudo de Mercado Pro</div>
-          <div style={{ fontSize: "7.5pt", color: "#666" }}>
-            {new Date(study.createdAt).toLocaleDateString("pt-BR")}
-            {typeof study.revisao === "number" && study.revisao > 0 ? ` · rev. ${study.revisao}` : ""}
-          </div>
+      {/* Faixa de marca */}
+      <div className="op-brandbar">
+        <div className="op-brandbar-left">ESTUDO DE MERCADO PRO</div>
+        <div className="op-brandbar-right">
+          #{study.id.slice(0, 8).toUpperCase()} · {new Date(study.createdAt).toLocaleDateString("pt-BR")}
+          {typeof study.revisao === "number" && study.revisao > 0 ? ` · rev. ${study.revisao}` : ""}
         </div>
       </div>
 
-      {/* HERO: valor recomendado em destaque + mín/máx */}
-      <div className="op-hero">
-        <div className="op-hero-main">
-          <div className="lbl">Valor recomendado para venda</div>
-          <div className="op-hero-value">{formatBRL(acm.valorSugerido)}</div>
-          <div className="op-hero-meta">
-            {study.comparaveis.length} comparáveis · média {formatBRL(study.precoM2Medio)}/m² · status: <b>{study.status}</b>
-          </div>
+      {/* Título do imóvel */}
+      <div className="op-titleblock">
+        <div className="op-title">{input.tipo} · {input.bairro}, {input.cidade}/{input.estado}</div>
+        <div className="op-sub">
+          {input.areaUtil} m² · {input.quartos} dorm{input.suites > 0 ? ` (${input.suites} suíte${input.suites > 1 ? "s" : ""})` : ""} · {input.vagas} vaga{input.vagas !== 1 ? "s" : ""} · {input.finalidade}
         </div>
-        <div className="op-hero-side">
-          <div className="op-pill" style={{ borderColor: "var(--primary)" }}>
+      </div>
+
+      {/* HERO azul cheio — valor recomendado */}
+      <div className="op-hero">
+        <div className="op-hero-label">Valor recomendado para venda</div>
+        <div className="op-hero-value">{formatBRL(acm.valorSugerido)}</div>
+        <div className="op-hero-pills">
+          <div className="op-hpill">
             <div className="lbl">Mínimo de fechamento</div>
             <div className="val">{formatBRL(acm.valorMinimoFechamento)}</div>
           </div>
-          <div className="op-pill" style={{ borderColor: "var(--primary)" }}>
-            <div className="lbl">Máximo de publicação</div>
-            <div className="val" style={{ color: "var(--primary)" }}>{formatBRL(acm.valorMaximoPublicacao)}</div>
+          <div className="op-hpill op-hpill-strong">
+            <div className="lbl">Valor ideal</div>
+            <div className="val">{formatBRL(acm.valorSugerido)}</div>
           </div>
+          <div className="op-hpill">
+            <div className="lbl">Máximo de publicação</div>
+            <div className="val">{formatBRL(acm.valorMaximoPublicacao)}</div>
+          </div>
+        </div>
+        <div className="op-hero-meta">
+          {study.comparaveis.length} comparáveis analisados · média de mercado {formatBRL(study.precoM2Medio)}/m² · status <b>{study.status}</b>
         </div>
       </div>
 
-      {/* Resumo ACM */}
-      <div className="op-section-title">Resumo ACM</div>
-      <div className="op-row3">
-        <div className="op-cell">
-          <b>Imóvel</b><br />
-          Valor pretendido: {formatBRL(input.valorPretendido)}<br />
-          R$/m² pretendido: {formatBRL(study.precoM2Pretendido)}<br />
-          Cond.: {formatBRL(input.condominio)}
+      {/* KPIs 3 colunas */}
+      <div className="op-kpis">
+        <div className="op-kpi">
+          <div className="lbl">Pretendido pelo proprietário</div>
+          <div className="val">{formatBRL(input.valorPretendido)}</div>
+          <div className="meta">{formatBRL(study.precoM2Pretendido)}/m² · cond. {formatBRL(input.condominio)}</div>
         </div>
-        <div className="op-cell">
-          <b>Mercado</b><br />
-          Médio: {formatBRL(study.precoMedio)}<br />
-          Faixa: {formatBRL(study.faixaMin)} – {formatBRL(study.faixaMax)}<br />
-          Min/Max: {formatBRL(study.menorPreco)} / {formatBRL(study.maiorPreco)}
+        <div className="op-kpi">
+          <div className="lbl">Mercado comparado</div>
+          <div className="val">{formatBRL(study.precoMedio)}</div>
+          <div className="meta">faixa {formatBRL(study.faixaMin)} – {formatBRL(study.faixaMax)}</div>
         </div>
-        <div className="op-cell">
-          <b>Diagnóstico</b><br />
-          <span style={{ fontSize: "7.5pt", lineHeight: 1.3 }}>{study.diagnostico}</span>
+        <div className="op-kpi">
+          <div className="lbl">Diagnóstico</div>
+          <div className="val op-kpi-status">{study.status}</div>
+          <div className="meta">{study.diagnostico}</div>
         </div>
       </div>
 
       {/* Comparáveis */}
       <div className="op-section-title">Top comparáveis</div>
-      <table>
+      <table className="op-table">
         <thead>
           <tr>
-            <th>Portal</th>
+            <th style={{ width: "10%" }}>Portal</th>
             <th>Endereço / título</th>
-            <th className="num">m²</th>
-            <th className="num">Qtos</th>
-            <th className="num">Preço</th>
-            <th className="num">R$/m²</th>
-            <th className="num">Sim.</th>
+            <th className="num" style={{ width: "7%" }}>m²</th>
+            <th className="num" style={{ width: "7%" }}>Qtos</th>
+            <th className="num" style={{ width: "13%" }}>Preço</th>
+            <th className="num" style={{ width: "11%" }}>R$/m²</th>
+            <th style={{ width: "16%" }}>Similaridade</th>
           </tr>
         </thead>
         <tbody>
           {top.map((c) => (
             <tr key={c.id}>
               <td>{c.portal}</td>
-              <td style={{ maxWidth: "180pt" }}>
-                <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.titulo}</div>
-                <div style={{ fontSize: "7pt", color: "#666" }}>{c.bairro}</div>
+              <td>
+                <div className="op-cmp-title">{c.titulo}</div>
+                <div className="op-cmp-sub">
+                  {c.bairro}
+                  {c.mesmoCondominio && <span className="op-tag">mesmo prédio</span>}
+                  {!c.mesmoCondominio && c.mesmoEndereco && <span className="op-tag">mesmo endereço</span>}
+                </div>
               </td>
               <td className="num">{c.areaUtil > 0 ? c.areaUtil : "—"}</td>
               <td className="num">{c.quartos > 0 ? c.quartos : "—"}</td>
               <td className="num"><b>{formatBRL(c.preco)}</b></td>
               <td className="num">{c.precoM2 > 0 ? formatBRL(c.precoM2) : "—"}</td>
-              <td className="num">{c.similaridade}%</td>
+              <td>
+                <div className="op-simwrap">
+                  <div className="op-simbar"><span style={{ width: `${Math.max(2, Math.min(100, c.similaridade))}%` }} /></div>
+                  <span className="op-simval">{c.similaridade}%</span>
+                </div>
+              </td>
             </tr>
           ))}
           {top.length === 0 && (
@@ -667,26 +677,28 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
       </table>
 
       {/* Pontos fortes / atenção */}
-      <div className="op-row2" style={{ marginTop: "6pt" }}>
-        <div className="op-cell">
-          <b style={{ color: "var(--success, #15803d)" }}>Pontos fortes</b>
+      <div className="op-points">
+        <div className="op-point op-point-good">
+          <div className="op-point-head">✓ Pontos fortes</div>
           <ul>{fortes.map((p) => <li key={p}>{p}</li>)}</ul>
         </div>
-        <div className="op-cell">
-          <b style={{ color: "#b45309" }}>Pontos de atenção</b>
+        <div className="op-point op-point-warn">
+          <div className="op-point-head">! Pontos de atenção</div>
           <ul>{atencao.map((p) => <li key={p}>{p}</li>)}</ul>
         </div>
       </div>
 
-      {/* Sugestão comercial – uma linha */}
-      <div className="op-section-title">Sugestão comercial</div>
-      <div className="op-cell" style={{ fontSize: "8pt" }}>
-        <b>Título:</b> {study.tituloSugerido}<br />
-        <b>Argumento:</b> {study.argumentoProprietario}
+      {/* Sugestão comercial */}
+      <div className="op-suggest">
+        <div className="op-suggest-head">Sugestão comercial</div>
+        <div className="op-suggest-body">
+          <div><span className="lbl">Título:</span> {study.tituloSugerido}</div>
+          <div style={{ marginTop: "2pt" }}><span className="lbl">Argumento:</span> {study.argumentoProprietario}</div>
+        </div>
       </div>
 
       <div className="op-footer">
-        <span>Estudo de Mercado Pro · estudo {study.id.slice(0, 8)}</span>
+        <span>Estudo de Mercado Pro</span>
         <span>Gerado em {new Date(study.createdAt).toLocaleString("pt-BR")}</span>
       </div>
     </section>
