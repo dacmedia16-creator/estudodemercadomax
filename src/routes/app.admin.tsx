@@ -14,13 +14,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ExternalLink, FileText, Loader2, Plus, Search, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { DollarSign, ExternalLink, FileText, Loader2, Plus, Search, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   adminCreateUser, adminDeleteStudy, adminDeleteUser, adminListAllStudies, adminListUsers, adminSetRole,
 } from "@/lib/admin.functions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApiCostPanel } from "@/components/api-cost-panel";
 
 export const Route = createFileRoute("/app/admin")({
   component: AdminPage,
@@ -106,6 +107,7 @@ function AdminPage() {
         <TabsList>
           <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> Usuários</TabsTrigger>
           <TabsTrigger value="studies" className="gap-2"><FileText className="h-4 w-4" /> Estudos</TabsTrigger>
+          <TabsTrigger value="cost" className="gap-2"><DollarSign className="h-4 w-4" /> Custo API</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="mt-4">
@@ -225,6 +227,10 @@ function AdminPage() {
 
         <TabsContent value="studies" className="mt-4">
           <AdminStudiesTab currentUserId={null} />
+        </TabsContent>
+
+        <TabsContent value="cost" className="mt-4">
+          <ApiCostPanel />
         </TabsContent>
       </Tabs>
     </div>
