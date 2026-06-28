@@ -15,8 +15,17 @@ export const Route = createFileRoute("/app/estudos")({
 
 function EstudosSalvos() {
   const [list, setList] = useState<StudyResult[]>([]);
-  useEffect(() => setList(studyStore.all()), []);
-  const refresh = () => setList(studyStore.all());
+  const [loading, setLoading] = useState(true);
+  const refresh = async () => {
+    try {
+      setList(await studyStore.all());
+    } catch (err) {
+      toast.error(`Não foi possível carregar os estudos: ${(err as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { void refresh(); }, []);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
@@ -66,13 +75,21 @@ function EstudosSalvos() {
                   <Link to="/app/relatorio/$id" params={{ id: s.id }} className="flex-1">
                     <Button variant="default" size="sm" className="w-full gap-1">Abrir <ArrowRight className="h-3.5 w-3.5" /></Button>
                   </Link>
-                  <Button variant="outline" size="icon" onClick={() => {
-                    const dup = generateStudy(s.input);
-                    studyStore.save(dup);
-                    refresh();
-                    toast.success("Estudo duplicado!");
+                  <Button variant="outline" size="icon" onClick={async () => {
+                    try {
+                      const dup = generateStudy(s.input);
+                      await studyStore.save(dup);
+                      await refresh();
+                      toast.success("Estudo duplicado!");
+                    } catch (err) { toast.error((err as Error).message); }
                   }}><CopyIcon className="h-4 w-4" /></Button>
-                  <Button variant="outline" size="icon" onClick={() => { studyStore.remove(s.id); refresh(); toast.success("Removido"); }}>
+                  <Button variant="outline" size="icon" onClick={async () => {
+                    try {
+                      await studyStore.remove(s.id);
+                      await refresh();
+                      toast.success("Removido");
+                    } catch (err) { toast.error((err as Error).message); }
+                  }}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
