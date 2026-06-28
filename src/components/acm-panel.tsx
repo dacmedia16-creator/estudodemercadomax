@@ -24,11 +24,15 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
 
   const update = (patch: Partial<AcmAdjustments>) => setAcm((cur) => ({ ...cur, ...patch }));
 
-  const persist = () => {
+  const persist = async () => {
     const next: StudyResult = { ...study, acm };
-    studyStore.save(next);
-    onChange?.(next);
-    toast.success("Ajustes ACM salvos");
+    try {
+      await studyStore.save(next);
+      onChange?.(next);
+      toast.success("Ajustes ACM salvos");
+    } catch (err) {
+      toast.error(`Não foi possível salvar: ${(err as Error).message}`);
+    }
   };
 
   const reset = () => setAcm(DEFAULT_ACM);
