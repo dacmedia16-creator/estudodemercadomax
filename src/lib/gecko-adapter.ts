@@ -267,10 +267,8 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     parsePrice(anyItem.price) ||
     parsePrice(anyItem.priceValue) ||
     parsePrice(anyItem.salePrice) ||
-    parsePrice(anyItem.rentPrice) ||
     parsePrice(anyItem.prices?.[0]?.value) ||
     parsePrice(anyItem.sale?.price) ||
-    parsePrice(anyItem.rent?.price) ||
     extractNumber(desc, [/R\$\s*([\d.,]+)/i]) ||
     0;
   if (!preco) return null;
