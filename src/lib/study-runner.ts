@@ -115,6 +115,7 @@ export async function runStudy(
   input: StudyInput,
   overrides: SearchOverrides = {},
   onStep?: RunStudyProgress,
+  studyId?: string,
 ): Promise<RunStudyOutcome> {
   let properties: MockProperty[] = [];
   let fellBack = false;
