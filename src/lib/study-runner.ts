@@ -232,7 +232,7 @@ export async function runStudy(
             try {
               pdpCalls++;
               const pdpTarget = PORTAL_NAME_TO_TARGET[p.portal] ?? "zapimoveis.com.br";
-              const pdp = await geckoPdp({ data: { url: p.url, target: pdpTarget } });
+              const pdp = await geckoPdp({ data: { url: p.url, target: pdpTarget, studyId } });
               if (pdp.ok && pdp.data && typeof pdp.data === "object" && !pdp.notFound) {
                 Object.assign(p, enrichWithPdp(p, pdp.data));
                 if (p.areaUtil && p.quartos) p.incomplete = false;
@@ -344,7 +344,7 @@ export async function runStudy(
                       ...({ categoryPath: mapTipoToOlxCategory(tipo, params.businessType) } as Record<string, unknown>),
                     } as PlpParams)
                   : params;
-              const res = await geckoPlp({ data: { ...portalParams, target: t, page } });
+              const res = await geckoPlp({ data: { ...portalParams, target: t, page, studyId } });
               return { t, res };
             } catch (e) {
               if (!firstError) firstError = (e as Error).message;
@@ -920,7 +920,7 @@ export async function runStudy(
         try {
           pdpCalls++;
           const pdpTarget = PORTAL_NAME_TO_TARGET[p.portal] ?? "zapimoveis.com.br";
-          const pdp = await geckoPdp({ data: { url: p.url, target: pdpTarget } });
+          const pdp = await geckoPdp({ data: { url: p.url, target: pdpTarget, studyId } });
           if (pdp.ok && pdp.notFound) {
             p.removido = true;
             pdpNotFound++;
