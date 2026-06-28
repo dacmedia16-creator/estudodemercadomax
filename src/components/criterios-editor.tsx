@@ -47,6 +47,7 @@ function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<Searc
     priorizarEdificio: o.priorizarEdificio ?? !!(input.edificio && input.edificio.trim()),
     maxPages: o.maxPages ?? 3,
     radiusKm: o.radiusKm ?? 2,
+    filtrarAncoras: o.filtrarAncoras ?? true,
     fieldModes: { ...DEFAULT_FIELD_MODES, ...(o.fieldModes ?? {}) },
   };
 }
@@ -91,6 +92,7 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
       priorizarEdificio: form.priorizarEdificio,
       maxPages: Number(form.maxPages),
       radiusKm: Number(form.radiusKm),
+      filtrarAncoras: form.filtrarAncoras,
       fieldModes: form.fieldModes,
     });
   };
@@ -268,6 +270,18 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
                 checked={form.priorizarEdificio}
                 onCheckedChange={(v) => set("priorizarEdificio", v)}
                 disabled={!form.edificio.trim()}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-primary/20 pt-3">
+              <div>
+                <div className="text-sm font-medium">Aplicar critérios de quartos/área no mesmo prédio</div>
+                <div className="text-xs text-muted-foreground">
+                  Quando ativo, descarta unidades do prédio/endereço com tipologia diferente (ex.: 1 dorm/45 m² quando o imóvel base é 3 dorm/140 m²). Desligue para ver todas as unidades do condomínio.
+                </div>
+              </div>
+              <Switch
+                checked={form.filtrarAncoras}
+                onCheckedChange={(v) => set("filtrarAncoras", v)}
               />
             </div>
           </div>
