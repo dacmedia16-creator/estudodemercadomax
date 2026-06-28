@@ -638,7 +638,7 @@
 @media print {
   @page {
     size: A4;
-    margin: 8mm 9mm;
+    margin: 0;
   }
 
   html, body {
