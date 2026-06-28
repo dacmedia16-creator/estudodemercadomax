@@ -1,48 +1,24 @@
+## Diagnóstico
 
-## Problema
+Os logs do AI Gateway mostram que a chamada para o Gemini está **respondendo com sucesso (HTTP 200, ~550 tokens de saída)**, mas o card não renderiza o resultado. Causa provável: a saída estruturada (`experimental_output: Output.object(...)`) está chegando como `undefined` no servidor — o modelo retorna texto/markdown em vez de JSON puro, e o parse silencioso resulta em `res.data = { geradoEm }` sem os campos esperados (`resumo`, `faixaRecomendada`, etc.). O componente troca o placeholder por uma view "vazia" e parece não ter feito nada.
 
-Hoje o valor sugerido vem da fórmula ACM (média de R$/m² × multiplicadores × área − reforma). Quando há 1–2 comparáveis muito baratos puxando o piso, a média ignora esse "chão de mercado" e o sugerido fica longe do menor preço — o corretor perde competitividade.
+## Correção
 
-## Solução em duas frentes
+### 1. `src/lib/ai-analysis.functions.ts`
+- Trocar `Output.object` (parse silencioso, frágil com Gemini) por uma chamada `generateText` com instrução explícita de JSON + `response_format`-equivalente via prompt rígido e parse manual com `JSON.parse` resiliente (extrair primeiro `{...}` válido).
+- Validar a saída com Zod antes de retornar; se faltar campo essencial, retornar `{ ok:false, error: "Resposta da IA inválida" }`.
+- Incluir log no servidor com tamanho/preview do texto bruto para futuras depurações.
+- Acrescentar fallback simples: se o modelo falhar em estruturar, calcular faixas a partir dos percentis (entrada=P25, ideal=mediana, teto=P75) e usar o texto livre como `resumo`.
 
-### 1. Ancoragem estatística no valor mínimo (determinística, sem IA)
+### 2. `src/components/ai-analysis-card.tsx`
+- Garantir que, em caso de resposta incompleta (`!res.data?.resumo`), exibir `toast.error` claro em vez de aplicar um `aiAnalysis` vazio.
+- Adicionar `console.error` com `res.error` para facilitar diagnóstico.
+- Validar `next.aiAnalysis` antes do `onChange` para não corromper o estudo salvo.
 
-Trocar a média simples por uma faixa que respeita o piso do mercado:
+### 3. Verificação
+- Rodar o botão no relatório, confirmar nos logs do gateway uma resposta nova e ver o card preenchido com resumo, faixas, riscos e recomendações.
 
-- Calcular **percentis** dos R$/m² dos comparáveis (P10, P25, mediana, P75, P90) em vez de só média.
-- Usar **mediana** como base do valor de m² avaliado (mais robusta a outliers).
-- Adicionar um **"piso competitivo"**: max(P10, menor preço × 1,02). O valor sugerido nunca fica mais de X% acima desse piso (X configurável, default 8%).
-- Detectar **outliers** (preços > P90 × 1,3 ou < P10 × 0,7) e marcar com badge "Outlier" — opção de excluí-los do cálculo com um clique.
-- Mostrar no painel ACM: **Menor**, **P25**, **Mediana**, **Sugerido**, **P75**, **Maior** numa régua visual, com o sugerido posicionado na régua para o corretor ver onde está.
-- Novo controle "Estratégia de precificação" no painel ACM: **Agressivo (P25)** / **Equilibrado (mediana, default)** / **Premium (P75)**.
-
-### 2. Análise de IA opcional (Lovable AI — Gemini)
-
-Botão **"Analisar com IA"** no relatório que envia comparáveis + dados do imóvel para o Gemini via `createServerFn` e retorna:
-
-- **Faixa recomendada** justificada (preço de entrada, ideal, teto), considerando o piso do mercado e diferenciais.
-- **Posicionamento** vs. os 3 mais baratos e os 3 mais caros (por que está próximo/longe).
-- **Riscos de superprecificação** (tempo médio até venda esperado, chance de virar "encalhe").
-- **Recomendações de ajuste**: o que destacar no anúncio, quando reduzir, faixa de negociação.
-- Resposta estruturada com `Output.object` (Zod), salva no estudo como `study.aiAnalysis` para reabrir sem gastar crédito de novo.
-
-## Onde mexe
-
-- `src/lib/study-engine.ts`: novas funções `computeStats` (percentis) e `computeAcm` com `estrategia` + `pisoCompetitivo`; `StudyResult` ganha `stats` (P10/P25/median/P75/P90) e `valorPiso`.
-- `src/lib/study-types.ts`: `AcmAdjustments` ganha `estrategia: "agressivo" | "equilibrado" | "premium"` e `respeitarPiso: boolean`; `StudyResult` ganha `aiAnalysis?`.
-- `src/components/acm-panel.tsx`: régua visual com percentis + seletor de estratégia + toggle "Respeitar piso de mercado".
-- `src/components/comparaveis-manager.tsx`: badge "Outlier" + ação "Excluir do cálculo".
-- `src/components/print-slides.tsx`: mostrar a régua percentil no slide ACM.
-- `src/lib/ai-analysis.functions.ts` (novo): `createServerFn` com `requireSupabaseAuth`, usa `createLovableAiGatewayProvider` + `google/gemini-3-flash-preview` + `Output.object`, trata 402/429.
-- `src/routes/app.relatorio.$id.tsx`: botão "Analisar com IA" + card de resultado.
-- `src/lib/study-store.ts`: persistir `stats` e `aiAnalysis` no JSONB do estudo.
-
-## Por que isso resolve
-
-O valor sugerido deixa de ser "média cega" e passa a ser **mediana + piso competitivo**: por construção, ele nunca fica muito acima do menor preço (limite configurável). A IA entra como camada de **leitura qualitativa** explicando o porquê e sugerindo a faixa final, sem substituir a matemática.
-
-## Fora do escopo desta etapa
-
-- Treinar modelo próprio com histórico de vendas.
-- Previsão de tempo até venda baseada em DOM real do portal (já temos o dado, mas modelar fica para depois).
-- Comparar IA de provedores diferentes.
+## Detalhes técnicos
+- O modelo segue `google/gemini-3-flash-preview` (já configurado).
+- O `requireSupabaseAuth` continua envolvendo a função; sem mudanças em RLS ou banco.
+- Sem alterações em rotas ou no schema do estudo (`aiAnalysis` permanece opcional).
