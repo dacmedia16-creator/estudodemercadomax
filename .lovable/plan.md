@@ -1,34 +1,44 @@
-## Problema
+## Objetivo
 
-No estudo de **Venda**, um anúncio de aluguel da OLX entrou na tabela (R$ 3.800 / R$ 41 m²), puxando médias e estatísticas para baixo. Não há filtro de finalidade (venda × aluguel) na hora de aceitar o item retornado pela GeckoAPI, só na hora de montar a busca.
+Substituir as telas placeholder de **Comparativos** e **Relatórios** por funcionalidades reais usando os estudos já salvos no Supabase (`public.studies`). Nenhuma mudança de banco — apenas frontend + leitura via `study-store`.
 
-## Causa
+## 1. `/app/comparativos` — Comparar 2 a 4 estudos lado a lado
 
-- O parser OLX (`olxItemToProperty` em `src/lib/gecko-adapter.ts`) aceita qualquer `price > 0`, sem checar se o anúncio é de venda ou locação. O mesmo vale para os parsers genérico/Zap/Chaves (campos `rentPrice`, `rent.price` são tratados como preço válido).
-- O runner (`src/lib/study-runner.ts`) define `businessType` mas não confere se o item devolvido respeita a finalidade — nas camadas "Mesmo prédio/Endereço" usamos keyword livre, então a OLX pode devolver itens de outra categoria.
-- Não há guarda mínima de preço: R$ 3.800 num estudo de venda é claramente locação, mas passa.
+Substituir `src/routes/app.comparativos.tsx` por uma tela funcional:
 
-## Plano
+- Carrega a lista de estudos do usuário (`listStudies()` de `src/lib/study-store.ts`).
+- Painel superior: tabela checkbox com todos os estudos (bairro, cidade, data, status). Usuário marca de 2 a 4.
+- Botão **Comparar** habilita quando seleção ≥ 2.
+- Resultado:
+  - **Tabela lado a lado** com colunas: Estudo, Bairro/Cidade, Área, Quartos, Valor pretendido, Preço médio, R$/m² médio, Faixa sugerida, Menor, Maior, Status, Nº de comparáveis.
+  - **Gráfico de barras** (Recharts, já no projeto) comparando R$/m² médio e Preço médio entre os estudos selecionados.
+  - **Destaque** do menor R$/m² e do estudo "Dentro da média" com badge verde.
+- Estado vazio: card orientando criar pelo menos 2 estudos.
 
-1. **Marcar finalidade do item no parser** (`gecko-adapter.ts`)
-   - OLX: ler `category.id`/`subcategory.id`/`listingType`/URL (`/aluguel/`, `/locacao/`) e expor `finalidade: "Venda" | "Aluguel" | undefined` no `MockProperty` retornado. Remover o fallback para `rentPrice`/`rent.price` quando o item não declara venda.
-   - Zap: usar `listing.pricingInfos[].businessType` (`SALE` × `RENTAL`).
-   - Chaves: usar `businessType`/`transactionType` quando presente.
+## 2. `/app/relatorios` — Lista com ações rápidas de export
 
-2. **Filtrar por finalidade no runner** (`study-runner.ts`)
-   - Após parsear cada lote (todas as camadas: prédio, endereço, bairro, PDP), descartar itens cuja `finalidade` seja oposta à do estudo. Contabilizar no funil: `Removidos por finalidade incompatível`.
+Substituir `src/routes/app.relatorios.tsx` por uma central de exportação:
 
-3. **Guarda de sanidade de preço** (runner)
-   - Em estudos de **Venda**: descartar preço total < R$ 50.000 **ou** R$/m² < 500 quando `areaUtil > 0`. Esses limites pegam locações disfarçadas mesmo quando o campo de finalidade está ausente.
-   - Em estudos de **Aluguel**: descartar preço > R$ 50.000 (provável venda).
-   - Adicionar contador no funil: `Removidos por preço fora da faixa de <finalidade>`.
+- Lista todos os estudos do usuário em tabela: Data, Bairro, Cidade, Tipo, Status, Preço médio, Nº comparáveis.
+- Busca por texto (bairro/cidade) e filtro por status.
+- Coluna **Ações** por linha:
+  - **Abrir relatório** → navega para `/app/relatorio/$id`.
+  - **Exportar PDF (A4)** → abre `/app/relatorio/$id?print=onepager` e dispara `window.print()` (mesmo fluxo do botão já existente no relatório).
+  - **Exportar slide ACM** → abre `/app/relatorio/$id?print=slides` e dispara `window.print()`.
+  - **Copiar link** → copia URL pública do relatório (`/app/relatorio/$id`) para a área de transferência com toast de confirmação.
+- Estado vazio: CTA para "Novo estudo".
 
-4. **UI**: nenhuma mudança de layout. O funil já existente em `report` mostrará as novas linhas automaticamente.
+A rota `/app/relatorio/$id` já existe e já lê o parâmetro `print` para alternar entre os dois layouts de impressão — vamos apenas garantir que ela aceite o auto-print via query param (`?print=onepager&auto=1`); se já não fizer isso, adicionamos um `useEffect` curto que chama `window.print()` quando `auto=1`.
 
-## Arquivos
+## 3. Ajustes auxiliares
 
-- `src/lib/gecko-adapter.ts` — adicionar detecção de finalidade nos 3 parsers; remover fallback de rentPrice.
-- `src/lib/study-runner.ts` — filtro por finalidade + guarda de preço; instrumentar funil.
-- `src/lib/mock-properties.ts` (tipo `MockProperty`) — adicionar campo opcional `finalidade`.
+- `src/components/app-sidebar.tsx`: nenhum (links já existem e já apontam para as rotas certas).
+- Garantir que `listStudies()` (Supabase) é chamado dentro de `useEffect` com loading skeleton, igual ao padrão usado em `app.estudos.tsx`.
 
-Sem mudanças em UI, store, ou banco.
+## Arquivos tocados
+
+- `src/routes/app.comparativos.tsx` — reescrito.
+- `src/routes/app.relatorios.tsx` — reescrito.
+- `src/routes/app.relatorio.$id.tsx` — adicionar `useEffect` para `?auto=1` chamando `window.print()` (apenas se ainda não tiver).
+
+Sem migrations, sem mudanças no engine de estudo, sem novas dependências (Recharts e shadcn já estão no projeto).
