@@ -17,7 +17,7 @@ export interface GeocodeResult {
  * Geocode a free-form address via Nominatim (OpenStreetMap).
  * Free, no API key, but rate-limited to ~1 req/s and requires a User-Agent.
  */
-export const geocodeAddress = createServerFn({ method: "POST" })
+export const geocodeAddress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => input.parse(d))
   .handler(async ({ data }): Promise<GeocodeResult> => {
     const url = new URL("https://nominatim.openstreetmap.org/search");

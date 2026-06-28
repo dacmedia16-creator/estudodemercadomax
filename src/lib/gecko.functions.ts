@@ -89,7 +89,7 @@ const plpInput = z.object({
   page: z.number().int().min(1).default(1),
 });
 
-export const geckoPlp = createServerFn({ method: "POST" })
+export const geckoPlp = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => plpInput.parse(d))
   .handler(async ({ data }) => {
     const {
@@ -178,7 +178,7 @@ const pdpInput = z.object({
   target: z.enum(TARGETS).optional().default("zapimoveis.com.br"),
 });
 
-export const geckoPdp = createServerFn({ method: "POST" })
+export const geckoPdp = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => pdpInput.parse(d))
   .handler(async ({ data }) => {
     return callGecko<JsonValue>({
@@ -194,7 +194,7 @@ const testInput = z.object({
   target: z.enum(TARGETS).optional().default("zapimoveis.com.br"),
 });
 
-export const geckoTest = createServerFn({ method: "POST" })
+export const geckoTest = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => testInput.parse(d))
   .handler(async ({ data }) => {
     return callGecko<JsonValue>(
@@ -203,7 +203,7 @@ export const geckoTest = createServerFn({ method: "POST" })
     );
   });
 
-export const geckoStatus = createServerFn({ method: "GET" }).handler(async () => ({
+export const geckoStatus = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async () => ({
   configured: !!process.env.GECKOAPI_TOKEN,
   endpoint: ENDPOINT,
 }));
@@ -217,7 +217,7 @@ const plpTestInput = z.object({
   token: z.string().optional(),
 });
 
-export const geckoTestPlp = createServerFn({ method: "POST" })
+export const geckoTestPlp = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => plpTestInput.parse(d))
   .handler(async ({ data }) => {
     const body: Record<string, unknown> = {
