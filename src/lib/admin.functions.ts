@@ -160,3 +160,99 @@ export const adminDeleteStudy = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const adminUsageStats = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { month?: string } = {}) =>
+    z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }).parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const now = new Date();
+    const monthStr = data.month ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+    const [y, m] = monthStr.split("-").map(Number);
+    const start = new Date(Date.UTC(y, m - 1, 1));
+    const end = new Date(Date.UTC(y, m, 1));
+    const startIso = start.toISOString();
+    const endIso = end.toISOString();
+
+    const { data: rows, error } = await context.supabase
+      .from("api_usage")
+      .select("user_id, study_id, portal, endpoint, created_at")
+      .gte("created_at", startIso)
+      .lt("created_at", endIso);
+    if (error) throw new Error(error.message);
+    const usage = (rows ?? []) as Array<{
+      user_id: string; study_id: string | null; portal: string; endpoint: string; created_at: string;
+    }>;
+
+    const totalCalls = usage.length;
+
+    const userIds = Array.from(new Set(usage.map((r) => r.user_id)));
+    const studyIds = Array.from(new Set(usage.map((r) => r.study_id).filter((x): x is string => !!x)));
+
+    // Email + study metadata via service role (read-only).
+    const emailById = new Map<string, string>();
+    const studyMeta = new Map<string, { cidade: string | null; bairro: string | null }>();
+    if (userIds.length || studyIds.length) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      if (userIds.length) {
+        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        (usersData?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
+      }
+      if (studyIds.length) {
+        const { data: studyRows } = await supabaseAdmin
+          .from("studies")
+          .select("id,cidade,bairro")
+          .in("id", studyIds);
+        (studyRows ?? []).forEach((s: any) => studyMeta.set(s.id, { cidade: s.cidade ?? null, bairro: s.bairro ?? null }));
+      }
+    }
+
+    const byUserMap = new Map<string, number>();
+    const byPortalMap = new Map<string, number>();
+    const byEndpointMap = new Map<string, number>();
+    const byStudyMap = new Map<string, number>();
+    const byDayMap = new Map<string, number>();
+    for (const r of usage) {
+      byUserMap.set(r.user_id, (byUserMap.get(r.user_id) ?? 0) + 1);
+      byPortalMap.set(r.portal, (byPortalMap.get(r.portal) ?? 0) + 1);
+      byEndpointMap.set(r.endpoint, (byEndpointMap.get(r.endpoint) ?? 0) + 1);
+      if (r.study_id) byStudyMap.set(r.study_id, (byStudyMap.get(r.study_id) ?? 0) + 1);
+      const day = r.created_at.slice(0, 10);
+      byDayMap.set(day, (byDayMap.get(day) ?? 0) + 1);
+    }
+
+    const byUser = Array.from(byUserMap.entries())
+      .map(([userId, calls]) => ({ userId, email: emailById.get(userId) ?? "(removido)", calls }))
+      .sort((a, b) => b.calls - a.calls);
+    const byPortal = Array.from(byPortalMap.entries())
+      .map(([portal, calls]) => ({ portal, calls }))
+      .sort((a, b) => b.calls - a.calls);
+    const byEndpoint = Array.from(byEndpointMap.entries())
+      .map(([endpoint, calls]) => ({ endpoint, calls }))
+      .sort((a, b) => b.calls - a.calls);
+    const topStudies = Array.from(byStudyMap.entries())
+      .map(([studyId, calls]) => ({
+        studyId,
+        calls,
+        cidade: studyMeta.get(studyId)?.cidade ?? null,
+        bairro: studyMeta.get(studyId)?.bairro ?? null,
+      }))
+      .sort((a, b) => b.calls - a.calls)
+      .slice(0, 10);
+    const dailySeries = Array.from(byDayMap.entries())
+      .map(([day, calls]) => ({ day, calls }))
+      .sort((a, b) => a.day.localeCompare(b.day));
+
+    return {
+      month: monthStr,
+      totalCalls,
+      uniqueStudies: studyIds.length,
+      byUser,
+      byPortal,
+      byEndpoint,
+      topStudies,
+      dailySeries,
+    };
+  });

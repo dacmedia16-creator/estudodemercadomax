@@ -8,6 +8,38 @@ const ENDPOINT = "https://api.geckoapi.com.br/v1/extract";
 const TARGETS = ["zapimoveis.com.br", "chavesnamao.com.br", "olx.com.br"] as const;
 type Target = (typeof TARGETS)[number];
 
+function portalKey(target: string | undefined): "zap" | "chaves" | "olx" | "other" {
+  if (!target) return "other";
+  if (target.includes("zapimoveis")) return "zap";
+  if (target.includes("chavesnamao")) return "chaves";
+  if (target.includes("olx")) return "olx";
+  return "other";
+}
+
+async function logApiUsage(
+  supabase: any,
+  userId: string,
+  args: {
+    studyId?: string | null;
+    target: string;
+    endpoint: "plp" | "pdp";
+    status: number;
+  },
+) {
+  try {
+    await supabase.from("api_usage").insert({
+      user_id: userId,
+      study_id: args.studyId ?? null,
+      portal: portalKey(args.target),
+      endpoint: args.endpoint,
+      target_host: args.target,
+      status: args.status,
+    });
+  } catch (e) {
+    console.warn("[api_usage] insert falhou:", (e as Error).message);
+  }
+}
+
 async function callGecko<T>(body: Record<string, unknown>, tokenOverride?: string): Promise<GeckoCallResult<T>> {
   const token = tokenOverride || process.env.GECKOAPI_TOKEN;
   if (!token) {
@@ -88,17 +120,18 @@ const plpInput = z.object({
   longitude: z.number().optional(),
   radius: z.number().optional(),
   page: z.number().int().min(1).default(1),
+  studyId: z.string().uuid().optional(),
 });
 
 export const geckoPlp = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => plpInput.parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const {
       city, state, keyword, target, propertyType,
       neighborhood, propertyTypes, amenities, directOwner, condominium, includeLaunches, sort,
       region, categoryPath,
       bedrooms, bathrooms, parkingSpots, priceMin, priceMax, areaMin, areaMax,
-      latitude, longitude, radius, ...rest
+      latitude, longitude, radius, studyId, ...rest
     } = data;
     const hasCity = !!city && city.trim().length > 0;
     const hasState = !!state && state.trim().length === 2;
@@ -129,7 +162,9 @@ export const geckoPlp = createServerFn({ method: "POST" }).middleware([requireSu
       if (typeof priceMax === "number" && priceMax >= 0) olxBody.priceMax = priceMax;
       if (sort) olxBody.sort = sort;
       Object.keys(olxBody).forEach((k) => olxBody[k] === undefined && delete olxBody[k]);
-      return callGecko<GeckoPlpData>(olxBody);
+      const result = await callGecko<GeckoPlpData>(olxBody);
+      await logApiUsage(context.supabase, context.userId, { studyId, target, endpoint: "plp", status: result.status });
+      return result;
     }
     const body: Record<string, unknown> = {
       target,
@@ -171,22 +206,29 @@ export const geckoPlp = createServerFn({ method: "POST" }).middleware([requireSu
       if (typeof radius === "number" && radius > 0) body.radius = radius;
     }
     Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
-    return callGecko<GeckoPlpData>(body);
+    const result = await callGecko<GeckoPlpData>(body);
+    await logApiUsage(context.supabase, context.userId, { studyId, target, endpoint: "plp", status: result.status });
+    return result;
   });
 
 const pdpInput = z.object({
   url: z.string().url(),
   target: z.enum(TARGETS).optional().default("zapimoveis.com.br"),
+  studyId: z.string().uuid().optional(),
 });
 
 export const geckoPdp = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => pdpInput.parse(d))
-  .handler(async ({ data }) => {
-    return callGecko<JsonValue>({
+  .handler(async ({ data, context }) => {
+    const result = await callGecko<JsonValue>({
       target: data.target,
       type: "pdp",
       url: data.url,
     });
+    await logApiUsage(context.supabase, context.userId, {
+      studyId: data.studyId, target: data.target, endpoint: "pdp", status: result.status,
+    });
+    return result;
   });
 
 const testInput = z.object({

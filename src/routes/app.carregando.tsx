@@ -47,7 +47,11 @@ function Loading() {
     }
 
     (async () => {
-      const { result, warning, fellBack } = await runStudy(input, overrides, (s) => setStep(s));
+      const preStudyId = (typeof crypto !== "undefined" && "randomUUID" in crypto)
+        ? crypto.randomUUID()
+        : undefined;
+      const { result, warning, fellBack } = await runStudy(input, overrides, (s) => setStep(s), preStudyId);
+      if (preStudyId) result.id = preStudyId;
       if (warning) setWarning(warning);
       if (fellBack && warning?.includes("inválido")) toast.error("Token GeckoAPI inválido. Verifique em Configurações.");
       if (fellBack && warning?.includes("créditos")) toast.error("Sem créditos na GeckoAPI.");

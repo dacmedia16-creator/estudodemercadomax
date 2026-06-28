@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_usage: {
+        Row: {
+          created_at: string
+          endpoint: string
+          id: string
+          portal: string
+          status: number | null
+          study_id: string | null
+          target_host: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          id?: string
+          portal: string
+          status?: number | null
+          study_id?: string | null
+          target_host?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          portal?: string
+          status?: number | null
+          study_id?: string | null
+          target_host?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       studies: {
         Row: {
           bairro: string | null
