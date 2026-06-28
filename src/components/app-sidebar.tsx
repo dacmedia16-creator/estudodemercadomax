@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { FilePlus2, FolderOpen, BarChart3, FileText, Settings, Radar } from "lucide-react";
+import { FilePlus2, FolderOpen, BarChart3, FileText, Settings, Radar, ShieldCheck } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -11,6 +11,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 const items = [
   { title: "Novo estudo", url: "/app/novo-estudo", icon: FilePlus2 },
@@ -22,6 +23,7 @@ const items = [
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { isAdmin } = useIsAdmin();
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
@@ -50,6 +52,16 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/app/admin"}>
+                    <Link to="/app/admin" className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>Administração</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
