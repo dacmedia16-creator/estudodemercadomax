@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
   return (
@@ -119,6 +120,17 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // Global auth listener: invalidate cached query data + force a router refresh
+  // whenever the session changes (sign-in, sign-out, token refresh, multi-tab).
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT" || event === "SIGNED_IN" || event === "USER_UPDATED") {
+        queryClient.clear();
+      }
+    });
+    return () => { data.subscription.unsubscribe(); };
+  }, [queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>
