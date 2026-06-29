@@ -3,7 +3,9 @@ import { geocodeAddress } from "@/lib/geocode.functions";
 import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily, mapDiferenciaisToZapAmenities, isStructuralDiferencial, detectPortalFromUrl } from "@/lib/gecko-adapter";
 import { generateStudy } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
-import { DEFAULT_FIELD_MODES } from "@/lib/study-types";
+import { DEFAULT_FIELD_MODES, DEFAULT_ACM } from "@/lib/study-types";
+import { computeAcm } from "@/lib/study-engine";
+import { analisarMercadoIa } from "@/lib/ai-analysis.functions";
 import type { MockProperty } from "@/lib/mock-properties";
 
 const PORTAL_TARGETS = {
