@@ -12,7 +12,7 @@ import {
   CheckCircle2, AlertTriangle, Sparkles, Presentation,
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
-import { formatBRL, computeAcm } from "@/lib/study-engine";
+import { formatBRL, computeAcm, getValorIdeal } from "@/lib/study-engine";
 import type { StudyResult, SearchOverrides, ComparableProperty } from "@/lib/study-types";
 import { DEFAULT_ACM } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
@@ -568,6 +568,12 @@ function ReportPage() {
 function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyResult["comparaveis"] }) {
   const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
   const { input } = study;
+  const valorIdeal = getValorIdeal(study, acm);
+  // Mínimo/máximo de publicação derivados do Valor Ideal para coerência com o discurso.
+  const ratioMin = acm.valorSugerido > 0 ? acm.valorMinimoFechamento / acm.valorSugerido : 0.95;
+  const ratioMax = acm.valorSugerido > 0 ? acm.valorMaximoPublicacao / acm.valorSugerido : 1.05;
+  const idealMin = Math.round(valorIdeal * ratioMin);
+  const idealMax = Math.round(valorIdeal * ratioMax);
   const top = sorted.slice(0, 6);
   const fortes = study.pontosFortes.slice(0, 4);
   const atencao = study.pontosAtencao.slice(0, 4);
@@ -593,19 +599,19 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
       {/* HERO azul cheio — valor recomendado */}
       <div className="op-hero">
         <div className="op-hero-label">Valor recomendado para venda</div>
-        <div className="op-hero-value">{formatBRL(acm.valorSugerido)}</div>
+        <div className="op-hero-value">{formatBRL(valorIdeal)}</div>
         <div className="op-hero-pills">
           <div className="op-hpill">
             <div className="lbl">Mínimo de fechamento</div>
-            <div className="val">{formatBRL(acm.valorMinimoFechamento)}</div>
+            <div className="val">{formatBRL(idealMin)}</div>
           </div>
           <div className="op-hpill op-hpill-strong">
             <div className="lbl">Valor ideal</div>
-            <div className="val">{formatBRL(acm.valorSugerido)}</div>
+            <div className="val">{formatBRL(valorIdeal)}</div>
           </div>
           <div className="op-hpill">
             <div className="lbl">Máximo de publicação</div>
-            <div className="val">{formatBRL(acm.valorMaximoPublicacao)}</div>
+            <div className="val">{formatBRL(idealMax)}</div>
           </div>
         </div>
         <div className="op-hero-meta">

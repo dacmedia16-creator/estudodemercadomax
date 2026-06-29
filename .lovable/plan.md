@@ -1,45 +1,43 @@
 ## Objetivo
-Trazer o conteúdo gerado pela IA (`study.aiAnalysis`) para a **Carta ao Proprietário** (página 3 do PDF), selecionando apenas o que é relevante para o dono do imóvel e em linguagem destinada a ele — sem jargão técnico.
 
-## O que entra (e por quê)
-Da resposta da IA usaremos:
-- `discursoProprietario` → já é escrito em 1ª pessoa do plural, tom acolhedor, pronto para o dono ler. Vira o **corpo principal** da carta.
-- `argumentosChave` (top 3) → fatos curtos de mercado (“X imóveis anunciados entre R$ A e R$ B”, “mediana em R$/m² Y”). Reforçam a carta com dados.
-- `faixaRecomendada` → já é usada hoje no bloco “Faixa que recomendamos para publicar” (mantém).
+Sempre que o sistema sugerir um ajuste estratégico de preço (no PDF, na carta ao proprietário, no relatório na tela e nos textos da IA), a referência deve ser o **Valor Ideal** (mediana de mercado × área, ou `faixaRecomendada.ideal` quando a IA estiver disponível) — e não mais o `acm.valorSugerido`. Isso unifica o discurso: o "preço recomendado / sugerido" mostrado em todos os pontos passa a coincidir com o "Valor Ideal" que já aparece nas faixas.
 
-O que **não** entra na carta (continua só nas páginas internas / one-pager):
-- `resumo`, `posicionamento`, `riscos`, `recomendacoes` → linguagem voltada ao corretor, não ao proprietário.
+## O que muda
 
-## Mudanças
+### 1. Helper único — `src/lib/study-engine.ts`
+Adicionar `getValorIdeal(study, acm)` com a regra:
+1. `study.aiAnalysis?.faixaRecomendada.ideal` (quando IA rodou)
+2. `study.stats.median × input.areaUtil` (quando há percentis)
+3. fallback: `acm.valorSugerido`
 
-### 1. `src/components/print-slides.tsx` → `OwnerLetterPage`
-- Ler `ai = study.aiAnalysis` (opcional).
-- **Substituir o parágrafo `owner-letter-intro` fixo** por:
-  - Se `ai?.discursoProprietario` existir → usar esse texto (mantém quebras de linha com `white-space: pre-line`).
-  - Senão → manter o texto atual como fallback.
-- **Adicionar bloco novo `owner-letter-ia`** (só se `ai?.argumentosChave?.length > 0`), inserido **logo após “O que o mercado está dizendo” / “Por que ajustar agora vale a pena”** e **antes da “Faixa que recomendamos para publicar”**:
-  - Título: “O que pesou na nossa análise”.
-  - Lista compacta com até 3 itens de `argumentosChave`.
-  - Selo discreto “análise assistida por IA · revisada pelo corretor”.
-- Manter tabela de comparáveis e pontos fortes/atenção como estão.
+Esse helper passa a alimentar todos os textos de "ajuste sugerido".
 
-### 2. `src/styles.css` (bloco `.print-owner-pages` dentro de `@media print`)
-- Adicionar `.owner-letter-ia` (borda lateral azul, padding 4pt, fonte 7.4pt, lista com bullets).
-- Garantir `white-space: pre-line` em `.owner-letter-intro` para preservar quebras do `discursoProprietario`.
-- Reduzir levemente, **só nesta página e só se necessário**, alguns paddings/line-heights para acomodar o novo bloco sem estourar a folha A4:
-  - `owner-letter-grid` gap 4pt → 3pt
-  - `owner-letter-faixa` padding-y −1pt
-  - `owner-letter-cta` padding-y −1pt
-- Página continua travada em 210×297mm com `overflow: hidden`.
+### 2. PDF página 2 — "Argumentos para o Proprietário" (`print-slides.tsx`, `OwnerPersuasionPage`)
+- "Valor sugerido (ACM)" passa a exibir `valorIdeal` e seu rótulo vira **"Valor ideal de publicação"**.
+- `gap` / `gapPct` / `statusLabel` (ACIMA / DENTRO / ABAIXO) recalculados contra o ideal.
+- Fallback args (`buildFallbackArgs`): a frase "Ajustar para X" passa a citar o `valorIdeal`.
 
-### 3. Validação
-- Abrir um relatório que já tenha rodado a análise de IA (ou rodar “Analisar com IA” antes) e acionar **Exportar PDF**.
-- Confirmar via Playwright/print preview que a página 3:
-  - Mostra o discurso da IA como texto principal.
-  - Mostra os 3 argumentos-chave.
-  - Continua cabendo em 1 única folha A4 retrato com tabela de comparáveis + pontos fortes/atenção.
-- Confirmar que estudos **sem** `aiAnalysis` continuam exibindo o texto/fallback atual sem quebrar layout.
+### 3. PDF página 3 — "Carta ao Proprietário" (`OwnerLetterPage`)
+- Card "Preço recomendado" mostra `valorIdeal` (mesmo número da faixa "Ideal" logo abaixo).
+- "Diferença" e o tom (ok / ajustar / alto) recalculados contra o ideal.
 
-## Escopo
-- Sem mudanças na página 1 (one-pager) nem na página 2 (Argumentos).
-- Sem mudança em lógica de cálculo, prompts ou schema da IA — só apresentação na página 3.
+### 4. Relatório na tela — `src/routes/app.relatorio.$id.tsx`
+- HERO "Valor recomendado para venda" passa a usar `valorIdeal`.
+- Pílula "Valor ideal" idem (fica idêntica ao hero, eliminando a inconsistência atual entre hero e pílula).
+- Pílulas "Mínimo de fechamento" e "Máximo de publicação" passam a ser derivadas do `valorIdeal` (× 1 − margem / × 1 + margem) para manter coerência.
+
+### 5. Texto narrativo determinístico — `study-engine.ts`
+- `argumentoProprietario` e a frase de "Acima da média" passam a explicitar **"o valor ideal de mercado é R$ X"** (mediana × área), além de citar a faixa.
+
+### 6. IA — `src/lib/ai-analysis.functions.ts`
+- SYSTEM ganha regra explícita: "Sempre que sugerir um ajuste de preço, ancore no `faixaRecomendada.ideal`. Nunca diga 'ajuste para o valor sugerido' — sempre 'ajuste para o valor ideal' (R$ X)."
+- O prompt do usuário passa a calcular **"diferença pretendido vs ideal"** (e não vs sugerido) e a injetar esse número.
+- Fallback determinístico já usa `base = median`; só ajusto o texto do `discursoProprietario` para chamar esse número de **"valor ideal"**.
+
+## Critérios de aceite
+
+- No PDF (páginas 2 e 3) e no relatório na tela, o número exibido como "preço recomendado / sugerido / valor ideal" é **o mesmo** em todos os pontos.
+- A diferença % e o tom (ACIMA / DENTRO / ABAIXO) usam esse mesmo valor como referência.
+- Qualquer frase do tipo "sugiro ajustar para …" cita o valor ideal.
+- Quando a IA está disponível, todos os pontos seguem `faixaRecomendada.ideal`; sem IA, seguem `mediana × área`; sem stats, caem no `acm.valorSugerido` (compatibilidade).
+- Sem mudanças em backend, schemas ou fluxo de busca.

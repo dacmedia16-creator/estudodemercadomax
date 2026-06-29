@@ -73,6 +73,11 @@ Regras críticas:
   romper para cima dela).
 - O tom precisa proteger o corretor de qualquer brecha que dê ao proprietário
   argumento para manter ou subir o valor pretendido.
+- Sempre que sugerir um ajuste de preço, **ancore a recomendação no
+  campo faixaRecomendada.ideal** (o "valor ideal" do estudo). Nunca diga
+  "ajuste para o valor sugerido (ACM)" — diga "ajuste para o valor ideal de
+  mercado (R$ X)", repetindo explicitamente o número de faixaRecomendada.ideal
+  no discursoProprietario e em pelo menos um dos argumentosChave.
 
 CENÁRIO DE USO:
 O corretor frequentemente precisa convencer o proprietário a ajustar o valor
@@ -168,17 +173,21 @@ ${JSON.stringify(data.mercado, null, 2)}
 Top comparáveis (até 15):
 ${JSON.stringify(data.comparaveis, null, 2)}
 
-Diferença entre pretendido e sugerido: ${(() => {
+Diferença entre pretendido e ideal de mercado: ${(() => {
   const p = data.imovel.valorPretendido;
-  const s = data.mercado.valorSugerido ?? data.mercado.precoMedio;
-  if (!p || !s) return "n/d";
-  const diff = ((p - s) / s) * 100;
-  return `${diff > 0 ? "+" : ""}${diff.toFixed(1)}% (pretendido vs sugerido)`;
+  const ideal = (data.mercado.median && data.imovel.areaUtil)
+    ? data.mercado.median * data.imovel.areaUtil
+    : (data.mercado.valorSugerido ?? data.mercado.precoMedio);
+  if (!p || !ideal) return "n/d";
+  const diff = ((p - ideal) / ideal) * 100;
+  return `${diff > 0 ? "+" : ""}${diff.toFixed(1)}% (pretendido vs valor ideal ≈ R$ ${Math.round(ideal).toLocaleString("pt-BR")})`;
 })()}
 
-Gere a análise estruturada respeitando o piso de mercado. Calibre o tom do
-discursoProprietario: se o pretendido está muito acima do teto, seja firme
-mas empático; se está alinhado, reforce a estratégia. Responda SOMENTE com o JSON pedido.`;
+Gere a análise estruturada respeitando o piso de mercado. Sempre cite o
+valor ideal (faixaRecomendada.ideal) explicitamente no discursoProprietario
+como referência do ajuste. Calibre o tom: se o pretendido está muito acima
+do teto, seja firme mas empático; se está alinhado, reforce a estratégia.
+Responda SOMENTE com o JSON pedido.`;
 
       const result = await generateText({
         model: gateway("google/gemini-3-flash-preview"),
