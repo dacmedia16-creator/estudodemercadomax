@@ -910,8 +910,8 @@
     overflow: hidden !important;
     page-break-before: always !important;
     break-before: page !important;
-    page-break-after: always !important;
-    break-after: page !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
   .print-owner-pages > .acm-page + .acm-page {
     page-break-before: always !important;
