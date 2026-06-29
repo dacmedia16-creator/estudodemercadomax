@@ -535,9 +535,9 @@ function OwnerLetterPage({
 }) {
   const { input, comparaveis, stats } = study;
   const pretendido = input.valorPretendido;
-  const sugerido = acm.valorSugerido;
-  const gap = pretendido - sugerido;
-  const gapPct = sugerido > 0 ? (gap / sugerido) * 100 : 0;
+  const valorIdeal = getValorIdeal(study, acm);
+  const gap = pretendido - valorIdeal;
+  const gapPct = valorIdeal > 0 ? (gap / valorIdeal) * 100 : 0;
   const totalComps = comparaveis.length;
   const abaixoCount = comparaveis.filter((c) => c.preco > 0 && c.preco < pretendido).length;
   const menorPreco = comparaveis.reduce(
@@ -550,7 +550,7 @@ function OwnerLetterPage({
 
   const faixa = study.aiAnalysis?.faixaRecomendada ?? (stats
     ? { entrada: stats.p25 * (input.areaUtil || 1), ideal: stats.median * (input.areaUtil || 1), teto: stats.p75 * (input.areaUtil || 1) }
-    : { entrada: sugerido * 0.95, ideal: sugerido, teto: sugerido * 1.05 });
+    : { entrada: valorIdeal * 0.95, ideal: valorIdeal, teto: valorIdeal * 1.05 });
 
   const cidadeBairro = [input.bairro, input.cidade].filter(Boolean).join(", ");
 
@@ -595,7 +595,7 @@ function OwnerLetterPage({
         <div className="owner-letter-arrow">→</div>
         <div className="owner-letter-card owner-letter-card-ideal">
           <div className="owner-letter-card-lbl">Preço recomendado</div>
-          <div className="owner-letter-card-val">{formatBRL(sugerido)}</div>
+          <div className="owner-letter-card-val">{formatBRL(valorIdeal)}</div>
           <div className="owner-letter-card-sub">com base em {totalComps} imóveis parecidos</div>
         </div>
         <div className="owner-letter-card owner-letter-card-diff">
