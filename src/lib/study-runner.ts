@@ -1046,6 +1046,63 @@ export async function runStudy(
     result.diagnostico = `[${warningMsg}] ${result.diagnostico}`;
   }
 
+  // Auto-gerar análise da IA junto com o estudo (best-effort: falha não bloqueia)
+  if (!fellBack && result.comparaveis.length > 0) {
+    try {
+      onStep?.("Gerando análise por IA...");
+      const acm = computeAcm(result, result.acm ?? DEFAULT_ACM);
+      const aiPayload = {
+        imovel: {
+          tipo: input.tipo,
+          finalidade: input.finalidade,
+          bairro: input.bairro,
+          cidade: input.cidade,
+          estado: input.estado,
+          areaUtil: input.areaUtil,
+          quartos: input.quartos,
+          suites: input.suites,
+          vagas: input.vagas,
+          condominio: input.condominio,
+          iptu: input.iptu,
+          valorPretendido: input.valorPretendido,
+          diferenciais: input.diferenciais ?? [],
+          edificio: input.edificio,
+        },
+        mercado: {
+          precoMedio: result.precoMedio,
+          precoM2Medio: result.precoM2Medio,
+          menorPreco: result.menorPreco,
+          maiorPreco: result.maiorPreco,
+          p10: result.stats?.p10,
+          p25: result.stats?.p25,
+          median: result.stats?.median,
+          p75: result.stats?.p75,
+          p90: result.stats?.p90,
+          valorPiso: acm.valorPiso,
+          valorSugerido: acm.valorSugerido,
+        },
+        comparaveis: result.comparaveis.slice(0, 15).map((c) => ({
+          titulo: c.titulo,
+          bairro: c.bairro,
+          areaUtil: c.areaUtil,
+          quartos: c.quartos,
+          preco: c.preco,
+          precoM2: c.precoM2,
+          similaridade: c.similaridade,
+          portal: c.portal,
+        })),
+      };
+      const aiRes = await analisarMercadoIa({ data: aiPayload });
+      if (aiRes.ok && aiRes.data?.resumo && aiRes.data?.faixaRecomendada && aiRes.data?.discursoProprietario) {
+        result.aiAnalysis = aiRes.data;
+      } else if (!aiRes.ok) {
+        console.warn("[runStudy] análise da IA falhou:", aiRes.error);
+      }
+    } catch (e) {
+      console.warn("[runStudy] análise da IA exceção:", (e as Error).message);
+    }
+  }
+
   return { result, warning: warningMsg, fellBack };
 }
 
