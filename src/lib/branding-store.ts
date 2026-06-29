@@ -1,3 +1,5 @@
+import remaxFullAsset from "@/assets/remax-full.png.asset.json";
+
 /**
  * Configurações de marca usadas no relatório ACM (logo, nome, cores).
  * Persistidas em localStorage por navegador/usuário.
@@ -13,8 +15,8 @@ export interface BrandingSettings {
 }
 
 export const DEFAULT_BRANDING: BrandingSettings = {
-  logoUrl: undefined,
-  brandName: "Estudo de Mercado Pro",
+  logoUrl: remaxFullAsset.url,
+  brandName: "Imóveis RE/MAX Única Escolha",
   brandColor: "#003DA5",
   accentColor: "#DC1C2E",
 };
