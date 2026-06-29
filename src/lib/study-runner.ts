@@ -1,9 +1,10 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
 import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily, mapDiferenciaisToZapAmenities, isStructuralDiferencial, detectPortalFromUrl } from "@/lib/gecko-adapter";
-import { generateStudy } from "@/lib/study-engine";
+import { generateStudy, computeAcm } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
-import { DEFAULT_FIELD_MODES } from "@/lib/study-types";
+import { DEFAULT_FIELD_MODES, DEFAULT_ACM } from "@/lib/study-types";
+import { analisarMercadoIa } from "@/lib/ai-analysis.functions";
 import type { MockProperty } from "@/lib/mock-properties";
 
 const PORTAL_TARGETS = {
@@ -1042,6 +1043,63 @@ export async function runStudy(
     result.diagnostico = `[Dados de demonstração] ${result.diagnostico}`;
   } else if (warningMsg) {
     result.diagnostico = `[${warningMsg}] ${result.diagnostico}`;
+  }
+
+  // Auto-gerar análise da IA junto com o estudo (best-effort: falha não bloqueia)
+  if (!fellBack && result.comparaveis.length > 0) {
+    try {
+      onStep?.(4);
+      const acm = computeAcm(result, result.acm ?? DEFAULT_ACM);
+      const aiPayload = {
+        imovel: {
+          tipo: input.tipo,
+          finalidade: input.finalidade,
+          bairro: input.bairro,
+          cidade: input.cidade,
+          estado: input.estado,
+          areaUtil: input.areaUtil,
+          quartos: input.quartos,
+          suites: input.suites,
+          vagas: input.vagas,
+          condominio: input.condominio,
+          iptu: input.iptu,
+          valorPretendido: input.valorPretendido,
+          diferenciais: input.diferenciais ?? [],
+          edificio: input.edificio,
+        },
+        mercado: {
+          precoMedio: result.precoMedio,
+          precoM2Medio: result.precoM2Medio,
+          menorPreco: result.menorPreco,
+          maiorPreco: result.maiorPreco,
+          p10: result.stats?.p10,
+          p25: result.stats?.p25,
+          median: result.stats?.median,
+          p75: result.stats?.p75,
+          p90: result.stats?.p90,
+          valorPiso: acm.valorPiso,
+          valorSugerido: acm.valorSugerido,
+        },
+        comparaveis: result.comparaveis.slice(0, 15).map((c) => ({
+          titulo: c.titulo,
+          bairro: c.bairro,
+          areaUtil: c.areaUtil,
+          quartos: c.quartos,
+          preco: c.preco,
+          precoM2: c.precoM2,
+          similaridade: c.similaridade,
+          portal: c.portal,
+        })),
+      };
+      const aiRes = await analisarMercadoIa({ data: aiPayload });
+      if (aiRes.ok && aiRes.data?.resumo && aiRes.data?.faixaRecomendada && aiRes.data?.discursoProprietario) {
+        result.aiAnalysis = aiRes.data;
+      } else if (!aiRes.ok) {
+        console.warn("[runStudy] análise da IA falhou:", aiRes.error);
+      }
+    } catch (e) {
+      console.warn("[runStudy] análise da IA exceção:", (e as Error).message);
+    }
   }
 
   return { result, warning: warningMsg, fellBack };

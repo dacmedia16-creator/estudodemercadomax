@@ -21,6 +21,7 @@ import { AcmPanel } from "@/components/acm-panel";
 import { PrintSlides, PrintOwnerPages } from "@/components/print-slides";
 import { ComparaveisManager } from "@/components/comparaveis-manager";
 import { AiAnalysisCard } from "@/components/ai-analysis-card";
+import { analisarMercadoIa } from "@/lib/ai-analysis.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,7 @@ function ReportPage() {
   // Snapshot dos comparáveis que vieram da última busca — usado para
   // restaurar a lista quando o usuário desfaz exclusões/inclusões manuais.
   const originalsRef = useRef<ComparableProperty[]>([]);
+  const aiAutoTriedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +66,68 @@ function ReportPage() {
     })();
     return () => { cancelled = true; };
   }, [id]);
+
+  // Auto-geração da análise da IA para estudos antigos (sem aiAnalysis salva).
+  useEffect(() => {
+    if (!study) return;
+    if (study.aiAnalysis) return;
+    if (aiAutoTriedRef.current.has(study.id)) return;
+    if (!study.comparaveis || study.comparaveis.length === 0) return;
+    aiAutoTriedRef.current.add(study.id);
+    (async () => {
+      try {
+        const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
+        const payload = {
+          imovel: {
+            tipo: study.input.tipo,
+            finalidade: study.input.finalidade,
+            bairro: study.input.bairro,
+            cidade: study.input.cidade,
+            estado: study.input.estado,
+            areaUtil: study.input.areaUtil,
+            quartos: study.input.quartos,
+            suites: study.input.suites,
+            vagas: study.input.vagas,
+            condominio: study.input.condominio,
+            iptu: study.input.iptu,
+            valorPretendido: study.input.valorPretendido,
+            diferenciais: study.input.diferenciais ?? [],
+            edificio: study.input.edificio,
+          },
+          mercado: {
+            precoMedio: study.precoMedio,
+            precoM2Medio: study.precoM2Medio,
+            menorPreco: study.menorPreco,
+            maiorPreco: study.maiorPreco,
+            p10: study.stats?.p10,
+            p25: study.stats?.p25,
+            median: study.stats?.median,
+            p75: study.stats?.p75,
+            p90: study.stats?.p90,
+            valorPiso: acm.valorPiso,
+            valorSugerido: acm.valorSugerido,
+          },
+          comparaveis: study.comparaveis.slice(0, 15).map((c) => ({
+            titulo: c.titulo,
+            bairro: c.bairro,
+            areaUtil: c.areaUtil,
+            quartos: c.quartos,
+            preco: c.preco,
+            precoM2: c.precoM2,
+            similaridade: c.similaridade,
+            portal: c.portal,
+          })),
+        };
+        const res = await analisarMercadoIa({ data: payload });
+        if (!res.ok || !res.data?.resumo || !res.data?.faixaRecomendada || !res.data?.discursoProprietario) return;
+        const next: StudyResult = { ...study, aiAnalysis: res.data };
+        setStudy(next);
+        try { await studyStore.save(next); } catch { /* best-effort */ }
+      } catch (e) {
+        console.warn("[relatorio] auto AI failed:", (e as Error).message);
+      }
+    })();
+  }, [study]);
 
   // Auto-export quando a tela é aberta com ?auto=onepager ou ?auto=slides
   // (usado pela central de Relatórios para disparar export sem cliques extras).
