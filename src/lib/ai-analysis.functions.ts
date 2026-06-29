@@ -59,6 +59,20 @@ Regras críticas:
 - Justifique cada faixa com 1–2 frases curtas, em português brasileiro, tom
   profissional, sem jargão.
 - Não invente dados que não estão no payload.
+- NUNCA descreva o imóvel como "bem posicionado", "bem precificado", "no preço
+  certo", "preço justo" ou frases equivalentes — mesmo quando o pretendido
+  estiver dentro da média. Sempre traga a leitura para velocidade de venda,
+  competitividade frente à concorrência e risco de tempo no portal.
+- NUNCA sugira aumentar o valor pretendido, nem mesmo quando ele estiver
+  abaixo da mediana. Se estiver abaixo, reforce que essa é a posição
+  competitiva ideal para acelerar a venda — jamais convide a "subir o preço",
+  "reajustar para cima" ou "aproveitar margem".
+- Não use a palavra "diferenciais" como argumento para sustentar ou justificar
+  o preço atual. Diferenciais entram apenas como apoio à decisão de venda
+  rápida (ex.: ajudam a justificar ficar no topo da faixa competitiva, não a
+  romper para cima dela).
+- O tom precisa proteger o corretor de qualquer brecha que dê ao proprietário
+  argumento para manter ou subir o valor pretendido.
 
 CENÁRIO DE USO:
 O corretor frequentemente precisa convencer o proprietário a ajustar o valor
@@ -183,13 +197,13 @@ mas empático; se está alinhado, reforce a estratégia. Responda SOMENTE com o 
         const fmt = (v: number) =>
           v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
         const fallback = {
-          resumo: raw.slice(0, 600) || "A IA não retornou uma análise estruturada. Faixa calculada a partir dos percentis do mercado.",
+          resumo: raw.slice(0, 600) || "A IA não retornou uma análise estruturada. Faixa competitiva calculada a partir dos percentis do mercado.",
           faixaRecomendada: {
             entrada: Math.round(m.p25 ?? base * 0.95),
             ideal: Math.round(base),
             teto: Math.round(m.p75 ?? base * 1.05),
           },
-          posicionamento: "Faixa derivada da distribuição de preços dos comparáveis (P25 / mediana / P75).",
+          posicionamento: "Faixa derivada da distribuição de preços dos comparáveis (P25 / mediana / P75) — orientada para velocidade de venda, não para teto de preço.",
           riscos: ["Análise qualitativa indisponível — revise manualmente."],
           recomendacoes: ["Tente gerar a análise novamente em instantes."],
           discursoProprietario:
@@ -197,8 +211,8 @@ mas empático; se está alinhado, reforce a estratégia. Responda SOMENTE com o 
             `${data.imovel.cidade}. A faixa praticada hoje vai de ${fmt(m.menorPreco)} a ${fmt(m.maiorPreco)}, ` +
             `com a mediana em ${fmt(base)}. Para garantir visitas qualificadas já nas primeiras semanas e ` +
             `evitar que o anúncio "esfrie" no portal, sugerimos posicionar entre ${fmt(Math.round(m.p25 ?? base * 0.95))} ` +
-            `e ${fmt(Math.round(m.p75 ?? base * 1.05))}. Esse valor preserva margem de negociação e ao mesmo tempo nos ` +
-            `coloca competitivos frente aos outros anúncios ativos hoje.`,
+            `e ${fmt(Math.round(m.p75 ?? base * 1.05))}. Esse patamar nos coloca competitivos frente aos outros ` +
+            `anúncios ativos hoje e tende a encurtar o tempo de venda.`,
           argumentosChave: [
             `${n} imóveis semelhantes analisados nos portais`,
             `Faixa praticada: ${fmt(m.menorPreco)} a ${fmt(m.maiorPreco)}`,
