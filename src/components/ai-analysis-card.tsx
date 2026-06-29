@@ -24,6 +24,28 @@ export function AiAnalysisCard({ study, onChange }: Props) {
   const run = async () => {
     setLoading(true);
     try {
+      const n = (v: unknown) => {
+        const x = typeof v === "number" ? v : Number(v);
+        return Number.isFinite(x) ? x : 0;
+      };
+      const comparaveis = study.comparaveis
+        .filter((c) => n(c.preco) > 0)
+        .slice(0, 15)
+        .map((c) => ({
+          titulo: c.titulo ?? "",
+          bairro: c.bairro ?? "",
+          areaUtil: n(c.areaUtil),
+          quartos: n(c.quartos),
+          preco: n(c.preco),
+          precoM2: n(c.precoM2) || (n(c.areaUtil) > 0 ? n(c.preco) / n(c.areaUtil) : 0),
+          similaridade: n(c.similaridade),
+          portal: c.portal ?? "",
+        }));
+      if (comparaveis.length === 0) {
+        toast.error("Sem comparáveis com preço para analisar.");
+        setLoading(false);
+        return;
+      }
       const payload = {
         imovel: {
           tipo: study.input.tipo,
@@ -31,39 +53,30 @@ export function AiAnalysisCard({ study, onChange }: Props) {
           bairro: study.input.bairro,
           cidade: study.input.cidade,
           estado: study.input.estado,
-          areaUtil: study.input.areaUtil,
-          quartos: study.input.quartos,
-          suites: study.input.suites,
-          vagas: study.input.vagas,
-          condominio: study.input.condominio,
-          iptu: study.input.iptu,
-          valorPretendido: study.input.valorPretendido,
+          areaUtil: n(study.input.areaUtil),
+          quartos: n(study.input.quartos),
+          suites: n(study.input.suites),
+          vagas: n(study.input.vagas),
+          condominio: n(study.input.condominio),
+          iptu: n(study.input.iptu),
+          valorPretendido: n(study.input.valorPretendido),
           diferenciais: study.input.diferenciais ?? [],
           edificio: study.input.edificio,
         },
         mercado: {
-          precoMedio: study.precoMedio,
-          precoM2Medio: study.precoM2Medio,
-          menorPreco: study.menorPreco,
-          maiorPreco: study.maiorPreco,
-          p10: study.stats?.p10,
-          p25: study.stats?.p25,
-          median: study.stats?.median,
-          p75: study.stats?.p75,
-          p90: study.stats?.p90,
-          valorPiso: acm.valorPiso,
-          valorSugerido: acm.valorSugerido,
+          precoMedio: n(study.precoMedio),
+          precoM2Medio: n(study.precoM2Medio),
+          menorPreco: n(study.menorPreco),
+          maiorPreco: n(study.maiorPreco),
+          p10: n(study.stats?.p10),
+          p25: n(study.stats?.p25),
+          median: n(study.stats?.median),
+          p75: n(study.stats?.p75),
+          p90: n(study.stats?.p90),
+          valorPiso: n(acm.valorPiso),
+          valorSugerido: n(acm.valorSugerido),
         },
-        comparaveis: study.comparaveis.slice(0, 15).map((c) => ({
-          titulo: c.titulo,
-          bairro: c.bairro,
-          areaUtil: c.areaUtil,
-          quartos: c.quartos,
-          preco: c.preco,
-          precoM2: c.precoM2,
-          similaridade: c.similaridade,
-          portal: c.portal,
-        })),
+        comparaveis,
       };
       const res = await callAi({ data: payload });
       if (!res.ok) {
