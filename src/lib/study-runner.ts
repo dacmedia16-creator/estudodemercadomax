@@ -1028,6 +1028,8 @@ export async function runStudy(
     const code = String(msg);
     if (code.includes("NO_TOKEN")) {
       warningMsg = "Token GeckoAPI não configurado — usando dados de demonstração.";
+    } else if (code.includes("GECKOAPI_UNAVAILABLE")) {
+      warningMsg = "GeckoAPI indisponível no momento (todos os portais retornaram 5xx). Tente novamente em alguns minutos. Usando dados de demonstração.";
     } else if (code.includes("401") || code.toUpperCase().includes("UNAUTHORIZED")) {
       warningMsg = "Token GeckoAPI inválido — usando dados de demonstração.";
     } else if (code.includes("402") || code.includes("INSUFFICIENT")) {
