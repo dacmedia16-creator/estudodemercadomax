@@ -94,7 +94,7 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
         <Link to="/" className="mb-6 flex items-center justify-center">
-          <img src={remaxFull.url} alt="Imóveis RE/MAX Única Escolha" className="h-24 w-auto rounded-lg" />
+          <img src={remaxFull.url} alt="ESTUDO DE MERCADO" className="h-24 w-auto rounded-lg" />
         </Link>
 
         <Card className="border-border/60 p-6 shadow-[var(--shadow-elegant)]">

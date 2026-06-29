@@ -16,7 +16,7 @@ export interface BrandingSettings {
 
 export const DEFAULT_BRANDING: BrandingSettings = {
   logoUrl: remaxFullAsset.url,
-  brandName: "Imóveis RE/MAX Única Escolha",
+  brandName: "ESTUDO DE MERCADO",
   brandColor: "#003DA5",
   accentColor: "#DC1C2E",
 };

@@ -31,8 +31,8 @@ export function AppSidebar() {
         <Link to="/app/novo-estudo" className="flex items-center gap-2 px-2 py-3">
           <img src={remaxIcon.url} alt="RE/MAX Única Escolha" className="h-9 w-9 object-contain" />
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-bold text-sidebar-foreground">RE/MAX Única</span>
-            <span className="text-[10px] uppercase tracking-wider text-primary">Estudo de Mercado</span>
+            <span className="text-sm font-bold text-sidebar-foreground">ESTUDO DE MERCADO</span>
+            <span className="text-[10px] uppercase tracking-wider text-primary">{"\n"}</span>
           </div>
         </Link>
       </SidebarHeader>
