@@ -1,21 +1,12 @@
-## Adicionar logo da RE/MAX Única Escolha no site e nos PDFs
+Gerar uma versão do ícone RE/MAX sem o fundo azul-marinho (pin recortado, fundo transparente) e usar no header da landing, na sidebar do app e no favicon — onde hoje o ícone aparece como um quadradinho azul.
 
-### Assets
-- Subir os dois logos como Lovable Assets:
-  - `src/assets/remax-icon.png.asset.json` (logo só ícone — pin RE/MAX) — usado em header/sidebar/favicon.
-  - `src/assets/remax-full.png.asset.json` (logo completo "Imóveis RE/MAX Única Escolha CRECI: 29886-J") — usado na landing e nos PDFs.
-
-### Onde aplicar no site
-- **Sidebar do app** (`src/components/app-sidebar.tsx`): substituir o ícone `<Radar />` pelo logo ícone RE/MAX.
-- **Header do app** (`src/routes/app.tsx`): trocar o texto "Estudo de Mercado Pro" por uma versão menor do logo completo.
-- **Landing** (`src/routes/index.tsx`): logo completo no topo (nav) e versão ícone no footer.
-- **Auth** (`src/routes/auth.tsx`): logo completo acima do formulário.
-- **Favicon / OG image** (`src/routes/__root.tsx`): apontar para o logo ícone.
-
-### Onde aplicar nos arquivos gerados (PDFs)
-- **Branding store** (`src/lib/branding-store.ts`): definir `logoUrl` default = URL do logo completo RE/MAX (hoje vem `undefined`, então o ACM mostra placeholder).
-- **PDFs** (`src/components/print-slides.tsx`): garantir que as 3 páginas (ACM landscape, Argumentos ao proprietário, Carta ao proprietário) renderizam `branding.logoUrl` no cabeçalho. Hoje o ACM já usa; confirmar que páginas 2 e 3 também exibem.
-- **Configurações** (`src/routes/app.configuracoes.tsx`): manter o upload manual (corretor pode trocar pelo seu próprio logo); só mudar o default.
+### Passos
+1. Usar `imagegen--edit_image` no `src/assets/remax-icon.png` para remover o fundo navy, mantendo só o pin RE/MAX (vermelho/branco/azul) com `transparent_background: true`. Salvar como novo asset `remax-icon-transparent.png`.
+2. Subir via `lovable-assets` e gerar pointer `src/assets/remax-icon-transparent.png.asset.json`.
+3. Trocar o import nos pontos que usam o ícone:
+   - `src/components/app-sidebar.tsx` — remover `rounded-lg object-cover`, deixar só a imagem.
+   - `src/routes/index.tsx` (header da landing) — idem.
+4. Manter o logo completo (com texto "Imóveis RE/MAX Única Escolha") inalterado na tela de login e nos PDFs — só o ícone vai para versão transparente.
 
 ### Observação
-O logo já vem com fundo azul-marinho (não tem versão transparente). Vou usar como está; em fundo branco do PDF ele aparecerá como um card azul — fica coerente com a identidade RE/MAX. Se preferir versão recortada/transparente, me avise que gero uma variante editada antes de aplicar.
+A versão atual com fundo navy permanece disponível em `remax-icon.png` caso queira voltar.
