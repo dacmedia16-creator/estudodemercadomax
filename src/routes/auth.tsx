@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Radar, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import remaxFull from "@/assets/remax-full.png.asset.json";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -92,14 +93,8 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-6 flex items-center justify-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Radar className="h-5 w-5" />
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-bold">Estudo de Mercado</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">Pro</div>
-          </div>
+        <Link to="/" className="mb-6 flex items-center justify-center">
+          <img src={remaxFull.url} alt="Imóveis RE/MAX Única Escolha" className="h-24 w-auto rounded-lg" />
         </Link>
 
         <Card className="border-border/60 p-6 shadow-[var(--shadow-elegant)]">

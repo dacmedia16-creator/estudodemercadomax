@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { FilePlus2, FolderOpen, BarChart3, FileText, Settings, Radar, ShieldCheck } from "lucide-react";
+import { FilePlus2, FolderOpen, BarChart3, FileText, Settings, ShieldCheck } from "lucide-react";
+import remaxIcon from "@/assets/remax-icon.png.asset.json";
 import {
   Sidebar,
   SidebarContent,
@@ -28,12 +29,10 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <Link to="/app/novo-estudo" className="flex items-center gap-2 px-2 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Radar className="h-5 w-5" />
-          </div>
+          <img src={remaxIcon.url} alt="RE/MAX Única Escolha" className="h-9 w-9 rounded-lg object-cover" />
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-bold text-sidebar-foreground">Estudo de Mercado</span>
-            <span className="text-[10px] uppercase tracking-wider text-primary">Pro</span>
+            <span className="text-sm font-bold text-sidebar-foreground">RE/MAX Única</span>
+            <span className="text-[10px] uppercase tracking-wider text-primary">Estudo de Mercado</span>
           </div>
         </Link>
       </SidebarHeader>
