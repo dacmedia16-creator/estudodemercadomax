@@ -380,9 +380,20 @@ export async function runStudy(
           if (!res) continue;
           if (!res.ok) {
             if (!firstError) firstError = res.errorMessage || res.errorCode || `HTTP_${res.status}`;
-            // HTTP error → don't keep burning credits on this portal for
-            // later layers either.
-            exhaustedGlobal.add(t);
+            // Distinguish transient upstream errors (5xx) from real auth /
+            // quota errors. 5xx already foi tentado 3x dentro do callGecko
+            // — não marca exhaustedGlobal (próxima camada/keyword pode pegar
+            // o portal já recuperado) e registra no funil pra ficar visível.
+            if (res.status >= 500 && res.status < 600) {
+              upstream5xxPortals.add(t);
+              funilBusca.push({
+                etapa: `${PORTAL_TARGETS[t]}: GeckoAPI indisponível (HTTP ${res.status}) — tentado 3x`,
+                total: 0,
+              });
+            } else {
+              // 401/402/4xx reais → não adianta queimar crédito de novo.
+              exhaustedGlobal.add(t);
+            }
             continue;
           }
           if (res.notFound) {
