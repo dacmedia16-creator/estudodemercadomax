@@ -143,6 +143,8 @@ export async function runStudy(
   const exhaustedGlobal = new Set<PortalTarget>();
   // True once we add the funnel line "Chaves: skipped on keyword layers".
   let chavesKeywordSkipNoted = false;
+  // Portals that returned a 5xx (GeckoAPI/upstream down) at least once.
+  const upstream5xxPortals = new Set<PortalTarget>();
   const totalResultsPerTarget: Record<string, number> = {};
   for (const t of targets) totalResultsPerTarget[t] = 0;
   const loggedShape = new Set<string>();
