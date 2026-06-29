@@ -56,11 +56,17 @@ async function callGecko<T>(body: Record<string, unknown>, tokenOverride?: strin
       body: JSON.stringify(body),
     });
 
+  // Retry on transient upstream errors (429 rate-limit + 5xx) with backoff.
+  // GeckoAPI occasionally returns 502/503/504 in short windows — without
+  // this the whole study comes back empty even though the next call would
+  // succeed.
   let res: Response;
+  const TRANSIENT = new Set([429, 502, 503, 504]);
+  const backoffMs = [1500, 3000];
   try {
     res = await doFetch();
-    if (res.status === 429) {
-      await new Promise((r) => setTimeout(r, 1500));
+    for (let i = 0; i < backoffMs.length && TRANSIENT.has(res.status); i++) {
+      await new Promise((r) => setTimeout(r, backoffMs[i]));
       res = await doFetch();
     }
   } catch (e) {

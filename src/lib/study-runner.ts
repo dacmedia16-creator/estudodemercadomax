@@ -143,6 +143,8 @@ export async function runStudy(
   const exhaustedGlobal = new Set<PortalTarget>();
   // True once we add the funnel line "Chaves: skipped on keyword layers".
   let chavesKeywordSkipNoted = false;
+  // Portals that returned a 5xx (GeckoAPI/upstream down) at least once.
+  const upstream5xxPortals = new Set<PortalTarget>();
   const totalResultsPerTarget: Record<string, number> = {};
   for (const t of targets) totalResultsPerTarget[t] = 0;
   const loggedShape = new Set<string>();
@@ -378,9 +380,20 @@ export async function runStudy(
           if (!res) continue;
           if (!res.ok) {
             if (!firstError) firstError = res.errorMessage || res.errorCode || `HTTP_${res.status}`;
-            // HTTP error → don't keep burning credits on this portal for
-            // later layers either.
-            exhaustedGlobal.add(t);
+            // Distinguish transient upstream errors (5xx) from real auth /
+            // quota errors. 5xx already foi tentado 3x dentro do callGecko
+            // — não marca exhaustedGlobal (próxima camada/keyword pode pegar
+            // o portal já recuperado) e registra no funil pra ficar visível.
+            if (res.status >= 500 && res.status < 600) {
+              upstream5xxPortals.add(t);
+              funilBusca.push({
+                etapa: `${PORTAL_TARGETS[t]}: GeckoAPI indisponível (HTTP ${res.status}) — tentado 3x`,
+                total: 0,
+              });
+            } else {
+              // 401/402/4xx reais → não adianta queimar crédito de novo.
+              exhaustedGlobal.add(t);
+            }
             continue;
           }
           if (res.notFound) {
@@ -629,7 +642,12 @@ export async function runStudy(
       //   passo B) tira tudo nativo (city/state/keyword/propertyType/neighborhood)
       if (!buscaLivre) {
         const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br"] as PortalTarget[])
-          .filter((t) => targets.includes(t) && (perPortal[t]?.bairro.recebidos ?? 0) === 0);
+          .filter((t) =>
+            targets.includes(t)
+            && (perPortal[t]?.bairro.recebidos ?? 0) === 0
+            // Não adianta afrouxar filtro quando a GeckoAPI caiu — o retry
+            // só ajuda quando o portal respondeu mas devolveu lista vazia.
+            && !upstream5xxPortals.has(t));
         for (const t of retryTargets) {
           // Solta exhaustedGlobal pra esse portal — vamos tentar com filtros relaxados.
           exhaustedGlobal.delete(t);
@@ -710,6 +728,11 @@ export async function runStudy(
     }
 
     if (mainProperties.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {
+      // Quando todos os portais ativos caíram com 5xx, deixa claro pro
+      // usuário que é instabilidade da GeckoAPI, não filtro nosso.
+      if (upstream5xxPortals.size >= targets.length && upstream5xxPortals.size > 0) {
+        throw new Error("GECKOAPI_UNAVAILABLE");
+      }
       throw new Error(mainError || "Nenhum imóvel encontrado para a busca informada");
     }
 
@@ -1005,6 +1028,8 @@ export async function runStudy(
     const code = String(msg);
     if (code.includes("NO_TOKEN")) {
       warningMsg = "Token GeckoAPI não configurado — usando dados de demonstração.";
+    } else if (code.includes("GECKOAPI_UNAVAILABLE")) {
+      warningMsg = "GeckoAPI indisponível no momento (todos os portais retornaram 5xx). Tente novamente em alguns minutos. Usando dados de demonstração.";
     } else if (code.includes("401") || code.toUpperCase().includes("UNAUTHORIZED")) {
       warningMsg = "Token GeckoAPI inválido — usando dados de demonstração.";
     } else if (code.includes("402") || code.includes("INSUFFICIENT")) {
