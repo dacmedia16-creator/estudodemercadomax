@@ -1006,10 +1006,49 @@
   .print-owner-pages .owner-letter-sign { margin-top: 2pt !important; font-size: 9pt !important; }
 
   /* Página 3 — Top comparáveis + Pontos fortes/atenção (compactos) */
-  .print-owner-pages .owner-letter-intro { font-size: 9.5pt !important; }
+  .print-owner-pages .owner-letter-intro {
+    font-size: 9.5pt !important;
+    white-space: pre-line !important;
+  }
   .print-owner-pages .owner-letter-list li { font-size: 8pt !important; line-height: 1.25 !important; }
   .print-owner-pages .owner-letter-cta p { font-size: 8.5pt !important; line-height: 1.25 !important; }
-  .print-owner-pages .owner-letter-grid { gap: 4pt !important; }
+  .print-owner-pages .owner-letter-grid { gap: 3pt !important; }
+
+  /* Bloco de análise de IA destinado ao proprietário */
+  .print-owner-pages .owner-letter-ia {
+    margin-top: 3pt !important;
+    padding: 4pt 6pt 5pt !important;
+    border: 0.6pt solid #d8e0ee !important;
+    border-left: 2pt solid var(--acm-brand, #003DA5) !important;
+    border-radius: 4pt !important;
+    background: #f6f8fc !important;
+  }
+  .print-owner-pages .owner-letter-ia-title {
+    font-size: 8pt !important;
+    font-weight: 700 !important;
+    color: var(--acm-brand, #003DA5) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    margin-bottom: 2pt !important;
+  }
+  .print-owner-pages .owner-letter-ia-list {
+    margin: 0 0 2pt 10pt !important;
+    padding: 0 !important;
+    list-style: disc outside !important;
+  }
+  .print-owner-pages .owner-letter-ia-list li {
+    font-size: 7.6pt !important;
+    line-height: 1.3 !important;
+    color: #1f2937 !important;
+    margin: 0 0 1pt !important;
+  }
+  .print-owner-pages .owner-letter-ia-badge {
+    font-size: 6.2pt !important;
+    color: #6b7280 !important;
+    font-style: italic !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+  }
 
   .print-owner-pages .owner-letter-top {
     margin-top: 4pt !important;
