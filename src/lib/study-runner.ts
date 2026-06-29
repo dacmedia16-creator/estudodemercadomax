@@ -556,12 +556,21 @@ export async function runStudy(
           } catch { /* best-effort */ }
         }
       }
-      // Push as many filters as possible to the upstream — saves credits by
-      // avoiding pages full of out-of-range listings (doc says PLP supports
-      // bedrooms/bathrooms/parkingSpots/priceMin/Max/areaMin/Max natively).
-      const bedroomsList = !buscaLivre && quartosMin > 0
+      // Push filters to the upstream com cautela — quando o anúncio não
+      // declara o campo no formato esperado, o PLP zera a página inteira.
+      // Por isso:
+      //   - bedrooms só sobe se o usuário ajustou manualmente (override).
+      //   - area só sobe se o usuário ajustou range manual (override).
+      //   - price sobe com faixa larga (±40%) — strictLocal segue ±30%.
+      const userAdjustedQuartos = overrides.quartosMin !== undefined || overrides.quartosMax !== undefined;
+      const userAdjustedArea = overrides.areaMin !== undefined || overrides.areaMax !== undefined;
+      const bedroomsList = !buscaLivre && userAdjustedQuartos && quartosMin > 0
         ? Array.from(new Set([quartosMin, quartosMax].filter((n) => n > 0)))
         : undefined;
+      const priceMinWide = Math.round(input.valorPretendido * 0.6);
+      const priceMaxWide = Math.round(input.valorPretendido * 1.4);
+      const priceMinSend = overrides.priceMin ?? (input.valorPretendido > 0 ? priceMinWide : 0);
+      const priceMaxSend = overrides.priceMax ?? (input.valorPretendido > 0 ? priceMaxWide : 0);
       // ---- Diferenciais nativos (amenities) ----
       const fieldModesEff: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(overrides.fieldModes ?? {}) };
       const allAmenities = mapDiferenciaisToZapAmenities(input.diferenciais ?? []);
@@ -596,10 +605,10 @@ export async function runStudy(
           })(),
           amenities: amenitiesToSend,
           bedrooms: bedroomsList,
-          priceMin: !buscaLivre && priceMin > 0 ? Math.round(priceMin) : undefined,
-          priceMax: !buscaLivre && priceMax > 0 ? Math.round(priceMax) : undefined,
-          areaMin: !buscaLivre && areaMin > 0 ? Math.round(areaMin) : undefined,
-          areaMax: !buscaLivre && areaMax > 0 ? Math.round(areaMax) : undefined,
+          priceMin: !buscaLivre && priceMinSend > 0 ? Math.round(priceMinSend) : undefined,
+          priceMax: !buscaLivre && priceMaxSend > 0 ? Math.round(priceMaxSend) : undefined,
+          areaMin: !buscaLivre && userAdjustedArea && areaMin > 0 ? Math.round(areaMin) : undefined,
+          areaMax: !buscaLivre && userAdjustedArea && areaMax > 0 ? Math.round(areaMax) : undefined,
           latitude: geoLat,
           longitude: geoLng,
           radius: geoLat && geoLng ? radiusKm : undefined,
@@ -613,72 +622,90 @@ export async function runStudy(
       mainProperties = res.properties;
       mainPages = res.pages;
       mainError = res.errorMessage;
-      // ---- Fallback: se enviamos amenities e a camada bairro voltou vazia,
-      // refaz SEM amenities (aplica o filtro só localmente). Evita perder
-      // anúncios que não declaram amenities no Zap.
-      if (amenitiesToSend && amenitiesToSend.length && mainProperties.length === 0 && !buscaLivre) {
-        const retry = await adaptivePaginate(
-          {
-            city: cidade,
-            state: estado.toUpperCase(),
-            businessType,
-            keyword,
-            propertyType,
-            neighborhood: bairro || undefined,
-            propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
-            bedrooms: bedroomsList,
-            priceMin: priceMin > 0 ? Math.round(priceMin) : undefined,
-            priceMax: priceMax > 0 ? Math.round(priceMax) : undefined,
-            areaMin: areaMin > 0 ? Math.round(areaMin) : undefined,
-            areaMax: areaMax > 0 ? Math.round(areaMax) : undefined,
-            latitude: geoLat,
-            longitude: geoLng,
-            radius: geoLat && geoLng ? radiusKm : undefined,
-          },
-          (collected) => collected.filter(strictLocal).length + anchorsCount >= TARGET,
-          "bairro",
-        );
-        if (retry.properties.length > 0) {
-          const seen = new Set(mainProperties.map((p) => p.id));
-          for (const p of retry.properties) if (!seen.has(p.id)) mainProperties.push(p);
-          mainPages += retry.pages;
-          funilBusca.push({ etapa: `Fallback sem amenities: +${retry.properties.length} resultados`, total: retry.properties.length });
+      // ---- Retry escalonado por portal (Zap e Chaves) ----
+      // Para cada portal ativo que terminou a camada bairro com 0 itens
+      // recebidos, tenta de novo afrouxando filtros em 2 passos:
+      //   passo A) tira amenities + radius (mantém bedrooms/price/area)
+      //   passo B) tira tudo nativo (city/state/keyword/propertyType/neighborhood)
+      if (!buscaLivre) {
+        const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br"] as PortalTarget[])
+          .filter((t) => targets.includes(t) && (perPortal[t]?.bairro.recebidos ?? 0) === 0);
+        for (const t of retryTargets) {
+          // Solta exhaustedGlobal pra esse portal — vamos tentar com filtros relaxados.
+          exhaustedGlobal.delete(t);
+          funilBusca.push({
+            etapa: `${PORTAL_TARGETS[t]}: 0 itens com filtros nativos — tentando retry`,
+            total: 1,
+          });
+          const savedTargets = targets.slice();
+          targets.length = 0;
+          targets.push(t);
+          try {
+            // ----- Passo A: sem amenities, sem radius -----
+            const retryA = await adaptivePaginate(
+              {
+                city: cidade,
+                state: estado.toUpperCase(),
+                businessType,
+                keyword,
+                propertyType,
+                neighborhood: bairro || undefined,
+                propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+                bedrooms: bedroomsList,
+                priceMin: priceMinSend > 0 ? Math.round(priceMinSend) : undefined,
+                priceMax: priceMaxSend > 0 ? Math.round(priceMaxSend) : undefined,
+                areaMin: userAdjustedArea && areaMin > 0 ? Math.round(areaMin) : undefined,
+                areaMax: userAdjustedArea && areaMax > 0 ? Math.round(areaMax) : undefined,
+              },
+              (collected) => collected.filter(strictLocal).length + anchorsCount >= TARGET,
+              "bairro",
+            );
+            if (retryA.properties.length > 0) {
+              const seen = new Set(mainProperties.map((p) => p.id));
+              for (const p of retryA.properties) if (!seen.has(p.id)) mainProperties.push(p);
+              mainPages += retryA.pages;
+              funilBusca.push({
+                etapa: `${PORTAL_TARGETS[t]}: retry afrouxando amenities/raio`,
+                total: retryA.properties.length,
+              });
+              continue;
+            }
+            // ----- Passo B: só keyword + cidade -----
+            exhaustedGlobal.delete(t);
+            const retryB = await adaptivePaginate(
+              {
+                city: cidade,
+                state: estado.toUpperCase(),
+                businessType,
+                keyword,
+                propertyType,
+                neighborhood: bairro || undefined,
+                propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+              },
+              (collected) => collected.filter(strictLocal).length + anchorsCount >= TARGET,
+              "bairro",
+            );
+            if (retryB.properties.length > 0) {
+              const seen = new Set(mainProperties.map((p) => p.id));
+              for (const p of retryB.properties) if (!seen.has(p.id)) mainProperties.push(p);
+              mainPages += retryB.pages;
+              funilBusca.push({
+                etapa: `${PORTAL_TARGETS[t]}: retry sem filtros nativos`,
+                total: retryB.properties.length,
+              });
+            }
+          } finally {
+            targets.length = 0;
+            for (const x of savedTargets) targets.push(x);
+          }
         }
       }
-      // ---- Retry Zap-only with relaxed filters if it returned nothing ----
-      const zapTarget: PortalTarget = "zapimoveis.com.br";
-      const zapWasActive = targets.includes(zapTarget) && !exhaustedGlobal.has(zapTarget);
-      const zapZero = (perPortal[zapTarget]?.bairro.recebidos ?? 0) === 0;
-      const zapNotFound = (plpNotFoundPerTarget[zapTarget] ?? 0) > 0;
-      if (zapWasActive && zapZero && !zapNotFound && !buscaLivre) {
-        // Temporarily restrict targets to Zap for the retry pass.
-        const savedTargets = targets.slice();
-        targets.length = 0;
-        targets.push(zapTarget);
-        try {
-          const retry = await adaptivePaginate(
-            {
-              city: cidade,
-              state: estado.toUpperCase(),
-              businessType,
-              keyword,
-              propertyType,
-              // intentionally drop bedrooms / price / area / lat-lng-radius
-            },
-            (collected) => collected.filter(strictLocal).length + anchorsCount >= TARGET,
-            "bairro",
-          );
-          if (retry.properties.length > 0) {
-            // Merge retry into main pool, dedup by id.
-            const seen = new Set(mainProperties.map((p) => p.id));
-            for (const p of retry.properties) if (!seen.has(p.id)) mainProperties.push(p);
-            mainPages += retry.pages;
-            funilBusca.push({ etapa: `Zap Imóveis: retry sem filtros nativos`, total: retry.properties.length });
-          }
-        } finally {
-          targets.length = 0;
-          for (const t of savedTargets) targets.push(t);
-        }
+      // Avisa explicitamente quando Chaves está desativado nas configurações.
+      if (!targets.includes("chavesnamao.com.br") && !buscaLivre) {
+        funilBusca.push({
+          etapa: `Chaves na Mão: desativado (Configurações ou seleção de portais)`,
+          total: 1,
+        });
       }
     }
 
