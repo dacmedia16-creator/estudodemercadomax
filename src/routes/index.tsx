@@ -35,8 +35,7 @@ function Index() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold">{"\n"}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">ESTUDO DE MERCADO</span>
+              <span className="text-lg font-bold uppercase tracking-wider text-primary">ESTUDO DE MERCADO</span>
             </div>
           </Link>
           <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
