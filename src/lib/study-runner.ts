@@ -385,7 +385,10 @@ export async function runStudy(
           }
           if (res.notFound) {
             plpNotFoundPerTarget[t] = (plpNotFoundPerTarget[t] ?? 0) + 1;
-            exhaustedGlobal.add(t);
+            // notFound = "no results for THIS query" (filtros muito apertados
+            // ou keyword sem match). NÃO marcar exhaustedGlobal — outra
+            // camada com keyword/filtros diferentes pode trazer itens.
+            exhaustedThisQuery.add(t);
             continue;
           }
           const rawData = (res.data ?? {}) as any;
