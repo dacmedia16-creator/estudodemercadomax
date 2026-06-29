@@ -256,6 +256,25 @@ export const formatBRL = (n: number | null | undefined) => {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 };
 
+/**
+ * Valor Ideal de mercado — referência única para todo discurso de "ajuste sugerido".
+ * Prioridade:
+ *   1) faixaRecomendada.ideal da IA (quando rodou);
+ *   2) mediana × área (quando há percentis);
+ *   3) acm.valorSugerido (compatibilidade).
+ */
+export function getValorIdeal(
+  study: { aiAnalysis?: { faixaRecomendada?: { ideal?: number } } | null; stats?: { median?: number } | null; input: { areaUtil: number } },
+  acm: { valorSugerido: number },
+): number {
+  const ia = study.aiAnalysis?.faixaRecomendada?.ideal;
+  if (typeof ia === "number" && ia > 0) return Math.round(ia);
+  const median = study.stats?.median;
+  const area = study.input.areaUtil;
+  if (typeof median === "number" && median > 0 && area > 0) return Math.round(median * area);
+  return acm.valorSugerido;
+}
+
 export interface AcmComputed {
   multiplicador: number;
   valorM2Avaliado: number;
