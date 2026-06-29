@@ -195,13 +195,18 @@ export function generateStudy(
 
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
+  // Valor Ideal determinístico = mediana × área (quando há percentis); cai na média.
+  const valorIdealDet = stats && stats.median > 0 && input.areaUtil > 0
+    ? Math.round(stats.median * input.areaUtil)
+    : precoMedio;
+
   const diagnostico = top10.length === 0
     ? `Nenhum imóvel compatível foi encontrado nesta busca. Tente ampliar os critérios (área, preço, bairros próximos) no painel "Ajustar critérios" abaixo.`
     : status === "Acima da média"
-      ? `Com base nos ${top10.length} imóveis concorrentes em ${input.bairro} e região, o valor pretendido está acima da faixa praticada no mercado. Anúncios nessa faixa tendem a ficar mais tempo no portal, perder visibilidade e receber pouquíssimas visitas qualificadas. Para se manter competitivo e acelerar a venda, recomenda-se posicionar entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`
+      ? `Com base nos ${top10.length} imóveis concorrentes em ${input.bairro} e região, o valor pretendido está acima da faixa praticada no mercado. Anúncios nessa faixa tendem a ficar mais tempo no portal, perder visibilidade e receber pouquíssimas visitas qualificadas. O valor ideal de mercado é ${fmt(valorIdealDet)} — para se manter competitivo e acelerar a venda, recomenda-se posicionar entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`
       : status === "Abaixo da média"
       ? `O valor pretendido está alinhado e competitivo frente ao mercado de ${input.bairro}. A faixa de referência da concorrência vai de ${fmt(faixaMin)} a ${fmt(faixaMax)} — manter o anúncio nesse patamar tende a gerar mais visitas qualificadas e encurtar o tempo de venda.`
-      : `O valor pretendido está dentro da faixa praticada hoje em ${input.bairro}, porém próximo do teto da concorrência. Para garantir visitas qualificadas nas primeiras semanas e evitar que o anúncio esfrie no portal, a faixa mais competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`;
+      : `O valor pretendido está dentro da faixa praticada hoje em ${input.bairro}, porém próximo do teto da concorrência. O valor ideal de mercado é ${fmt(valorIdealDet)} — para garantir visitas qualificadas nas primeiras semanas e evitar que o anúncio esfrie no portal, a faixa mais competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`;
 
   const pontosFortes: string[] = [];
   const areas = top10.filter((p) => p.areaUtil > 0).map((p) => p.areaUtil);
@@ -226,7 +231,7 @@ export function generateStudy(
 
   const descricaoSugerida = `Este ${input.tipo.toLowerCase()} de ${input.areaUtil}m² no ${input.bairro} reúne ${input.quartos} quartos, ${input.vagas} vaga(s) e diferenciais como ${input.diferenciais.slice(0, 3).join(", ") || "ótima localização"}. Ideal para quem busca conforto, praticidade e uma região consolidada.`;
 
-  const argumentoProprietario = `Com base nos imóveis semelhantes anunciados em ${input.bairro}, o preço ideal para gerar competitividade está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Essa faixa aumenta as chances de atrair interessados qualificados sem desvalorizar o imóvel.`;
+  const argumentoProprietario = `Com base nos imóveis semelhantes anunciados em ${input.bairro}, o valor ideal de mercado é ${fmt(valorIdealDet)} e a faixa competitiva de publicação fica entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Posicionar nessa faixa aumenta as chances de atrair interessados qualificados sem desvalorizar o imóvel.`;
 
   return {
     id: crypto.randomUUID(),
