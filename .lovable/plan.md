@@ -1,29 +1,32 @@
 ## Objetivo
-Aumentar as letras da página 3 (Carta ao Proprietário) no PDF exportado, mantendo tudo dentro de 1 folha A4 retrato.
+Levar para a **Carta ao Proprietário** (página 3 do PDF) os blocos finais do one-pager: a tabela **Top comparáveis** e o painel **Pontos fortes / Pontos de atenção** — mantendo tudo dentro de 1 folha A4.
 
-## Mudanças (apenas CSS de impressão em `src/styles.css`, bloco `.print-owner-pages .owner-letter-*`)
+## Mudanças
 
-Aumentos de tipografia, com pequenos ajustes de espaçamento para compensar:
+### 1. `src/components/print-slides.tsx` → `OwnerLetterPage`
+- Receber `sorted` (mesmos comparáveis já ordenados que a página 2) — atualizar o caller `PrintOwnerPages` para passar `sorted`.
+- Selecionar `topComps = sorted.slice(0, 5)` (ou `comparaveis.slice(0,5)` se `sorted` vazio).
+- Selecionar `fortes = study.pontosFortes.slice(0,3)` e `atencao = study.pontosAtencao.slice(0,3)`.
+- Inserir, **depois da "Faixa que recomendamos para publicar" e antes do bloco CTA "Próximo passo"**:
+  - Bloco `owner-letter-top` com título "Imóveis parecidos sendo anunciados agora" e tabela `owner-letter-tabela` com colunas: Portal · Endereço/Título · m² · Qtos · Preço · R$/m² · Similaridade (barra). Reaproveita o padrão visual da `owner-table` da página 2.
+  - Bloco `owner-letter-points` com duas colunas (verde "Pontos fortes" / âmbar "Pontos de atenção"), mesma estética da `.op-points` do one-pager.
 
-- `owner-letter-intro`: 9.2pt → **10.5pt** (line-height 1.3)
-- `owner-letter-card-lbl`: 6.4pt → **7.4pt**
-- `owner-letter-card-val`: 12pt → **14pt**
-- `owner-letter-card-sub`: 6.8pt → **8pt**
-- `owner-letter-box-title`: 8.2pt → **9.5pt**
-- `owner-letter-list li`: 7.7pt → **9pt** (line-height 1.3)
-- `owner-letter-faixa-title`: 7.4pt → **8.5pt**
-- `owner-letter-faixa-tag`: 6.5pt → **7.5pt**
-- `owner-letter-faixa-val`: 10pt → **11.5pt**
-- `owner-letter-faixa-hint`: 7.4pt → **8.5pt**
-- `owner-letter-cta-title`: 7.5pt → **9pt**
-- `owner-letter-cta p`: 8pt → **9.5pt** (line-height 1.3)
-- `owner-letter-sign`: 7.8pt → **9pt**
-- `owner-letter-page` gap: 5pt → **6pt**
+### 2. `src/styles.css` (bloco `.print-owner-pages` dentro do `@media print`)
+- Adicionar estilos compactos para as novas classes:
+  - `.owner-letter-top` (título + tabela, fonte ~7pt).
+  - `.owner-letter-tabela th/td` com `padding: 1.6pt 2pt` e barra de similaridade igual à `op-simbar` reduzida.
+  - `.owner-letter-points` 2 colunas (`grid-template-columns: 1fr 1fr; gap: 5pt`), borda lateral colorida, lista compacta (~7.2pt).
+- Reduzir levemente, **somente nesta página**, para garantir 1 folha:
+  - `owner-letter-intro` 10.5pt → 9.5pt
+  - `owner-letter-list li` 9pt → 8pt
+  - `owner-letter-cta p` 9.5pt → 8.5pt
+  - `owner-letter-grid gap` menor (4pt)
+  - reduzir margens dos cards/faixa em ~1pt
+- Manter `.acm-page` travada em 210×297mm com `overflow: hidden` (proteção contra estouro).
 
-## Garantia de 1 página
-- A `.acm-page` da owner page já está travada em **210×297mm** com `overflow: hidden` e `page-break-after: auto`, então qualquer overflow eventual é cortado em vez de gerar 2ª folha.
-- Se algum item ainda transbordar visualmente em revisão, reduzo padding interno dos cards/boxes (sem mexer nas fontes) num segundo passe.
+### 3. Validação
+- Abrir `/app/relatorio/<id>?auto=onepager` (ou usar o botão Exportar PDF) e simular via Playwright/print preview para confirmar que a página 3 segue como **1 única folha A4 retrato** com todos os novos blocos visíveis.
 
 ## Escopo
 - Sem mudanças na página 1 (one-pager) nem na página 2 (Argumentos).
-- Sem mudança em componentes/TSX — só CSS.
+- Sem mudança em lógica/cálculo — só apresentação na página 3.

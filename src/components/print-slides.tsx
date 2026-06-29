@@ -211,7 +211,7 @@ export function PrintOwnerPages({
   return (
     <section className="print-slides print-owner-pages" style={styleVars}>
       <OwnerPersuasionPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
-      <OwnerLetterPage study={study} acm={acm} dataStr={data} brandName={branding.brandName} />
+      <OwnerLetterPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
     </section>
   );
 }
