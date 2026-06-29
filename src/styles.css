@@ -871,33 +871,6 @@
   html.print-mode-slides .print-onepager { display: none !important; }
   html.print-mode-slides .print-slides { display: block !important; }
 
-  /* Páginas "Argumentos" + "Carta" entram no PDF padrão (após o one-pager).
-   * No modo ACM elas já vêm dentro de `PrintSlides`, então escondemos aqui
-   * para não duplicar. Aqui usamos A4 RETRATO para casar com o one-pager. */
-  @page owner { size: A4 portrait; margin: 0; }
-  .print-owner-pages { display: block !important; }
-  html.print-mode-slides .print-owner-pages { display: none !important; }
-  .print-owner-pages > .acm-page {
-    page: owner;
-    width: 210mm !important;
-    max-width: 210mm !important;
-    height: 297mm !important;
-    min-height: 297mm !important;
-    padding: 12mm 12mm !important;
-    box-sizing: border-box !important;
-    overflow: hidden;
-    page-break-before: always;
-    break-before: page;
-  }
-  /* Em retrato, empilhar grids 2-col para evitar colunas estreitas */
-  .print-owner-pages .owner-grid {
-    grid-template-columns: 1fr !important;
-    gap: 6pt !important;
-  }
-  /* Tabela full-width fica confortável em retrato */
-  .print-owner-pages .owner-table { font-size: 8.5pt; }
-  .print-owner-pages .owner-block-title { font-size: 9.5pt; }
-
   .print-slides * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -916,6 +889,121 @@
     page-break-before: always;
     break-before: page;
   }
+
+  /* Páginas "Argumentos" + "Carta" entram no PDF padrão (após o one-pager).
+   * Precisam vir DEPOIS das regras ACM acima para não herdarem A4 paisagem. */
+  @page owner { size: A4 portrait; margin: 0; }
+  .print-owner-pages { display: block !important; }
+  html.print-mode-slides .print-owner-pages { display: none !important; }
+  .print-owner-pages,
+  .print-owner-pages * {
+    box-sizing: border-box !important;
+  }
+  .print-owner-pages > .acm-page {
+    page: owner !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    padding: 9mm 10mm !important;
+    margin: 0 auto !important;
+    overflow: hidden !important;
+    page-break-before: always !important;
+    break-before: page !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+  .print-owner-pages > .acm-page + .acm-page {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  /* Escala retrato compacta para caber exatamente em uma folha A4. */
+  .print-owner-pages .acm-header { padding-bottom: 3pt !important; }
+  .print-owner-pages .acm-title { font-size: 16pt !important; line-height: 1.05 !important; }
+  .print-owner-pages .acm-stripe { height: 5pt !important; margin-bottom: 3pt !important; }
+  .print-owner-pages .acm-page-meta { font-size: 6.5pt !important; padding-top: 2pt !important; }
+  .print-owner-pages .owner-page { gap: 3pt !important; }
+  .print-owner-pages .owner-status,
+  .print-owner-pages .owner-letter-status {
+    font-size: 7.5pt !important;
+    padding: 3pt 7pt !important;
+    white-space: nowrap !important;
+  }
+  .print-owner-pages .owner-tese {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 4pt !important;
+  }
+  .print-owner-pages .owner-tese-arrow { display: none !important; }
+  .print-owner-pages .owner-tese-box { padding: 4pt 5pt !important; border-radius: 4pt !important; }
+  .print-owner-pages .owner-tese-lbl { font-size: 6pt !important; letter-spacing: 0.04em !important; }
+  .print-owner-pages .owner-tese-val { font-size: 10pt !important; line-height: 1.1 !important; }
+  .print-owner-pages .owner-tese-pct { display: block !important; margin: 1pt 0 0 !important; font-size: 6.5pt !important; }
+  .print-owner-pages .owner-grid {
+    grid-template-columns: 1fr !important;
+    gap: 4pt !important;
+  }
+  .print-owner-pages .owner-block { padding: 4pt 6pt !important; border-radius: 4pt !important; }
+  .print-owner-pages .owner-block-title {
+    font-size: 7.5pt !important;
+    padding-bottom: 2pt !important;
+    margin-bottom: 3pt !important;
+    letter-spacing: 0.04em !important;
+  }
+  .print-owner-pages .owner-facts,
+  .print-owner-pages .owner-args {
+    font-size: 7.4pt !important;
+    line-height: 1.22 !important;
+    padding-left: 11pt !important;
+  }
+  .print-owner-pages .owner-facts li,
+  .print-owner-pages .owner-args li { margin-bottom: 1pt !important; }
+  .print-owner-pages .owner-table { font-size: 6.8pt !important; table-layout: fixed !important; }
+  .print-owner-pages .owner-table th,
+  .print-owner-pages .owner-table td { padding: 1.7pt 2pt !important; }
+  .print-owner-pages .owner-table th { font-size: 6pt !important; letter-spacing: 0.02em !important; }
+  .print-owner-pages .owner-imovel-titulo { font-size: 6.8pt !important; }
+  .print-owner-pages .owner-imovel-tag { font-size: 5.6pt !important; }
+  .print-owner-pages .owner-faixa-title { padding: 3pt 6pt !important; font-size: 7.3pt !important; }
+  .print-owner-pages .owner-faixa-cell { padding: 3pt 4pt !important; }
+  .print-owner-pages .owner-faixa-lbl { font-size: 5.9pt !important; letter-spacing: 0.03em !important; }
+  .print-owner-pages .owner-faixa-val { font-size: 8.8pt !important; }
+  .print-owner-pages .owner-discurso { padding: 4pt 6pt !important; }
+  .print-owner-pages .owner-discurso-title { font-size: 7pt !important; margin-bottom: 1pt !important; }
+  .print-owner-pages .owner-discurso p { font-size: 7.5pt !important; line-height: 1.25 !important; }
+
+  .print-owner-pages .owner-letter-page { gap: 5pt !important; }
+  .print-owner-pages .owner-letter-intro { font-size: 9.2pt !important; line-height: 1.28 !important; }
+  .print-owner-pages .owner-letter-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 4pt !important;
+  }
+  .print-owner-pages .owner-letter-arrow { display: none !important; }
+  .print-owner-pages .owner-letter-card { padding: 5pt 6pt !important; border-radius: 4pt !important; }
+  .print-owner-pages .owner-letter-card-lbl { font-size: 6.4pt !important; letter-spacing: 0.04em !important; }
+  .print-owner-pages .owner-letter-card-val { font-size: 12pt !important; line-height: 1.1 !important; }
+  .print-owner-pages .owner-letter-card-sub { font-size: 6.8pt !important; }
+  .print-owner-pages .owner-letter-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 5pt !important;
+  }
+  .print-owner-pages .owner-letter-box { padding: 5pt 6pt !important; border-radius: 4pt !important; }
+  .print-owner-pages .owner-letter-box-title { font-size: 8.2pt !important; margin-bottom: 3pt !important; }
+  .print-owner-pages .owner-letter-list li {
+    font-size: 7.7pt !important;
+    line-height: 1.24 !important;
+    padding-top: 1pt !important;
+    padding-bottom: 1pt !important;
+  }
+  .print-owner-pages .owner-letter-faixa-title { padding: 3pt 6pt !important; font-size: 7.4pt !important; }
+  .print-owner-pages .owner-letter-faixa-cell { padding: 5pt 6pt !important; }
+  .print-owner-pages .owner-letter-faixa-tag { font-size: 6.5pt !important; }
+  .print-owner-pages .owner-letter-faixa-val { font-size: 10pt !important; }
+  .print-owner-pages .owner-letter-faixa-hint { padding: 3pt 6pt !important; font-size: 7.4pt !important; }
+  .print-owner-pages .owner-letter-cta { padding: 5pt 7pt !important; }
+  .print-owner-pages .owner-letter-cta-title { font-size: 7.5pt !important; }
+  .print-owner-pages .owner-letter-cta p { font-size: 8pt !important; line-height: 1.25 !important; }
+  .print-owner-pages .owner-letter-sign { margin-top: 2pt !important; font-size: 7.8pt !important; }
 
   /* Em impressão, escondemos a pré-visualização em tela para não duplicar */
   html .print-slides-screen,
