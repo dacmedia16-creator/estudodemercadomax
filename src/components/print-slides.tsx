@@ -1,4 +1,4 @@
-import { computeAcm, formatBRL } from "@/lib/study-engine";
+import { computeAcm, formatBRL, getValorIdeal } from "@/lib/study-engine";
 import { DEFAULT_ACM, type ComparableProperty, type StudyResult } from "@/lib/study-types";
 import { brandingStore } from "@/lib/branding-store";
 
