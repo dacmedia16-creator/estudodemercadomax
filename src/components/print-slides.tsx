@@ -237,9 +237,9 @@ function OwnerPersuasionPage({
 }) {
   const { input, comparaveis, stats } = study;
   const pretendido = input.valorPretendido;
-  const sugerido = acm.valorSugerido;
-  const gap = pretendido - sugerido;
-  const gapPct = sugerido > 0 ? (gap / sugerido) * 100 : 0;
+  const valorIdeal = getValorIdeal(study, acm);
+  const gap = pretendido - valorIdeal;
+  const gapPct = valorIdeal > 0 ? (gap / valorIdeal) * 100 : 0;
 
   const baratos = [...comparaveis]
     .filter((c) => c.preco > 0)
@@ -278,13 +278,13 @@ function OwnerPersuasionPage({
   // Faixa recomendada: usa IA quando existe; senão deriva dos percentis
   const faixa = study.aiAnalysis?.faixaRecomendada ?? (stats
     ? { entrada: stats.p25 * (input.areaUtil || 1), ideal: stats.median * (input.areaUtil || 1), teto: stats.p75 * (input.areaUtil || 1) }
-    : { entrada: sugerido * 0.95, ideal: sugerido, teto: sugerido * 1.05 });
+    : { entrada: valorIdeal * 0.95, ideal: valorIdeal, teto: valorIdeal * 1.05 });
 
   // Argumentos prontos — usa IA ou fallback determinístico
   const argumentos =
     study.aiAnalysis?.argumentosChave && study.aiAnalysis.argumentosChave.length > 0
       ? study.aiAnalysis.argumentosChave
-      : buildFallbackArgs({ abaixoCount, totalComps, menorPreco, pretendido, acimaMedianaM2, sugerido, gapPct });
+      : buildFallbackArgs({ abaixoCount, totalComps, menorPreco, pretendido, acimaMedianaM2, valorIdeal, gapPct });
 
   const riscos = study.aiAnalysis?.riscos && study.aiAnalysis.riscos.length > 0
     ? study.aiAnalysis.riscos
@@ -311,8 +311,8 @@ function OwnerPersuasionPage({
         </div>
         <div className="owner-tese-arrow">→</div>
         <div className="owner-tese-box owner-tese-target">
-          <div className="owner-tese-lbl">Valor sugerido (ACM)</div>
-          <div className="owner-tese-val">{formatBRL(sugerido)}</div>
+          <div className="owner-tese-lbl">Valor ideal de publicação</div>
+          <div className="owner-tese-val">{formatBRL(valorIdeal)}</div>
         </div>
         <div className="owner-tese-box owner-tese-gap">
           <div className="owner-tese-lbl">Diferença</div>
@@ -444,7 +444,7 @@ function OwnerPersuasionPage({
 
 function buildFallbackArgs(p: {
   abaixoCount: number; totalComps: number; menorPreco: number;
-  pretendido: number; acimaMedianaM2: number; sugerido: number; gapPct: number;
+  pretendido: number; acimaMedianaM2: number; valorIdeal: number; gapPct: number;
 }): string[] {
   const out: string[] = [];
   if (p.abaixoCount > 0 && p.totalComps > 0) {
@@ -457,7 +457,7 @@ function buildFallbackArgs(p: {
     out.push(`Seu R$/m² está ${p.acimaMedianaM2.toFixed(1)}% acima da mediana da região; portais penalizam anúncios fora da curva.`);
   }
   if (p.gapPct > 3) {
-    out.push(`Ajustar para ${formatBRL(p.sugerido)} alinha o imóvel ao centro do mercado e amplia o público qualificado.`);
+    out.push(`Ajustar para o valor ideal de ${formatBRL(p.valorIdeal)} alinha o imóvel ao centro do mercado e amplia o público qualificado.`);
   }
   out.push("Anúncios competitivos recebem mais visitas nas primeiras semanas — é quando o imóvel realmente vende.");
   out.push("Reduzir agora preserva a margem; reduzir depois de meses parado custa mais e queima o anúncio.");
