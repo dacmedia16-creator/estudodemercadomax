@@ -183,12 +183,6 @@ export function PrintSlides({
         </div>
       </div>
 
-      {variant !== "screen" && (
-        <>
-          <OwnerPersuasionPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
-          <OwnerLetterPage study={study} acm={acm} dataStr={data} brandName={branding.brandName} />
-        </>
-      )}
     </section>
   );
 }
