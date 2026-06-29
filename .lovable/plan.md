@@ -1,36 +1,25 @@
-# Por que o último estudo veio vazio
+## Problema
 
-Olhando o log de chamadas (`api_usage`) do estudo `7040b56b…` de 29/06 às 03:19, as 7 PLPs feitas (Zap, Chaves e OLX) voltaram todas com **HTTP 502** da GeckoAPI. Ou seja: a API intermediária estava com indisponibilidade momentânea — nenhum portal chegou a responder. O estudo de poucos minutos antes (02:49) rodou normal, então foi uma janela curta de instabilidade do upstream, não um bug do filtro.
+A análise por IA falha com erro de validação Zod no cliente, antes de chegar no servidor:
 
-Hoje o `study-runner` trata 502/503/504 como "portal vazio" e segue em frente, então quando os 3 portais caem juntos o estudo simplesmente fecha sem nada e sem aviso claro pro usuário.
+```
+mercado.precoM2Medio → Invalid input (expected number)
+comparaveis[9].precoM2 → Invalid input (expected number)
+```
 
-## O que mudar
+Causa: o estudo atual tem `precoM2Medio` ausente/`NaN` (média R$/m² aparece como "—" na tela) e pelo menos um comparável sem `precoM2`. O `inputSchema` em `src/lib/ai-analysis.functions.ts` exige `number` nesses campos, então o `.parse()` do `inputValidator` rejeita o payload no client antes de chamar o servidor.
 
-1. **Retry com backoff para erros transitórios do upstream**
-   - Em `src/lib/gecko.functions.ts`, no `callGecko`, tratar `502/503/504` igual ao 429 já tratado: até 2 tentativas extras com backoff (1.5s, 3s) antes de devolver erro.
-   - Isso resolve a maior parte das janelas curtas como a de 03:19 sem mexer no fluxo.
+## Correção
 
-2. **Propagar "indisponibilidade do upstream" pro runner**
-   - Em `src/lib/study-runner.ts`, distinguir `ok:false` com status 5xx de "portal vazio": marcar `portalIndisponivel` no funil em vez de `exhaustedThisQuery`, e adicionar linha clara em `funilBusca` ("Zap: GeckoAPI indisponível (502) — tentado 3x").
-   - Não disparar retries internos extras (passos A/B sem filtros nativos) quando o erro for 5xx — não adianta afrouxar filtro se o upstream está fora.
+1. **`src/lib/ai-analysis.functions.ts`** — tornar o schema tolerante:
+   - `precoM2Medio`, `menorPreco`, `maiorPreco`, `precoMedio` → `z.number().nullish().transform(v => Number(v) || 0)`.
+   - Em `comparavelSchema`: `preco`, `precoM2`, `areaUtil`, `quartos`, `similaridade` → mesma transformação tolerante (aceita `null`/`undefined`/`NaN` e cai para 0).
+   - Manter os campos obrigatórios do `imovel` como estão.
 
-3. **Aviso no `app/carregando` e no relatório quando todos os portais caem**
-   - Em `src/routes/app.carregando.tsx`: se `result.comparaveis.length === 0` e o funil indicar todos portais com 5xx, mostrar toast vermelho "GeckoAPI indisponível agora. Tente novamente em alguns minutos." em vez de abrir o relatório vazio em silêncio.
-   - No relatório, exibir um banner equivalente no topo quando o estudo foi salvo nesse estado, com botão "Rodar de novo" reaproveitando os mesmos parâmetros.
+2. **`src/components/ai-analysis-card.tsx`** — sanitizar antes de enviar:
+   - Substituir cada número pelo `Number(x) || 0` ao montar `payload.mercado` e `payload.comparaveis`, evitando enviar `NaN`/`undefined`.
+   - Filtrar comparáveis sem `preco > 0` (não fazem sentido para a IA).
 
-4. **Painel de Configurações: status do GeckoAPI**
-   - Aproveitar o `geckoStatus` existente e adicionar um teste leve (1 PLP barata) que diga "GeckoAPI respondendo / com falhas" — ajuda o usuário a confirmar que é o upstream e não a conta dele.
+3. **Mensagem de erro** — se após sanitização não houver nenhum comparável com preço válido, mostrar toast claro ("Sem comparáveis com preço para analisar") em vez de chamar a IA.
 
-## Técnico
-
-- Sem mudança de schema. `api_usage` já guarda o `status`, dá pra detectar 5xx histórico no admin sem migração.
-- Custo: o retry de 5xx adiciona no máximo 2 chamadas extras *somente* quando o upstream falha; chamadas com 5xx normalmente não consomem crédito GeckoAPI, mas vamos confirmar pela doc antes do merge.
-- Sem mexer em filtros de similaridade, ACM, IA ou layout de PDF.
-
-## Como validar
-
-- Forçar `callGecko` a devolver 502 em ambiente local (mock) e confirmar:
-  - 3 tentativas no `api_usage`.
-  - Funil mostra "GeckoAPI indisponível".
-  - Carregando exibe toast e não salva estudo vazio silenciosamente.
-- Rodar um estudo real depois do merge e conferir que o caminho feliz segue idêntico (mesmas chamadas, mesmo custo).
+Nenhuma mudança de UI ou lógica de busca — apenas robustez na chamada da análise.
