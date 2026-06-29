@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import remaxIcon from "@/assets/remax-icon-transparent.png.asset.json";
 import {
   Search,
   TrendingUp,
@@ -35,7 +34,6 @@ function Index() {
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-lg">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <Link to="/" className="flex items-center gap-2">
-            <img src={remaxIcon.url} alt="RE/MAX Única Escolha" className="h-10 w-10 object-contain" />
             <div className="flex flex-col leading-tight">
               <span className="text-sm font-bold">Imóveis RE/MAX</span>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Única Escolha · Estudo de Mercado</span>
