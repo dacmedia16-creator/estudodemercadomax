@@ -105,15 +105,15 @@ export function AiAnalysisCard({ study, onChange }: Props) {
             </div>
           </div>
         </div>
-        <Button onClick={run} disabled={loading} size="sm" className="gap-2">
+        <Button onClick={run} disabled={loading} size="sm" variant={ai ? "outline" : "default"} className="gap-2">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : ai ? <RotateCcw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-          {loading ? "Analisando..." : ai ? "Gerar novamente" : "Analisar com IA"}
+          {loading ? "Analisando..." : ai ? "Gerar novamente" : "Tentar novamente"}
         </Button>
       </div>
 
       {!ai && !loading && (
         <div className="rounded-lg border border-dashed border-border bg-muted/20 p-5 text-center text-sm text-muted-foreground">
-          Clique em <strong>Analisar com IA</strong> para receber uma faixa recomendada com justificativa, riscos e ações concretas.
+          Análise automática indisponível neste estudo. Clique em <strong>Tentar novamente</strong> para gerar uma faixa recomendada com justificativa, riscos e ações concretas.
         </div>
       )}
 
