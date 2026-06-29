@@ -570,9 +570,10 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
   const { input } = study;
   const valorIdeal = getValorIdeal(study, acm);
   // Mínimo/máximo de publicação derivados do Valor Ideal para coerência com o discurso.
-  const margem = Math.max(0, (study.acm?.margemNegociacaoPct ?? acm.multiplicador ? 0 : 0)); // mantém comportamento
-  const idealMin = Math.round(valorIdeal * (acm.valorSugerido > 0 ? acm.valorMinimoFechamento / acm.valorSugerido : 0.95));
-  const idealMax = Math.round(valorIdeal * (acm.valorSugerido > 0 ? acm.valorMaximoPublicacao / acm.valorSugerido : 1.05));
+  const ratioMin = acm.valorSugerido > 0 ? acm.valorMinimoFechamento / acm.valorSugerido : 0.95;
+  const ratioMax = acm.valorSugerido > 0 ? acm.valorMaximoPublicacao / acm.valorSugerido : 1.05;
+  const idealMin = Math.round(valorIdeal * ratioMin);
+  const idealMax = Math.round(valorIdeal * ratioMax);
   const top = sorted.slice(0, 6);
   const fortes = study.pontosFortes.slice(0, 4);
   const atencao = study.pontosAtencao.slice(0, 4);
