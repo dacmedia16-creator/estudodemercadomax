@@ -198,10 +198,10 @@ export function generateStudy(
   const diagnostico = top10.length === 0
     ? `Nenhum imóvel compatível foi encontrado nesta busca. Tente ampliar os critérios (área, preço, bairros próximos) no painel "Ajustar critérios" abaixo.`
     : status === "Acima da média"
-      ? `Com base nos ${top10.length} imóveis encontrados em ${input.bairro} e região, este imóvel está posicionado acima da média de mercado. Para aumentar a competitividade, recomenda-se trabalhar uma faixa entre ${fmt(faixaMin)} e ${fmt(faixaMax)}, destacando metragem, localização e diferenciais.`
+      ? `Com base nos ${top10.length} imóveis concorrentes em ${input.bairro} e região, o valor pretendido está acima da faixa praticada no mercado. Anúncios nessa faixa tendem a ficar mais tempo no portal, perder visibilidade e receber pouquíssimas visitas qualificadas. Para se manter competitivo e acelerar a venda, recomenda-se posicionar entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`
       : status === "Abaixo da média"
-      ? `Seu imóvel está abaixo da média de mercado em ${input.bairro}. Há espaço para reajuste de valor — a faixa recomendada vai de ${fmt(faixaMin)} a ${fmt(faixaMax)}, o que pode aumentar a margem sem comprometer a velocidade de venda.`
-      : `Seu imóvel está bem posicionado em relação ao mercado de ${input.bairro}. A faixa competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Reforce os diferenciais para acelerar a negociação.`;
+      ? `O valor pretendido está alinhado e competitivo frente ao mercado de ${input.bairro}. A faixa de referência da concorrência vai de ${fmt(faixaMin)} a ${fmt(faixaMax)} — manter o anúncio nesse patamar tende a gerar mais visitas qualificadas e encurtar o tempo de venda.`
+      : `O valor pretendido está dentro da faixa praticada hoje em ${input.bairro}, porém próximo do teto da concorrência. Para garantir visitas qualificadas nas primeiras semanas e evitar que o anúncio esfrie no portal, a faixa mais competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`;
 
   const pontosFortes: string[] = [];
   const areas = top10.filter((p) => p.areaUtil > 0).map((p) => p.areaUtil);
@@ -216,6 +216,7 @@ export function generateStudy(
 
   const pontosAtencao: string[] = [];
   if (status === "Acima da média") pontosAtencao.push("Preço acima da média de mercado");
+  if (status === "Dentro da média") pontosAtencao.push("Próximo do teto da faixa praticada — risco de tempo de venda mais longo");
   if (input.condominio > 900) pontosAtencao.push("Condomínio elevado em relação à concorrência");
   if (input.diferenciais.length < 3) pontosAtencao.push("Poucos diferenciais em relação à concorrência");
   if (input.areaUtil < avgArea * 0.85) pontosAtencao.push("Metragem abaixo da média");
@@ -354,10 +355,10 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
   const diagnostico = list.length === 0
     ? `Nenhum imóvel compatível foi encontrado nesta busca. Tente ampliar os critérios (área, preço, bairros próximos) no painel "Ajustar critérios" abaixo.`
     : status === "Acima da média"
-      ? `Com base nos ${list.length} imóveis encontrados em ${input.bairro} e região, este imóvel está posicionado acima da média de mercado. Para aumentar a competitividade, recomenda-se trabalhar uma faixa entre ${fmt(faixaMin)} e ${fmt(faixaMax)}, destacando metragem, localização e diferenciais.`
+      ? `Com base nos ${list.length} imóveis concorrentes em ${input.bairro} e região, o valor pretendido está acima da faixa praticada no mercado. Anúncios nessa faixa tendem a ficar mais tempo no portal, perder visibilidade e receber pouquíssimas visitas qualificadas. Para se manter competitivo e acelerar a venda, recomenda-se posicionar entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`
       : status === "Abaixo da média"
-        ? `Seu imóvel está abaixo da média de mercado em ${input.bairro}. Há espaço para reajuste de valor — a faixa recomendada vai de ${fmt(faixaMin)} a ${fmt(faixaMax)}, o que pode aumentar a margem sem comprometer a velocidade de venda.`
-        : `Seu imóvel está bem posicionado em relação ao mercado de ${input.bairro}. A faixa competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Reforce os diferenciais para acelerar a negociação.`;
+        ? `O valor pretendido está alinhado e competitivo frente ao mercado de ${input.bairro}. A faixa de referência da concorrência vai de ${fmt(faixaMin)} a ${fmt(faixaMax)} — manter o anúncio nesse patamar tende a gerar mais visitas qualificadas e encurtar o tempo de venda.`
+        : `O valor pretendido está dentro da faixa praticada hoje em ${input.bairro}, porém próximo do teto da concorrência. Para garantir visitas qualificadas nas primeiras semanas e evitar que o anúncio esfrie no portal, a faixa mais competitiva está entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`;
 
   const areas = list.filter((p) => p.areaUtil > 0).map((p) => p.areaUtil);
   const avgArea = areas.length ? avg(areas) : input.areaUtil;
@@ -371,6 +372,7 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
 
   const pontosAtencao: string[] = [];
   if (status === "Acima da média") pontosAtencao.push("Preço acima da média de mercado");
+  if (status === "Dentro da média") pontosAtencao.push("Próximo do teto da faixa praticada — risco de tempo de venda mais longo");
   if (input.condominio > 900) pontosAtencao.push("Condomínio elevado em relação à concorrência");
   if (input.diferenciais.length < 3) pontosAtencao.push("Poucos diferenciais em relação à concorrência");
   if (input.areaUtil < avgArea * 0.85) pontosAtencao.push("Metragem abaixo da média");
