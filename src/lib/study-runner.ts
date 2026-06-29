@@ -642,7 +642,12 @@ export async function runStudy(
       //   passo B) tira tudo nativo (city/state/keyword/propertyType/neighborhood)
       if (!buscaLivre) {
         const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br"] as PortalTarget[])
-          .filter((t) => targets.includes(t) && (perPortal[t]?.bairro.recebidos ?? 0) === 0);
+          .filter((t) =>
+            targets.includes(t)
+            && (perPortal[t]?.bairro.recebidos ?? 0) === 0
+            // Não adianta afrouxar filtro quando a GeckoAPI caiu — o retry
+            // só ajuda quando o portal respondeu mas devolveu lista vazia.
+            && !upstream5xxPortals.has(t));
         for (const t of retryTargets) {
           // Solta exhaustedGlobal pra esse portal — vamos tentar com filtros relaxados.
           exhaustedGlobal.delete(t);
