@@ -1049,7 +1049,7 @@ export async function runStudy(
   // Auto-gerar análise da IA junto com o estudo (best-effort: falha não bloqueia)
   if (!fellBack && result.comparaveis.length > 0) {
     try {
-      onStep?.("Gerando análise por IA...");
+      onStep?.(4);
       const acm = computeAcm(result, result.acm ?? DEFAULT_ACM);
       const aiPayload = {
         imovel: {
