@@ -56,6 +56,9 @@ function Loading() {
       if (warning) setWarning(warning);
       if (fellBack && warning?.includes("inválido")) toast.error("Token GeckoAPI inválido. Verifique em Configurações.");
       if (fellBack && warning?.includes("créditos")) toast.error("Sem créditos na GeckoAPI.");
+      if (fellBack && warning?.includes("indisponível")) {
+        toast.error("GeckoAPI indisponível no momento. Tente novamente em alguns minutos.");
+      }
       try {
         await studyStore.save(result);
       } catch (err) {
