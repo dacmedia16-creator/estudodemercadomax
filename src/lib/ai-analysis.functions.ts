@@ -2,14 +2,21 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+const num = (def = 0) =>
+  z.preprocess((v) => {
+    if (v === null || v === undefined || v === "") return def;
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : def;
+  }, z.number());
+
 const comparavelSchema = z.object({
   titulo: z.string().optional().default(""),
   bairro: z.string().optional().default(""),
-  areaUtil: z.number().optional().default(0),
-  quartos: z.number().optional().default(0),
-  preco: z.number(),
-  precoM2: z.number().optional().default(0),
-  similaridade: z.number().optional().default(0),
+  areaUtil: num(0),
+  quartos: num(0),
+  preco: num(0),
+  precoM2: num(0),
+  similaridade: num(0),
   portal: z.string().optional().default(""),
 });
 
@@ -31,17 +38,17 @@ const inputSchema = z.object({
     edificio: z.string().optional(),
   }),
   mercado: z.object({
-    precoMedio: z.number(),
-    precoM2Medio: z.number(),
-    menorPreco: z.number(),
-    maiorPreco: z.number(),
-    p10: z.number().optional(),
-    p25: z.number().optional(),
-    median: z.number().optional(),
-    p75: z.number().optional(),
-    p90: z.number().optional(),
-    valorPiso: z.number().optional(),
-    valorSugerido: z.number().optional(),
+    precoMedio: num(0),
+    precoM2Medio: num(0),
+    menorPreco: num(0),
+    maiorPreco: num(0),
+    p10: num(0).optional(),
+    p25: num(0).optional(),
+    median: num(0).optional(),
+    p75: num(0).optional(),
+    p90: num(0).optional(),
+    valorPiso: num(0).optional(),
+    valorSugerido: num(0).optional(),
   }),
   comparaveis: z.array(comparavelSchema).max(15),
 });
