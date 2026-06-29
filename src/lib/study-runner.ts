@@ -728,6 +728,11 @@ export async function runStudy(
     }
 
     if (mainProperties.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {
+      // Quando todos os portais ativos caíram com 5xx, deixa claro pro
+      // usuário que é instabilidade da GeckoAPI, não filtro nosso.
+      if (upstream5xxPortals.size >= targets.length && upstream5xxPortals.size > 0) {
+        throw new Error("GECKOAPI_UNAVAILABLE");
+      }
       throw new Error(mainError || "Nenhum imóvel encontrado para a busca informada");
     }
 
