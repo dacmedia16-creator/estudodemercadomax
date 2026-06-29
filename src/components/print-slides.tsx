@@ -559,6 +559,11 @@ function OwnerLetterPage({
   const fortes = study.pontosFortes.slice(0, 3);
   const atencao = study.pontosAtencao.slice(0, 3);
 
+  // Conteúdo da IA destinado ao proprietário (quando disponível)
+  const ai = study.aiAnalysis;
+  const aiDiscurso = ai?.discursoProprietario?.trim();
+  const aiArgs = (ai?.argumentosChave ?? []).filter(Boolean).slice(0, 3);
+
   // Cor do destaque conforme a posição do preço pretendido
   const tone: "ok" | "ajustar" | "alto" =
     gapPct > 8 ? "alto" : gapPct > 2 ? "ajustar" : "ok";
@@ -576,8 +581,9 @@ function OwnerLetterPage({
       <div className="acm-stripe" />
 
       <p className="owner-letter-intro">
-        Preparei um estudo completo do seu imóvel{cidadeBairro ? ` em ${cidadeBairro}` : ""}.
-        Em 1 minuto, você entende o que o mercado está dizendo hoje e qual é o melhor preço para anunciar.
+        {aiDiscurso
+          ? aiDiscurso
+          : `Preparei um estudo completo do seu imóvel${cidadeBairro ? ` em ${cidadeBairro}` : ""}. Em 1 minuto, você entende o que o mercado está dizendo hoje e qual é o melhor preço para anunciar.`}
       </p>
 
       {/* Cartões: pretendido → sugerido → diferença */}
@@ -636,6 +642,18 @@ function OwnerLetterPage({
           </ul>
         </div>
       </div>
+
+      {aiArgs.length > 0 && (
+        <div className="owner-letter-ia">
+          <div className="owner-letter-ia-title">O que pesou na nossa análise</div>
+          <ul className="owner-letter-ia-list">
+            {aiArgs.map((a, i) => (
+              <li key={i}>{a}</li>
+            ))}
+          </ul>
+          <div className="owner-letter-ia-badge">Análise assistida por IA · revisada pelo corretor</div>
+        </div>
+      )}
 
       {/* Faixa de publicação */}
       <div className="owner-letter-faixa">
