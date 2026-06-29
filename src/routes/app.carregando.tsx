@@ -18,6 +18,7 @@ const STEPS = [
   "Buscando imóveis nos portais ativos",
   "Analisando imóveis encontrados",
   "Gerando estudo de mercado",
+  "Gerando análise por IA",
 ];
 
 function Loading() {
@@ -67,8 +68,8 @@ function Loading() {
       sessionStorage.removeItem("rip:pending-fieldmodes");
 
       // brief pause so the user sees the final step
-      await new Promise((r) => setTimeout(r, 600));
-      setStep(4);
+      await new Promise((r) => setTimeout(r, 400));
+      setStep(5);
       await new Promise((r) => setTimeout(r, 300));
       navigate({ to: "/app/relatorio/$id", params: { id: result.id } });
     })();
