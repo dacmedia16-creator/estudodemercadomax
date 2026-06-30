@@ -305,14 +305,20 @@ export async function runStudy(
         const remaining = targets.filter((t) => {
           if (exhaustedGlobal.has(t)) return false;
           if (keywordOnlyLayer && t === "chavesnamao.com.br") {
-            if (!chavesKeywordSkipNoted) {
-              funilBusca.push({
-                etapa: `Chaves na Mão: pulado em camadas de keyword (API não aceita 'keyword')`,
-                total: 1,
-              });
-              chavesKeywordSkipNoted = true;
+            // Chaves não aceita `keyword`, mas se temos `neighborhood` ou
+            // `city` montamos uma chamada paralela só com esses campos —
+            // alimenta a base do bairro mesmo nas camadas de prédio/endereço
+            // e evita que Chaves fique zerada na maioria dos estudos.
+            if (!params.neighborhood && !params.city) {
+              if (!chavesKeywordSkipNoted) {
+                funilBusca.push({
+                  etapa: `Chaves na Mão: pulado em camadas de keyword (sem bairro/cidade)`,
+                  total: 1,
+                });
+                chavesKeywordSkipNoted = true;
+              }
+              return false;
             }
-            return false;
           }
           return true;
         });
