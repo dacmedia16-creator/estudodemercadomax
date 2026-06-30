@@ -427,6 +427,45 @@ export const formatBRL = (n: number | null | undefined) => {
 };
 
 /**
+ * Aplica o multiplicador ACM e o desconto de reforma sobre um valor R$
+ * (usado para reescalar números absolutos retornados pela IA quando o
+ * corretor mexe nos sliders, sem precisar regerar a análise).
+ */
+export function applyAcmToValue(
+  v: number,
+  acm: { multiplicador?: number; descontoReforma?: number },
+): number {
+  const mult = typeof acm.multiplicador === "number" && acm.multiplicador > 0 ? acm.multiplicador : 1;
+  const desconto = typeof acm.descontoReforma === "number" && acm.descontoReforma > 0 ? acm.descontoReforma : 0;
+  return Math.max(0, Math.round(v * mult - desconto));
+}
+
+/**
+ * Reescreve trechos "R$ X" dentro de um texto livre da IA usando um mapa
+ * { valor original → valor ajustado }. Casa pelo valor numérico (±1%) para
+ * tolerar variações de formatação (espaço comum vs. NBSP, etc.).
+ */
+export function rewriteCurrencyInText(
+  text: string,
+  pairs: Array<{ original: number; ajustado: number }>,
+): string {
+  if (!text) return text;
+  const validPairs = pairs.filter((p) => p.original > 0 && Number.isFinite(p.original) && Number.isFinite(p.ajustado));
+  if (validPairs.length === 0) return text;
+  return text.replace(/R\$\s*([\d.\s\u00a0]+)(?:,\d+)?/g, (match, raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, "");
+    if (!digits) return match;
+    const num = Number(digits);
+    if (!Number.isFinite(num) || num <= 0) return match;
+    for (const p of validPairs) {
+      const diff = Math.abs(num - p.original) / p.original;
+      if (diff <= 0.01) return formatBRL(p.ajustado);
+    }
+    return match;
+  });
+}
+
+/**
  * Valor Ideal de mercado — referência única para todo discurso de "ajuste sugerido".
  * Prioridade:
  *   1) faixaRecomendada.ideal da IA (quando rodou);

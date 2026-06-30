@@ -1,33 +1,28 @@
 ## Problema
-
-Mexer nos sliders da ACM (Localização / Conservação / Idade / Padrão) e no desconto de reforma altera `valorM2Avaliado`, mas o **Valor sugerido** continua igual porque o "Respeitar piso de mercado" está fixando o sugerido no piso competitivo (≈ menor preço × 1,02). No estudo do print: sliders dão R$ 1.300.460, mas o piso (1.450.000 × 1,02 = 1.479.000) sobrescreve o resultado e o número não responde aos sliders.
+Os cards "Entrada / Ideal / Teto" e a "Carta ao proprietário" exibem números absolutos retornados pela IA e gravados em `study.aiAnalysis`. Eles não respondem aos sliders ACM — só mudam quando o usuário clica "Gerar novamente" (consome créditos e muda o texto inteiro).
 
 ## Mudanças
 
-### 1. `src/lib/study-engine.ts` — `computeAcm`
-- Remover o clamp que **sobe** o `valorSugerido` até o piso. O piso passa a ser apenas referência informativa + teto opcional (limite máximo acima do piso), nunca um chão que ignora o ajuste do avaliador.
-- Substituir o bloco:
-  ```ts
-  if (a.respeitarPiso && valorPiso > 0) {
-    const teto = valorPiso * (1 + (a.maxAcimaPisoPct ?? 8) / 100);
-    if (valorSugerido > teto) { valorSugerido = teto; pisoAplicado = true; }
-    if (valorSugerido < valorPiso) valorSugerido = valorPiso;  // ← remover
-  }
-  ```
-  por uma versão que só aplica o teto (limita para cima). Marcar `pisoAplicado = true` somente quando o teto foi de fato aplicado.
-- Adicionar campo informativo `abaixoDoPiso: boolean` em `AcmComputed` para a UI alertar (sem alterar o valor).
+### 1. `src/lib/study-engine.ts` — novo helper `applyAcmToValue`
+Pequeno utilitário puro `applyAcmToValue(v, acm) = Math.max(0, Math.round(v * mult - desconto))`, reutilizado pelo card e pelo PDF.
 
-### 2. `src/components/acm-panel.tsx`
-- Trocar o hint atual ("limitado pelo piso de mercado") por dois estados distintos:
-  - **Teto aplicado** (sugerido foi reduzido pelo "máx. acima do piso"): badge informativa atual.
-  - **Abaixo do piso**: aviso amarelo "Seu ajuste está abaixo do piso competitivo (formatBRL(piso)) — confira se faz sentido", **sem** alterar o número.
-- Pequeno ajuste no `SummaryItem` "Piso competitivo" para sempre mostrar (mesmo quando teto não atuou), reforçando que é referência.
+### 2. `src/components/ai-analysis-card.tsx`
+- Calcular ao vivo `entradaAdj / idealAdj / tetoAdj` aplicando `applyAcmToValue` em cima de `ai.faixaRecomendada.{entrada,ideal,teto}` usando o ACM corrente.
+- Exibir esses valores nos três cards `FaixaCell`. Quando o ajuste diverge do valor original da IA, mostrar hint pequeno: "ajustado pelos fatores ACM".
+- "Como conversar com o proprietário": pós-processar `ai.discursoProprietario` substituindo a primeira ocorrência do `formatBRL(ai.faixaRecomendada.ideal)` (e suas variações com espaço/sem espaço pt-BR) pelo `formatBRL(idealAdj)`. Se o texto não casar (segurança), mostrar um aviso pequeno acima da carta: "Valor ideal ajustado para R$ X — atualize a carta antes de enviar" + botão "Atualizar com novos valores" que faz a substituição manualmente do trecho clicando.
+- Idem para a lista `argumentosChave`: substituir aparições de `formatBRL(originalIdeal)` por `formatBRL(idealAdj)`.
+- O botão "Copiar" copia a versão ajustada.
 
-### 3. Nenhuma mudança em `getValorIdeal`, `print-slides.tsx`, runner ou tipos persistidos
-O ACM já é propagado em tempo real para o relatório/slide via `onChange` — basta o `valorSugerido` deixar de ser pinado pelo piso para o PDF e a Carta ao Proprietário refletirem os sliders imediatamente.
+### 3. `src/components/print-slides.tsx` (Carta ao Proprietário no PDF)
+Aplicar a mesma substituição de string no `discursoProprietario` antes de renderizar na página 3 do PDF, usando o mesmo helper. Mantém o PDF consistente com a tela.
 
-## Resultado esperado no estudo do print
-Com fatores 100/95/90/90 e sem reforma:
-- Valor sugerido passa de **R$ 1.479.000 → R$ 1.300.460** (responde aos sliders).
-- Valor Máximo de Publicação ajusta junto (`+ margem`).
-- Aparece aviso "abaixo do piso (R$ 1.479.000)" no painel — apenas informativo, decisão fica com o corretor.
+### 4. Sem mudanças em
+`ai-analysis.functions.ts`, prompts, persistência ou tipos — os valores originais da IA continuam preservados em `study.aiAnalysis`; o ajuste é só na renderização.
+
+## Resultado
+Mexer nos sliders ACM passa a refletir imediatamente em:
+- Cards Entrada / Ideal / Teto da Análise por IA
+- Frases com valor R$ dentro da Carta ao Proprietário (tela + PDF)
+- Argumentos de mercado que citam o "ideal"
+
+Sem novo gasto de crédito de IA e sem perder o texto qualitativo original.
