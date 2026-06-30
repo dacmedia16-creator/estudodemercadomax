@@ -53,6 +53,7 @@ function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<Searc
     maxPages: o.maxPages ?? 3,
     radiusKm: o.radiusKm ?? 2,
     filtrarAncoras: o.filtrarAncoras ?? true,
+    top10Baratos: o.top10Baratos ?? true,
     fieldModes: { ...DEFAULT_FIELD_MODES, ...(o.fieldModes ?? {}) },
   };
 }
@@ -132,6 +133,7 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
       maxPages: Number(form.maxPages),
       radiusKm: Number(form.radiusKm),
       filtrarAncoras: form.filtrarAncoras,
+      top10Baratos: form.top10Baratos,
       fieldModes: form.fieldModes,
     });
   };
