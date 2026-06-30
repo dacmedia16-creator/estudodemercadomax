@@ -229,6 +229,23 @@ export async function runStudy(
         removidosFinalidade++;
         return false;
       }
+      // Guard reforçado: mesmo quando o portal classifica como "Venda",
+      // título/URL que mencionam aluguel/locação/temporada são descartados
+      // num estudo de venda (e vice-versa). Evita anúncios mal-etiquetados
+      // que envenenam a mediana com valores de aluguel.
+      if (finalidade === "Venda") {
+        const hay = `${p.titulo ?? ""} ${p.url ?? ""}`.toLowerCase();
+        if (/\b(aluguel|alugar|alugue|loca[cç][aã]o|temporada|alugu[áa]vel|para alugar)\b/.test(hay)) {
+          removidosFinalidade++;
+          return false;
+        }
+      } else if (finalidade === "Aluguel") {
+        const hay = `${p.titulo ?? ""} ${p.url ?? ""}`.toLowerCase();
+        if (/\b(venda|vender|comprar|à venda|a venda|financiamento)\b/.test(hay)) {
+          removidosFinalidade++;
+          return false;
+        }
+      }
       if (finalidade === "Venda") {
         if (p.preco > 0 && p.preco < 50_000) { removidosPrecoFaixa++; return false; }
         if (p.areaUtil > 0 && p.preco / p.areaUtil < 500) { removidosPrecoFaixa++; return false; }
