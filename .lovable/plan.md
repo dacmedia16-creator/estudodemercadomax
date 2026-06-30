@@ -1,41 +1,38 @@
-# Buscar em bairros próximos (opcional)
+## Objetivo
 
-Hoje, quando o imóvel está num bairro pequeno/específico, a busca trava no filtro de bairro e devolve zero. Vou adicionar um controle opcional no formulário para expandir a busca para bairros vizinhos — sem alterar o comportamento padrão de quem não marcar nada.
+Quando o toggle **"Buscar também em bairros próximos"** estiver ligado e o usuário **não digitar nenhum bairro**, o sistema descobre sozinho os bairros vizinhos e usa na camada extra de busca. Se o usuário digitar bairros manualmente, esses prevalecem (comportamento atual mantido).
 
-## O que muda na UI (Passo 1 — Dados básicos)
+## Como vai funcionar
 
-Logo abaixo do campo "Bairro principal", adicionar um bloco "Expandir busca":
+1. No Passo 1 do formulário, o toggle continua igual. O campo de chips ganha um texto auxiliar: *"Deixe em branco para detectarmos os bairros vizinhos automaticamente"*.
+2. No `study-runner.ts`, ao entrar na Layer 3.5 (bairros próximos):
+   - Se `bairrosProximos.length > 0` → usa a lista do usuário (hoje).
+   - Se vazio → chama um novo helper `descobrirBairrosVizinhos(cidade, bairro, lat, lng)` e usa o resultado.
+3. Os bairros descobertos aparecem no funil como `Bairro próximo (auto): <nome>: N` para ficar transparente o que foi usado.
+4. No `CriteriosEditor` (pós-estudo), mesma regra: se o campo estiver vazio e o toggle ligado, descobre na hora de reexecutar; os nomes detectados são mostrados como chips "sugeridos" (removíveis) para o usuário poder ajustar antes de rodar de novo.
 
-- **Toggle "Buscar também em bairros próximos"** (default: desligado)
-- Quando ligado, mostra:
-  - **Sugestões automáticas** (chips clicáveis): assim que o CEP/bairro for preenchido, busca bairros vizinhos via Nominatim (raio ~2km do centroide do bairro) e oferece como chips para o usuário aceitar/remover
-  - **Campo livre** para adicionar bairros manualmente (input com Enter / vírgula)
-  - **Lista dos selecionados** como tags removíveis
+## Como descobrir os vizinhos (sem custo de GeckoAPI)
 
-Os bairros escolhidos alimentam o campo `bairrosProximos` (já existe em `StudyInput`, só está vazio por padrão hoje).
+Estratégia em cascata, parando no primeiro que retornar ≥ 3 bairros:
 
-## O que muda na lógica de busca
+1. **Nominatim reverse + nearby search** (já usamos Nominatim no geocode). A partir do `lat,lng` do imóvel, consultamos `search.php?q=<cidade>&featuretype=suburb` num bounding box de ~3 km e coletamos `suburb`/`neighbourhood` distintos do bairro alvo. Cache em memória por `cidade|bairro` por 24 h.
+2. **Overpass API** (fallback gratuito) com query `node[place=suburb](around:3000,lat,lng)` quando o passo 1 trouxer menos de 3.
+3. **Fallback final**: nenhum vizinho detectado → log no funil "Vizinhos: não detectados" e a Layer 3.5 é pulada (sem quebrar o estudo).
 
-- `study-runner.ts`: quando `bairrosProximos.length > 0`, depois da camada "bairro principal", roda uma camada extra **"Bairros próximos"** iterando cada vizinho como keyword/filtro de bairro, com a mesma deduplicação e os mesmos guards (cidade, finalidade, tipo, sanity de preço) já existentes.
-- Mantém a cascata atual: Edifício → Endereço → Bairro → **Bairros próximos (novo, opcional)** → Raio geográfico.
-- Cada comparável trazido pela camada nova recebe a flag visual **"Bairro vizinho"** (badge no card e na tabela), pra ficar transparente no relatório que não é do bairro do imóvel.
-- O funil de busca (`funilBusca`) ganha a etapa "Bairros próximos: N" quando ativada.
+Limite duro: no máximo **5 bairros vizinhos** usados por estudo, ordenados por distância ao imóvel, para não estourar chamadas de PLP.
 
-## CriteriosEditor (ajuste pós-estudo)
+## Arquivos a tocar
 
-Adicionar o mesmo controle no `CriteriosEditor`, para o usuário ligar "bairros próximos" e re-rodar sem refazer o formulário. Os chips sugeridos vêm das mesmas fontes (Nominatim + manual).
+- `src/lib/neighbors.functions.ts` *(novo)* — `descobrirBairrosVizinhos` como `createServerFn` (chamadas Nominatim/Overpass ficam no servidor, com retry e cache em memória do worker).
+- `src/lib/study-runner.ts` — na Layer 3.5, se lista vazia + toggle ligado, chama o server fn antes do loop e usa os nomes retornados; rotula no funil como `(auto)`.
+- `src/lib/study-types.ts` — adicionar campo opcional `bairrosProximosAuto?: string[]` no resultado do estudo, para o editor e o PDF mostrarem o que foi usado.
+- `src/routes/app.novo-estudo.tsx` — texto auxiliar no campo de chips quando toggle ligado e lista vazia.
+- `src/components/criterios-editor.tsx` — botão "Detectar vizinhos automaticamente" + exibição dos chips sugeridos antes do recálculo.
 
-## Arquivos afetados
+## Pontos de decisão
 
-- `src/routes/app.novo-estudo.tsx` — novo bloco no Passo 1, estado + handlers, chamada Nominatim para sugestões
-- `src/components/criterios-editor.tsx` — espelhar o controle
-- `src/lib/study-runner.ts` — nova camada "Bairros próximos" + badge `bairroVizinho`
-- `src/lib/study-types.ts` — adicionar `bairroVizinho?: boolean` em `ComparableProperty`
-- `src/routes/app.relatorio.$id.tsx` — badge "Bairro vizinho" nos cards/tabela
-- (opcional) `src/lib/geocode.functions.ts` — server fn `suggestNearbyNeighborhoods(cidade, bairro)` usando Nominatim para evitar CORS
+- **Raio de detecção fixo em 3 km** (independente do raio de busca do estudo). Mantém vizinhos realmente colados, evita puxar bairros distantes só porque o raio de busca é 5 km. Posso amarrar ao raio do estudo se preferir.
+- **Cache**: em memória do worker (volátil). Sem nova tabela. Se quiser persistente, dá pra adicionar `neighbor_cache` depois.
+- **Sem mudança no PDF** nesta entrega — só o funil mostra os bairros auto. Posso incluir uma linha "Bairros vizinhos considerados" na capa se quiser.
 
-## O que NÃO muda
-
-- Comportamento default: quem não ligar o toggle continua com a busca atual.
-- Nenhuma mudança no ACM, IA, PDF ou cálculo de valor sugerido.
-- Sem custo extra de GeckoAPI quando o toggle está desligado.
+Confirma e eu implemento.
