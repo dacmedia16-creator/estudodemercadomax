@@ -660,15 +660,19 @@ export async function runStudy(
         const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br"] as PortalTarget[])
           .filter((t) =>
             targets.includes(t)
-            && (perPortal[t]?.bairro.recebidos ?? 0) === 0
+            // Antes era "=== 0" — agora reagimos a qualquer portal que veio
+            // bem abaixo do esperado (< 3), pra evitar dominância silenciosa
+            // do OLX.
+            && (perPortal[t]?.bairro.recebidos ?? 0) < 3
             // Não adianta afrouxar filtro quando a GeckoAPI caiu — o retry
             // só ajuda quando o portal respondeu mas devolveu lista vazia.
             && !upstream5xxPortals.has(t));
         for (const t of retryTargets) {
           // Solta exhaustedGlobal pra esse portal — vamos tentar com filtros relaxados.
           exhaustedGlobal.delete(t);
+          const recebidosAntes = perPortal[t]?.bairro.recebidos ?? 0;
           funilBusca.push({
-            etapa: `${PORTAL_TARGETS[t]}: 0 itens com filtros nativos — tentando retry`,
+            etapa: `${PORTAL_TARGETS[t]}: ${recebidosAntes} item(ns) com filtros nativos — tentando retry afrouxado`,
             total: 1,
           });
           const savedTargets = targets.slice();
