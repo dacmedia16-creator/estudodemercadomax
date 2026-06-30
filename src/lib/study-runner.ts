@@ -1,5 +1,6 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
+import { descobrirBairrosVizinhos } from "@/lib/neighbors.functions";
 import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily, mapDiferenciaisToZapAmenities, isStructuralDiferencial, detectPortalFromUrl } from "@/lib/gecko-adapter";
 import { generateStudy, computeAcm, computeConfidence } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
@@ -168,6 +169,8 @@ export async function runStudy(
   const estado = overrides.estado ?? input.estado;
   const bairro = overrides.bairro ?? input.bairro;
   const bairrosProximos = overrides.bairrosProximos ?? input.bairrosProximos;
+  const expandirBairrosProximos =
+    overrides.expandirBairrosProximos ?? input.expandirBairrosProximos ?? false;
   const quartosMin = overrides.quartosMin ?? input.quartos;
   const quartosMax = overrides.quartosMax ?? input.quartos;
   const areaMin = overrides.areaMin ?? Math.round(input.areaUtil * 0.75);
@@ -877,12 +880,54 @@ export async function runStudy(
     // (ou adicionou via CriteriosEditor), rodamos uma PLP extra por bairro
     // adicionado, mesclando no resultado principal. Só dispara quando ainda
     // não temos o TARGET — evita queima desnecessária de créditos.
-    if (!buscaLivre && bairrosProximos.length > 0) {
+    // Auto-detecta vizinhos quando o usuário ligou a expansão e não digitou
+    // nada. Custo zero de GeckoAPI (Overpass + Nominatim, free).
+    let bairrosUsados: string[] = bairrosProximos;
+    let bairrosAuto = false;
+    if (
+      !buscaLivre &&
+      expandirBairrosProximos &&
+      bairrosProximos.length === 0 &&
+      bairro
+    ) {
+      try {
+        const det = await descobrirBairrosVizinhos({
+          data: {
+            cidade,
+            bairro,
+            estado,
+            lat: geoLat,
+            lng: geoLng,
+            radiusM: 3000,
+            limit: 5,
+          },
+        });
+        if (det.ok && det.vizinhos.length > 0) {
+          bairrosUsados = det.vizinhos;
+          bairrosAuto = true;
+          funilBusca.push({
+            etapa: `Vizinhos detectados automaticamente: ${det.vizinhos.join(", ")}`,
+            total: det.vizinhos.length,
+          });
+        } else {
+          funilBusca.push({
+            etapa: `Vizinhos: nenhum bairro próximo detectado automaticamente`,
+            total: 0,
+          });
+        }
+      } catch {
+        funilBusca.push({
+          etapa: `Vizinhos: detecção automática falhou`,
+          total: 0,
+        });
+      }
+    }
+    if (!buscaLivre && bairrosUsados.length > 0) {
       const jaTemos = () => {
         const strict = mainProperties.filter(strictLocal).length;
         return strict + condoMatches.length + enderecoMatches.length;
       };
-      for (const bv of bairrosProximos) {
+      for (const bv of bairrosUsados) {
         if (jaTemos() >= TARGET) break;
         try {
           const resBV = await adaptivePaginate(
@@ -905,14 +950,15 @@ export async function runStudy(
             (collected) => collected.filter(strictLocal).length + jaTemos() >= TARGET,
             "bairro",
           );
+          const tag = bairrosAuto ? " (auto)" : "";
           if (resBV.properties.length > 0) {
             // Dedup contra o que já foi coletado.
             const seen = new Set(mainProperties.map((p) => p.url || p.id));
             const novos = resBV.properties.filter((p) => !seen.has(p.url || p.id));
             mainProperties = [...mainProperties, ...novos];
-            funilBusca.push({ etapa: `Bairro próximo "${bv}" (${resBV.pages} pág.)`, total: novos.length });
+            funilBusca.push({ etapa: `Bairro próximo${tag} "${bv}" (${resBV.pages} pág.)`, total: novos.length });
           } else {
-            funilBusca.push({ etapa: `Bairro próximo "${bv}": sem resultados`, total: 0 });
+            funilBusca.push({ etapa: `Bairro próximo${tag} "${bv}": sem resultados`, total: 0 });
           }
         } catch { /* best-effort */ }
       }

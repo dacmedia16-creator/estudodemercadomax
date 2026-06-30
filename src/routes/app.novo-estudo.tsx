@@ -161,6 +161,7 @@ function NovoEstudo() {
   const handleSubmit = () => {
     const input = data as StudyInput;
     if (!expandirBairros) input.bairrosProximos = [];
+    input.expandirBairrosProximos = expandirBairros;
     sessionStorage.setItem("rip:pending", JSON.stringify(input));
     sessionStorage.setItem("rip:pending-radius", String(radiusKm));
     sessionStorage.setItem("rip:pending-fieldmodes", JSON.stringify(fieldModes));
@@ -251,7 +252,9 @@ function NovoEstudo() {
                 <div>
                   <div className="text-sm font-medium">Buscar também em bairros próximos</div>
                   <div className="text-xs text-muted-foreground">
-                    Útil quando o bairro é pequeno ou muito específico e a busca tende a zerar. Cada bairro vira uma consulta extra (consome créditos).
+                    Útil quando o bairro é pequeno ou muito específico e a busca tende a zerar.
+                    Deixe a lista vazia para detectarmos os bairros vizinhos automaticamente (até 5, num raio de 3&nbsp;km).
+                    Cada bairro vira uma consulta extra (consome créditos).
                   </div>
                 </div>
                 <Switch checked={expandirBairros} onCheckedChange={setExpandirBairros} />
