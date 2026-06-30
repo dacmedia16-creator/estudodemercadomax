@@ -10,6 +10,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, RotateCcw, Search, Loader2, AlertTriangle, Building2 } from "lucide-react";
 import type { StudyInput, SearchOverrides, StudyResult, FieldKey, FieldMode } from "@/lib/study-types";
 import { FIELD_KEYS, FIELD_LABELS, DEFAULT_FIELD_MODES } from "@/lib/study-types";
+import { descobrirBairrosVizinhos } from "@/lib/neighbors.functions";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -34,6 +37,8 @@ function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<Searc
     estado: o.estado ?? input.estado,
     bairro: o.bairro ?? input.bairro,
     bairrosProximos: o.bairrosProximos ?? input.bairrosProximos,
+    expandirBairrosProximos:
+      o.expandirBairrosProximos ?? input.expandirBairrosProximos ?? (input.bairrosProximos.length > 0),
     tipo: o.tipo ?? input.tipo,
     finalidade: o.finalidade ?? input.finalidade,
     quartosMin: o.quartosMin ?? input.quartos,
@@ -56,6 +61,8 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => initialFrom(input, study));
   const [bairroInput, setBairroInput] = useState("");
+  const [detectando, setDetectando] = useState(false);
+  const detectFn = useServerFn(descobrirBairrosVizinhos);
 
   const reset = () => setForm(initialFrom(input, study));
 
@@ -72,6 +79,37 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
   const removeBairro = (b: string) =>
     set("bairrosProximos", form.bairrosProximos.filter((x) => x !== b));
 
+  const detectarVizinhos = async () => {
+    if (!form.cidade || !form.bairro) {
+      toast.error("Informe cidade e bairro antes de detectar vizinhos.");
+      return;
+    }
+    setDetectando(true);
+    try {
+      const res = await detectFn({
+        data: {
+          cidade: form.cidade,
+          bairro: form.bairro,
+          estado: form.estado,
+          radiusM: 3000,
+          limit: 5,
+        },
+      });
+      if (res.ok && res.vizinhos.length > 0) {
+        const existentes = new Set(form.bairrosProximos.map((x) => x.toLowerCase()));
+        const novos = res.vizinhos.filter((v) => !existentes.has(v.toLowerCase()));
+        set("bairrosProximos", [...form.bairrosProximos, ...novos]);
+        toast.success(`${novos.length} vizinho(s) adicionado(s).`);
+      } else {
+        toast.message("Nenhum bairro vizinho encontrado para este endereço.");
+      }
+    } catch (e) {
+      toast.error("Falha ao detectar vizinhos.");
+    } finally {
+      setDetectando(false);
+    }
+  };
+
   const submit = async () => {
     await onRerun({
       keyword: form.keyword,
@@ -79,6 +117,7 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
       estado: form.estado,
       bairro: form.bairro,
       bairrosProximos: form.bairrosProximos,
+      expandirBairrosProximos: form.expandirBairrosProximos,
       tipo: form.tipo,
       finalidade: form.finalidade,
       quartosMin: Number(form.quartosMin),
