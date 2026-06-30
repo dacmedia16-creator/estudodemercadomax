@@ -738,6 +738,66 @@ export async function runStudy(
           }
         }
       }
+      // ---- Passe de rebalanceamento por dominância ----
+      // Se um único portal está com > 70% do bruto E o total ainda é < 8,
+      // roda 1 chamada extra nos outros portais sem amenities, sem radius,
+      // com bedrooms ±1, só pra equilibrar o mix.
+      if (!buscaLivre && mainProperties.length < 8) {
+        const totalBruto = mainProperties.length;
+        if (totalBruto >= 3) {
+          const byPortal = new Map<string, number>();
+          for (const p of mainProperties) byPortal.set(p.portal, (byPortal.get(p.portal) ?? 0) + 1);
+          let dominante: PortalTarget | null = null;
+          for (const [name, n] of byPortal) {
+            if (n / totalBruto > 0.7) {
+              const found = (Object.entries(PORTAL_TARGETS) as [PortalTarget, string][])
+                .find(([, label]) => label === name);
+              if (found) dominante = found[0];
+            }
+          }
+          if (dominante) {
+            const outros = targets.filter((t) => t !== dominante && !upstream5xxPortals.has(t));
+            for (const t of outros) {
+              if ((perPortal[t]?.bairro.recebidos ?? 0) >= 3) continue; // já trouxe o suficiente
+              exhaustedGlobal.delete(t);
+              const savedTargets = targets.slice();
+              targets.length = 0;
+              targets.push(t);
+              try {
+                const rebal = await adaptivePaginate(
+                  {
+                    city: cidade,
+                    state: estado.toUpperCase(),
+                    businessType,
+                    keyword,
+                    propertyType,
+                    neighborhood: bairro || undefined,
+                    propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+                    bedrooms: bedroomsList,
+                  },
+                  (collected) => collected.length >= TARGET,
+                  "bairro",
+                );
+                if (rebal.properties.length > 0) {
+                  const seen = new Set(mainProperties.map((p) => p.id));
+                  let added = 0;
+                  for (const p of rebal.properties) if (!seen.has(p.id)) { mainProperties.push(p); added++; }
+                  if (added > 0) {
+                    mainPages += rebal.pages;
+                    funilBusca.push({
+                      etapa: `${PORTAL_TARGETS[t]}: passe de rebalanceamento (${PORTAL_TARGETS[dominante]} dominava)`,
+                      total: added,
+                    });
+                  }
+                }
+              } finally {
+                targets.length = 0;
+                for (const x of savedTargets) targets.push(x);
+              }
+            }
+          }
+        }
+      }
       // Avisa explicitamente quando Chaves está desativado nas configurações.
       if (!targets.includes("chavesnamao.com.br") && !buscaLivre) {
         funilBusca.push({
