@@ -1,28 +1,42 @@
-## Problema
-Os cards "Entrada / Ideal / Teto" e a "Carta ao proprietário" exibem números absolutos retornados pela IA e gravados em `study.aiAnalysis`. Eles não respondem aos sliders ACM — só mudam quando o usuário clica "Gerar novamente" (consome créditos e muda o texto inteiro).
+## Por que os valores divergem hoje
 
-## Mudanças
+No print: ACM mostra **Sugerido R$ 859k** / **Máx. publicação R$ 902k**, enquanto a IA mostra **Ideal R$ 1.154M** / **Teto R$ 1.231M**. São dois cálculos que rodam em paralelo e não conversam:
 
-### 1. `src/lib/study-engine.ts` — novo helper `applyAcmToValue`
-Pequeno utilitário puro `applyAcmToValue(v, acm) = Math.max(0, Math.round(v * mult - desconto))`, reutilizado pelo card e pelo PDF.
+- **ACM (painel azul)**: parte de `mediana × área`, aplica os multiplicadores dos sliders, e então **clampa pelo piso competitivo** (`piso × 1.08`). No estudo do print esse clamp puxou o sugerido para baixo (de ~mediana×área para `795.600 × 1.08 = 859.248`).
+- **IA (cards Entrada/Ideal/Teto)**: vem do JSON da IA (`faixaRecomendada`). Hoje só passa pelo `applyAcmToValue` (multiplicador + desconto de reforma) — **não respeita o piso nem o teto de publicação do ACM**. Por isso o "Ideal" da IA fica livre acima do clamp.
 
-### 2. `src/components/ai-analysis-card.tsx`
-- Calcular ao vivo `entradaAdj / idealAdj / tetoAdj` aplicando `applyAcmToValue` em cima de `ai.faixaRecomendada.{entrada,ideal,teto}` usando o ACM corrente.
-- Exibir esses valores nos três cards `FaixaCell`. Quando o ajuste diverge do valor original da IA, mostrar hint pequeno: "ajustado pelos fatores ACM".
-- "Como conversar com o proprietário": pós-processar `ai.discursoProprietario` substituindo a primeira ocorrência do `formatBRL(ai.faixaRecomendada.ideal)` (e suas variações com espaço/sem espaço pt-BR) pelo `formatBRL(idealAdj)`. Se o texto não casar (segurança), mostrar um aviso pequeno acima da carta: "Valor ideal ajustado para R$ X — atualize a carta antes de enviar" + botão "Atualizar com novos valores" que faz a substituição manualmente do trecho clicando.
-- Idem para a lista `argumentosChave`: substituir aparições de `formatBRL(originalIdeal)` por `formatBRL(idealAdj)`.
-- O botão "Copiar" copia a versão ajustada.
+Resultado: o corretor vê dois "preços recomendados" diferentes na mesma página, sem saber qual usar — exatamente o que o usuário está reclamando.
 
-### 3. `src/components/print-slides.tsx` (Carta ao Proprietário no PDF)
-Aplicar a mesma substituição de string no `discursoProprietario` antes de renderizar na página 3 do PDF, usando o mesmo helper. Mantém o PDF consistente com a tela.
+## Proposta: ACM é a fonte da verdade, IA preserva o tom
 
-### 4. Sem mudanças em
-`ai-analysis.functions.ts`, prompts, persistência ou tipos — os valores originais da IA continuam preservados em `study.aiAnalysis`; o ajuste é só na renderização.
+Não vou mexer no prompt nem regerar IA. Faço a fusão **na renderização**: os cards Entrada/Ideal/Teto da IA passam a mostrar os mesmos números do painel ACM (já ajustados pelos sliders e pelo piso). A IA continua dona do texto qualitativo (resumo, posicionamento, discurso, argumentos, riscos), e as substituições de valor dentro desses textos também usam os números do ACM.
+
+### Mudanças
+
+1. **`src/components/ai-analysis-card.tsx`**
+   - Calcular `acm = computeAcm(study, study.acm)` (já existe).
+   - Definir o novo mapeamento de exibição:
+     - **Entrada (rápido)** = `acm.valorMinimoFechamento` (piso de negociação)
+     - **Ideal** = `acm.valorSugerido` (mesmo número do card "Valor sugerido" do ACM)
+     - **Teto de publicação** = `acm.valorMaximoPublicacao` (mesmo do card "Máximo de publicação")
+   - Manter como `entradaAdj / idealAdj / tetoAdj` para o resto do componente (substituição de texto, copiar, etc.) continuar funcionando.
+   - O `pairs` (substituição de R$ no texto) passa a casar **valor original da IA → valor do ACM**, então a "Carta ao Proprietário" e os "Argumentos de mercado" também ficam coerentes (o número que aparece dentro do texto bate com o card).
+   - Hint pequeno nos três cards: "alinhado ao ACM" (em vez de "ajustado pelos fatores ACM") quando o número de exibição diverge do original retornado pela IA.
+   - Aviso discreto acima da carta quando `acm.pisoAplicado === true`: "Valor ajustado para respeitar o piso competitivo do mercado".
+
+2. **`src/components/print-slides.tsx` (Carta no PDF)**
+   - Mesma substituição com os pares `{ia ideal/entrada/teto → ACM valorSugerido/minFechamento/maxPublicacao}` para a página 3 do PDF refletir o mesmo número que aparece na tela.
+
+3. **`src/components/acm-panel.tsx`**
+   - Pequeno tooltip/legenda no card "Valor sugerido": "Esta é a referência usada também nos cards da Análise por IA abaixo." Só para o corretor entender que agora há uma única fonte.
+
+### Sem mudanças em
+- `study-engine.ts` (computeAcm, getValorIdeal continuam iguais)
+- `ai-analysis.functions.ts` / prompts / persistência / tipos
+- A IA continua sendo regerada normalmente; só a apresentação dos números fica casada com o ACM.
 
 ## Resultado
-Mexer nos sliders ACM passa a refletir imediatamente em:
-- Cards Entrada / Ideal / Teto da Análise por IA
-- Frases com valor R$ dentro da Carta ao Proprietário (tela + PDF)
-- Argumentos de mercado que citam o "ideal"
-
-Sem novo gasto de crédito de IA e sem perder o texto qualitativo original.
+- Um único trio Entrada / Ideal / Teto na página, consistente entre ACM e IA.
+- Mexer nos sliders ACM (ou ligar/desligar "respeitar piso") move ambos os blocos ao mesmo tempo.
+- A divergência R$ 859k vs R$ 1.154M desaparece — vira o mesmo número, com a IA explicando o porquê em texto.
+- Nenhum gasto novo de crédito de IA.
