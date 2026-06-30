@@ -264,24 +264,50 @@ export async function runStudy(
           }),
         );
       }
-      const before = items.length;
+      // Quando "filtro estrito de âncoras" está ligado, exige igualdade exata
+      // de quartos, área dentro do range e descarta itens com área ausente.
+      // Sem esse modo, mantém o comportamento tolerante (±1 quarto, área
+      // opcional) — útil pra ver "tudo do mesmo prédio".
+      let removedAreaMissing = 0;
+      let removedAreaOut = 0;
+      let removedQuartos = 0;
       const kept = items.filter((p) => {
-        const areaOk = !p.areaUtil
-          ? true
-          : p.areaUtil >= areaMin && p.areaUtil <= areaMax;
-        const qOk = !p.quartos
-          ? true
-          : quartosMin === 0 && quartosMax === 0
-          ? true
-          : p.quartos >= quartosMin - 1 && p.quartos <= quartosMax + 1;
-        return areaOk && qOk;
+        // Área
+        if (!p.areaUtil || p.areaUtil <= 0) {
+          // filtrarAncoras=true descarta; false mantém (benefício da dúvida).
+          if (filtrarAncoras) { removedAreaMissing++; return false; }
+        } else if (p.areaUtil < areaMin || p.areaUtil > areaMax) {
+          removedAreaOut++;
+          return false;
+        }
+        // Quartos
+        if (p.quartos && !(quartosMin === 0 && quartosMax === 0)) {
+          const exato = p.quartos >= quartosMin && p.quartos <= quartosMax;
+          const tol1 = p.quartos >= quartosMin - 1 && p.quartos <= quartosMax + 1;
+          if (filtrarAncoras ? !exato : !tol1) {
+            removedQuartos++;
+            return false;
+          }
+        }
+        return true;
       });
-      const removed = before - kept.length;
-      if (removed > 0) {
-        const qLabel = quartosMin === quartosMax ? `${quartosMin}±1` : `${quartosMin}-${quartosMax}±1`;
+      const qLabel = quartosMin === quartosMax ? `${quartosMin}` : `${quartosMin}-${quartosMax}`;
+      if (removedAreaMissing > 0) {
         funilBusca.push({
-          etapa: `${layerLabel}: removidos por quartos (${qLabel}) ou área (${areaMin}-${areaMax} m²)`,
-          total: removed,
+          etapa: `${layerLabel}: removidos por área ausente (filtro estrito)`,
+          total: removedAreaMissing,
+        });
+      }
+      if (removedAreaOut > 0) {
+        funilBusca.push({
+          etapa: `${layerLabel}: removidos por área fora da faixa (${areaMin}-${areaMax} m²)`,
+          total: removedAreaOut,
+        });
+      }
+      if (removedQuartos > 0) {
+        funilBusca.push({
+          etapa: `${layerLabel}: removidos por quartos ${filtrarAncoras ? `≠ ${qLabel}` : `fora de ${qLabel}±1`}`,
+          total: removedQuartos,
         });
       }
       return kept;
