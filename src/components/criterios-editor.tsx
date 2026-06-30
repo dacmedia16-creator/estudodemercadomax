@@ -53,6 +53,7 @@ function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<Searc
     maxPages: o.maxPages ?? 3,
     radiusKm: o.radiusKm ?? 2,
     filtrarAncoras: o.filtrarAncoras ?? true,
+    top10Baratos: o.top10Baratos ?? true,
     fieldModes: { ...DEFAULT_FIELD_MODES, ...(o.fieldModes ?? {}) },
   };
 }
@@ -132,6 +133,7 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
       maxPages: Number(form.maxPages),
       radiusKm: Number(form.radiusKm),
       filtrarAncoras: form.filtrarAncoras,
+      top10Baratos: form.top10Baratos,
       fieldModes: form.fieldModes,
     });
   };
@@ -343,6 +345,18 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
               <Switch
                 checked={form.filtrarAncoras}
                 onCheckedChange={(v) => set("filtrarAncoras", v)}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-primary/20 pt-3">
+              <div>
+                <div className="text-sm font-medium">Focar nos 10 mais baratos quando houver mais de 10</div>
+                <div className="text-xs text-muted-foreground">
+                  Quando a busca trouxer mais de 10 comparáveis, mantém apenas os 10 de menor preço total. Médias, ACM e IA passam a usar esse recorte — útil para posicionar o imóvel próximo do piso competitivo da região.
+                </div>
+              </div>
+              <Switch
+                checked={form.top10Baratos}
+                onCheckedChange={(v) => set("top10Baratos", v)}
               />
             </div>
           </div>
