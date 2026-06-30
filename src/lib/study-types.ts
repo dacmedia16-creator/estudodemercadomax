@@ -38,6 +38,19 @@ export interface ComparableProperty extends MockProperty {
   preferenciaAtendida?: boolean;
   /** True quando o preço foge muito da distribuição (P90×1.3 ou P10×0.7). */
   outlier?: boolean;
+  /**
+   * Score de confiança 0–100 calculado a partir de completude (área/condomínio/
+   * fotos), idade do anúncio (DOM) e se passou no filtro estrito ou foi
+   * recuperado por camada ampla. Imóveis com score < 30 são excluídos
+   * do cálculo de mediana/média; score < 50 entra com peso 0.5.
+   */
+  confidenceScore?: number;
+  /** Motivos resumidos do score — exibidos como badge no PDF/UI. */
+  confidenceFactors?: string[];
+  /** Quantos anúncios diferentes apontam para o mesmo imóvel (deduplicação). */
+  dedupCount?: number;
+  /** Resumo dos anunciantes agrupados (até 3). */
+  dedupAnunciantes?: string[];
 }
 
 export interface StudyStats {
@@ -51,6 +64,12 @@ export interface StudyStats {
   maxM2: number;
   /** Preço total mais barato observado (R$). */
   minTotal: number;
+  /** Desvio padrão de R$/m² (amostra ponderada por confiança). */
+  stdM2?: number;
+  /** Tamanho efetivo da amostra (Σ pesos). */
+  effectiveN?: number;
+  /** Heurística sobre dispersão: 'baixa' | 'media' | 'alta'. */
+  dispersao?: "baixa" | "media" | "alta";
 }
 
 export interface AiAnalysis {
@@ -95,6 +114,12 @@ export interface StudyResult {
   stats?: StudyStats;
   /** Análise qualitativa opcional gerada por IA. */
   aiAnalysis?: AiAnalysis;
+  /** Intervalo de confiança do Valor Ideal (mín/ideal/máx) — usado no PDF. */
+  valorIdealRange?: { min: number; ideal: number; max: number; confianca: "alta" | "media" | "baixa" };
+  /** Estratégia sugerida automaticamente pelo motor (P25/mediana/P75). */
+  estrategiaSugerida?: { estrategia: "agressivo" | "equilibrado" | "premium"; motivo: string };
+  /** True quando a IA divergiu > 15% da mediana × área e foi sobrescrita. */
+  iaSobrescrita?: boolean;
 }
 
 export interface AcmAdjustments {
