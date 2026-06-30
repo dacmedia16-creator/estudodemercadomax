@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, Loader2, AlertTriangle, CheckCircle2, RotateCcw, Copy, MessageSquareQuote } from "lucide-react";
 import { toast } from "sonner";
 import { analisarMercadoIa } from "@/lib/ai-analysis.functions";
-import { computeAcm, formatBRL } from "@/lib/study-engine";
+import { applyAcmToValue, computeAcm, formatBRL, rewriteCurrencyInText } from "@/lib/study-engine";
 import { studyStore } from "@/lib/study-store";
 import { DEFAULT_ACM, type StudyResult } from "@/lib/study-types";
 
@@ -20,6 +20,22 @@ export function AiAnalysisCard({ study, onChange }: Props) {
   const [loading, setLoading] = useState(false);
   const ai = study.aiAnalysis;
   const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
+
+  // Reescala os números absolutos da IA usando o ACM corrente, em tempo real,
+  // para que mexer nos sliders reflita aqui sem regerar a análise.
+  const entradaAdj = ai ? applyAcmToValue(ai.faixaRecomendada.entrada, acm) : 0;
+  const idealAdj = ai ? applyAcmToValue(ai.faixaRecomendada.ideal, acm) : 0;
+  const tetoAdj = ai ? applyAcmToValue(ai.faixaRecomendada.teto, acm) : 0;
+  const pairs = ai
+    ? [
+        { original: ai.faixaRecomendada.entrada, ajustado: entradaAdj },
+        { original: ai.faixaRecomendada.ideal, ajustado: idealAdj },
+        { original: ai.faixaRecomendada.teto, ajustado: tetoAdj },
+      ]
+    : [];
+  const discursoAjustado = ai?.discursoProprietario ? rewriteCurrencyInText(ai.discursoProprietario, pairs) : "";
+  const argumentosAjustados = ai?.argumentosChave?.map((a) => rewriteCurrencyInText(a, pairs)) ?? [];
+  const idealMudou = ai ? Math.abs(idealAdj - ai.faixaRecomendada.ideal) / Math.max(1, ai.faixaRecomendada.ideal) > 0.005 : false;
 
   const run = async () => {
     setLoading(true);
@@ -137,9 +153,9 @@ export function AiAnalysisCard({ study, onChange }: Props) {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <FaixaCell label="Entrada (rápido)" value={ai.faixaRecomendada.entrada} tone="muted" />
-            <FaixaCell label="Ideal" value={ai.faixaRecomendada.ideal} tone="primary" />
-            <FaixaCell label="Teto de publicação" value={ai.faixaRecomendada.teto} tone="success" />
+            <FaixaCell label="Entrada (rápido)" value={entradaAdj} tone="muted" hint={idealMudou ? "ajustado pelos fatores ACM" : undefined} />
+            <FaixaCell label="Ideal" value={idealAdj} tone="primary" hint={idealMudou ? "ajustado pelos fatores ACM" : undefined} />
+            <FaixaCell label="Teto de publicação" value={tetoAdj} tone="success" hint={idealMudou ? "ajustado pelos fatores ACM" : undefined} />
           </div>
 
           <div className="rounded-lg border border-border bg-muted/20 p-4">
@@ -159,7 +175,7 @@ export function AiAnalysisCard({ study, onChange }: Props) {
                   className="h-7 gap-1.5 text-xs"
                   onClick={async () => {
                     try {
-                      await navigator.clipboard.writeText(ai.discursoProprietario ?? "");
+                      await navigator.clipboard.writeText(discursoAjustado || ai.discursoProprietario || "");
                       toast.success("Discurso copiado");
                     } catch {
                       toast.error("Não foi possível copiar");
@@ -169,7 +185,7 @@ export function AiAnalysisCard({ study, onChange }: Props) {
                   <Copy className="h-3 w-3" /> Copiar
                 </Button>
               </div>
-              <p className="whitespace-pre-line text-sm leading-relaxed">{ai.discursoProprietario}</p>
+              <p className="whitespace-pre-line text-sm leading-relaxed">{discursoAjustado}</p>
             </div>
           )}
 
@@ -179,7 +195,7 @@ export function AiAnalysisCard({ study, onChange }: Props) {
                 Argumentos de mercado
               </div>
               <ul className="space-y-1.5 text-sm">
-                {ai.argumentosChave.map((a, i) => (
+                {argumentosAjustados.map((a, i) => (
                   <li key={i} className="flex gap-2">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
                     <span>{a}</span>
@@ -223,7 +239,7 @@ export function AiAnalysisCard({ study, onChange }: Props) {
   );
 }
 
-function FaixaCell({ label, value, tone }: { label: string; value: number; tone: "muted" | "primary" | "success" }) {
+function FaixaCell({ label, value, tone, hint }: { label: string; value: number; tone: "muted" | "primary" | "success"; hint?: string }) {
   const cls =
     tone === "primary" ? "border-primary/40 bg-primary/5 text-primary"
     : tone === "success" ? "border-success/40 bg-success/5 text-success"
@@ -232,6 +248,7 @@ function FaixaCell({ label, value, tone }: { label: string; value: number; tone:
     <div className={`rounded-lg border p-3 ${cls}`}>
       <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{label}</div>
       <div className="mt-1 text-lg font-bold tabular-nums">{formatBRL(value)}</div>
+      {hint && <div className="mt-0.5 text-[10px] opacity-70">{hint}</div>}
     </div>
   );
 }
