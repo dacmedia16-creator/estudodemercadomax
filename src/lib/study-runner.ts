@@ -1,7 +1,7 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
 import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily, mapDiferenciaisToZapAmenities, isStructuralDiferencial, detectPortalFromUrl } from "@/lib/gecko-adapter";
-import { generateStudy, computeAcm } from "@/lib/study-engine";
+import { generateStudy, computeAcm, computeConfidence } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
 import { DEFAULT_FIELD_MODES, DEFAULT_ACM } from "@/lib/study-types";
 import { analisarMercadoIa } from "@/lib/ai-analysis.functions";
@@ -228,6 +228,23 @@ export async function runStudy(
       if (p.finalidade && p.finalidade !== finalidade) {
         removidosFinalidade++;
         return false;
+      }
+      // Guard reforçado: mesmo quando o portal classifica como "Venda",
+      // título/URL que mencionam aluguel/locação/temporada são descartados
+      // num estudo de venda (e vice-versa). Evita anúncios mal-etiquetados
+      // que envenenam a mediana com valores de aluguel.
+      if (finalidade === "Venda") {
+        const hay = `${p.titulo ?? ""} ${p.url ?? ""}`.toLowerCase();
+        if (/\b(aluguel|alugar|alugue|loca[cç][aã]o|temporada|alugu[áa]vel|para alugar)\b/.test(hay)) {
+          removidosFinalidade++;
+          return false;
+        }
+      } else if (finalidade === "Aluguel") {
+        const hay = `${p.titulo ?? ""} ${p.url ?? ""}`.toLowerCase();
+        if (/\b(venda|vender|comprar|à venda|a venda|financiamento)\b/.test(hay)) {
+          removidosFinalidade++;
+          return false;
+        }
       }
       if (finalidade === "Venda") {
         if (p.preco > 0 && p.preco < 50_000) { removidosPrecoFaixa++; return false; }
@@ -1178,6 +1195,15 @@ export async function runStudy(
   }
   if (mesmoEnderecoIds.size > 0) {
     result.comparaveis.forEach((c) => { if (mesmoEnderecoIds.has(c.id)) c.mesmoEndereco = true; });
+  }
+  // Recalcula confiança após as flags "mesmo prédio/endereço" — esses
+  // matches dão bônus no score de confiança.
+  if (mesmoCondominioIds.size > 0 || mesmoEnderecoIds.size > 0) {
+    result.comparaveis.forEach((c) => {
+      const conf = computeConfidence(c);
+      c.confidenceScore = conf.score;
+      c.confidenceFactors = conf.factors;
+    });
   }
   if (!fellBack) {
     criteriosAplicados.push(`Requisições: ${plpCalls} PLP + ${pdpCalls} PDP = ${plpCalls + pdpCalls}`);

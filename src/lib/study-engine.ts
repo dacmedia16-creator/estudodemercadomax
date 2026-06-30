@@ -15,21 +15,152 @@ function percentile(sorted: number[], p: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
 }
 
-/** Calcula a distribuição de R$/m² e mínimo de preço total. */
-export function computeStats(items: { precoM2: number; preco: number }[]): StudyStats | undefined {
-  const m2 = items.map((i) => i.precoM2).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b);
+/**
+ * Score de confiança 0–100 por comparável.
+ * Combina:
+ *  - Completude (área, preço, condomínio, fotos)        → até 50 pts
+ *  - Frescor do anúncio (DOM)                            → até 25 pts
+ *  - Match estrutural (mesmo prédio/endereço, similaridade) → até 25 pts
+ */
+export function computeConfidence(p: Partial<MockProperty> & { similaridade?: number; mesmoCondominio?: boolean; mesmoEndereco?: boolean }): { score: number; factors: string[] } {
+  const factors: string[] = [];
+  let s = 0;
+  // Completude (50)
+  if (p.areaUtil && p.areaUtil > 0) s += 15; else factors.push("sem área");
+  if (p.preco && p.preco > 0) s += 15; else factors.push("sem preço");
+  if (p.condominio && p.condominio > 0) s += 8;
+  if (p.imagem) s += 7;
+  if (p.quartos && p.quartos > 0) s += 5;
+  // DOM (25)
+  if (typeof p.diasMercado === "number") {
+    if (p.diasMercado <= 30) s += 25;
+    else if (p.diasMercado <= 90) s += 18;
+    else if (p.diasMercado <= 180) { s += 8; factors.push(`anúncio com ${p.diasMercado} dias`); }
+    else { s += 0; factors.push(`anúncio antigo (${p.diasMercado}d)`); }
+  } else {
+    s += 12; // sem info, neutro
+  }
+  // Match (25)
+  if (p.mesmoCondominio) s += 25;
+  else if (p.mesmoEndereco) s += 18;
+  else if (typeof p.similaridade === "number") s += Math.min(25, Math.round(p.similaridade * 0.25));
+  if (p.incomplete) { s -= 10; factors.push("dados incompletos"); }
+  if (p.aproximado) { s -= 5; factors.push("valores aproximados"); }
+  s = Math.max(0, Math.min(100, Math.round(s)));
+  return { score: s, factors };
+}
+
+/**
+ * Deduplica anúncios que apontam para o mesmo imóvel — mesma área ±1m²,
+ * mesmo preço ±2% e mesmo bairro. Mantém o representante com maior
+ * confiança e anota `dedupCount`/`dedupAnunciantes` nele.
+ */
+function dedupComparables(list: ComparableProperty[]): ComparableProperty[] {
+  if (list.length <= 1) return list;
+  const used = new Set<string>();
+  const out: ComparableProperty[] = [];
+  for (const a of list) {
+    if (used.has(a.id)) continue;
+    const group = [a];
+    for (const b of list) {
+      if (b.id === a.id || used.has(b.id)) continue;
+      const sameArea = a.areaUtil > 0 && b.areaUtil > 0 && Math.abs(a.areaUtil - b.areaUtil) <= 1;
+      const samePrice = a.preco > 0 && b.preco > 0 && Math.abs(a.preco - b.preco) / a.preco <= 0.02;
+      const sameBairro = (a.bairro || "").toLowerCase() === (b.bairro || "").toLowerCase();
+      if (sameArea && samePrice && sameBairro) group.push(b);
+    }
+    group.sort((x, y) => (y.confidenceScore ?? 0) - (x.confidenceScore ?? 0));
+    const rep = group[0];
+    group.forEach((g) => used.add(g.id));
+    if (group.length > 1) {
+      rep.dedupCount = group.length;
+      rep.dedupAnunciantes = Array.from(new Set(group.map((g) => g.anunciante).filter(Boolean))).slice(0, 3);
+    }
+    out.push(rep);
+  }
+  return out;
+}
+
+/** Percentil ponderado: cada valor recebe seu peso (default 1). */
+function weightedPercentile(pairs: { v: number; w: number }[], p: number): number {
+  const arr = pairs.filter((x) => Number.isFinite(x.v) && x.v > 0 && x.w > 0).sort((a, b) => a.v - b.v);
+  if (arr.length === 0) return 0;
+  if (arr.length === 1) return arr[0].v;
+  const totalW = arr.reduce((s, x) => s + x.w, 0);
+  const target = p * totalW;
+  let acc = 0;
+  for (let i = 0; i < arr.length; i++) {
+    acc += arr[i].w;
+    if (acc >= target) {
+      if (i === 0) return arr[0].v;
+      // interpolação linear entre arr[i-1] e arr[i]
+      const prev = acc - arr[i].w;
+      const frac = (target - prev) / arr[i].w;
+      return arr[i - 1].v + frac * (arr[i].v - arr[i - 1].v);
+    }
+  }
+  return arr[arr.length - 1].v;
+}
+
+/**
+ * Estatísticas ponderadas: cada comparável contribui com peso baseado em
+ * confiança e DOM (>120 dias → ×0.7). Itens com confiança < 30 não entram.
+ */
+export function computeStats(items: Array<{ precoM2: number; preco: number; confidenceScore?: number; diasMercado?: number }>): StudyStats | undefined {
+  const pairs = items
+    .filter((i) => Number.isFinite(i.precoM2) && i.precoM2 > 0)
+    .map((i) => {
+      const conf = typeof i.confidenceScore === "number" ? i.confidenceScore : 60;
+      if (conf < 30) return null;
+      let w = conf < 50 ? 0.5 : 1;
+      if (typeof i.diasMercado === "number" && i.diasMercado > 120) w *= 0.7;
+      return { v: i.precoM2, w };
+    })
+    .filter(Boolean) as { v: number; w: number }[];
+  if (pairs.length === 0) return undefined;
   const totals = items.map((i) => i.preco).filter((n) => Number.isFinite(n) && n > 0);
-  if (m2.length === 0) return undefined;
+  const weightedMean =
+    pairs.reduce((s, x) => s + x.v * x.w, 0) / pairs.reduce((s, x) => s + x.w, 0);
+  const variance =
+    pairs.reduce((s, x) => s + x.w * Math.pow(x.v - weightedMean, 2), 0) /
+    Math.max(1, pairs.reduce((s, x) => s + x.w, 0));
+  const stdM2 = Math.sqrt(variance);
+  const cv = weightedMean > 0 ? stdM2 / weightedMean : 0;
+  const dispersao: "baixa" | "media" | "alta" = cv < 0.12 ? "baixa" : cv < 0.22 ? "media" : "alta";
+  const sortedVals = pairs.map((x) => x.v).sort((a, b) => a - b);
   return {
-    p10: Math.round(percentile(m2, 0.1)),
-    p25: Math.round(percentile(m2, 0.25)),
-    median: Math.round(percentile(m2, 0.5)),
-    p75: Math.round(percentile(m2, 0.75)),
-    p90: Math.round(percentile(m2, 0.9)),
-    minM2: m2[0],
-    maxM2: m2[m2.length - 1],
+    p10: Math.round(weightedPercentile(pairs, 0.1)),
+    p25: Math.round(weightedPercentile(pairs, 0.25)),
+    median: Math.round(weightedPercentile(pairs, 0.5)),
+    p75: Math.round(weightedPercentile(pairs, 0.75)),
+    p90: Math.round(weightedPercentile(pairs, 0.9)),
+    minM2: sortedVals[0],
+    maxM2: sortedVals[sortedVals.length - 1],
     minTotal: totals.length ? Math.min(...totals) : 0,
+    stdM2: Math.round(stdM2),
+    effectiveN: Math.round(pairs.reduce((s, x) => s + x.w, 0)),
+    dispersao,
   };
+}
+
+/**
+ * Sugere estratégia ACM (agressivo/equilibrado/premium) a partir do perfil
+ * da amostra: alta dispersão → mediana; amostra pequena → P25 conservador;
+ * DOM médio alto → P25.
+ */
+export function suggestEstrategia(
+  stats: StudyStats | undefined,
+  comparaveis: Array<{ diasMercado?: number }>,
+): { estrategia: "agressivo" | "equilibrado" | "premium"; motivo: string } {
+  if (!stats) return { estrategia: "equilibrado", motivo: "Amostra ausente — estratégia padrão." };
+  const n = stats.effectiveN ?? 0;
+  const domVals = comparaveis.map((c) => c.diasMercado).filter((v): v is number => typeof v === "number");
+  const domAvg = domVals.length ? domVals.reduce((a, b) => a + b, 0) / domVals.length : 0;
+  if (n < 5) return { estrategia: "agressivo", motivo: `Amostra pequena (${n} efetivos) — P25 reduz risco de superestimar.` };
+  if (stats.dispersao === "alta") return { estrategia: "equilibrado", motivo: "Dispersão alta entre os comparáveis — mediana é mais robusta." };
+  if (domAvg > 120) return { estrategia: "agressivo", motivo: `DOM médio ${Math.round(domAvg)}d — concorrência está parada no portal, preço mais agressivo acelera a venda.` };
+  if (stats.dispersao === "baixa" && n >= 8) return { estrategia: "equilibrado", motivo: "Amostra robusta e dispersão baixa — mediana é referência segura." };
+  return { estrategia: "equilibrado", motivo: "Mediana — equilíbrio entre velocidade de venda e teto da concorrência." };
 }
 
 /** Marca outliers de preço (R$/m² fora da banda P10×0.7..P90×1.3). */
@@ -142,26 +273,33 @@ export function generateStudy(
     .filter((p) => (usingExternal ? true : allBairros.includes(p.bairro) || p.cidade === input.cidade))
     .map<ComparableProperty>((p) => {
       const sim = similarity(input, p, modes);
-      return {
+      const base = {
         ...p,
         precoM2: Math.round(p.preco / p.areaUtil),
         similaridade: sim.score,
         preferenciaAtendida: sim.preferenciaAtendida,
-      };
+      } as ComparableProperty;
+      const conf = computeConfidence(base);
+      base.confidenceScore = conf.score;
+      base.confidenceFactors = conf.factors;
+      return base;
     })
     .sort((a, b) => b.similaridade - a.similaridade);
+
+  // Deduplicação semântica: agrupa anúncios que apontam para o mesmo imóvel.
+  const dedupd = dedupComparables(filtered);
 
   // Portal interleaving: when more than one portal returned results, ensure
   // each portal contributes to the top 10 instead of one portal dominating.
   const top10 = (() => {
-    if (!usingExternal || filtered.length <= 10) return filtered.slice(0, 10);
+    if (!usingExternal || dedupd.length <= 10) return dedupd.slice(0, 10);
     const byPortal = new Map<string, ComparableProperty[]>();
-    for (const p of filtered) {
+    for (const p of dedupd) {
       const k = p.portal || "—";
       if (!byPortal.has(k)) byPortal.set(k, []);
       byPortal.get(k)!.push(p);
     }
-    if (byPortal.size <= 1) return filtered.slice(0, 10);
+    if (byPortal.size <= 1) return dedupd.slice(0, 10);
     const out: ComparableProperty[] = [];
     const queues = Array.from(byPortal.values());
     while (out.length < 10) {
@@ -233,6 +371,25 @@ export function generateStudy(
 
   const argumentoProprietario = `Com base nos imóveis semelhantes anunciados em ${input.bairro}, o valor ideal de mercado é ${fmt(valorIdealDet)} e a faixa competitiva de publicação fica entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Posicionar nessa faixa aumenta as chances de atrair interessados qualificados sem desvalorizar o imóvel.`;
 
+  // Valor Ideal range + estratégia sugerida
+  const valorIdealDetCalc = stats && stats.median > 0 && input.areaUtil > 0
+    ? Math.round(stats.median * input.areaUtil)
+    : precoMedio;
+  const valorIdealRange = stats && input.areaUtil > 0
+    ? (() => {
+        // Intervalo: ± 1 desvio-padrão × área, com piso em P25 e teto em P75
+        const ds = (stats.stdM2 ?? 0) * input.areaUtil;
+        const min = Math.max(stats.p25 * input.areaUtil, valorIdealDetCalc - ds);
+        const max = Math.min(stats.p75 * input.areaUtil, valorIdealDetCalc + ds);
+        const confianca: "alta" | "media" | "baixa" =
+          stats.dispersao === "baixa" && (stats.effectiveN ?? 0) >= 6 ? "alta"
+          : stats.dispersao === "alta" || (stats.effectiveN ?? 0) < 4 ? "baixa"
+          : "media";
+        return { min: Math.round(min), ideal: valorIdealDetCalc, max: Math.round(max), confianca };
+      })()
+    : undefined;
+  const estrategiaSugerida = suggestEstrategia(stats, top10WithFlags);
+
   return {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
@@ -253,6 +410,8 @@ export function generateStudy(
     tituloSugerido,
     descricaoSugerida,
     argumentoProprietario,
+    valorIdealRange,
+    estrategiaSugerida,
   };
 }
 
@@ -272,11 +431,27 @@ export function getValorIdeal(
   study: { aiAnalysis?: { faixaRecomendada?: { ideal?: number } } | null; stats?: { median?: number } | null; input: { areaUtil: number } },
   acm: { valorSugerido: number },
 ): number {
-  const ia = study.aiAnalysis?.faixaRecomendada?.ideal;
-  if (typeof ia === "number" && ia > 0) return Math.round(ia);
+  // Sanidade: a IA tem prioridade, MAS se divergir mais de 15% da mediana×área,
+  // o motor descarta o número da IA e usa o determinístico. Evita que a IA
+  // "viaje" no PDF.
   const median = study.stats?.median;
   const area = study.input.areaUtil;
-  if (typeof median === "number" && median > 0 && area > 0) return Math.round(median * area);
+  const det = typeof median === "number" && median > 0 && area > 0 ? Math.round(median * area) : 0;
+  const ia = study.aiAnalysis?.faixaRecomendada?.ideal;
+  if (typeof ia === "number" && ia > 0) {
+    if (det > 0) {
+      const diff = Math.abs(ia - det) / det;
+      if (diff > 0.15) {
+        // marca metadata para a UI saber que a IA foi sobrescrita
+        try {
+          (study as { iaSobrescrita?: boolean }).iaSobrescrita = true;
+        } catch { /* readonly: ignore */ }
+        return det;
+      }
+    }
+    return Math.round(ia);
+  }
+  if (det > 0) return det;
   return acm.valorSugerido;
 }
 
@@ -360,8 +535,17 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
     ...c,
     precoM2: c.areaUtil > 0 ? Math.round(c.preco / c.areaUtil) : c.precoM2 ?? 0,
   }));
-  const stats = computeStats(list);
-  const listFlag = flagOutliers(list, stats);
+  // (re)calcula confiança caso o item ainda não tenha
+  for (const c of list) {
+    if (typeof c.confidenceScore !== "number") {
+      const conf = computeConfidence(c);
+      c.confidenceScore = conf.score;
+      c.confidenceFactors = conf.factors;
+    }
+  }
+  const dedupd = dedupComparables(list);
+  const stats = computeStats(dedupd);
+  const listFlag = flagOutliers(dedupd, stats);
   const precos = listFlag.map((p) => p.preco);
   const precosM2 = listFlag.filter((p) => p.precoM2 > 0).map((p) => p.precoM2);
   const precoMedio = precos.length ? Math.round(avg(precos)) : 0;
@@ -402,6 +586,23 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
   if (input.areaUtil < avgArea * 0.85) pontosAtencao.push("Metragem abaixo da média");
   if (pontosAtencao.length === 0) pontosAtencao.push("Necessário destacar melhor o anúncio para se diferenciar");
 
+  const valorIdealDetCalc = stats && stats.median > 0 && input.areaUtil > 0
+    ? Math.round(stats.median * input.areaUtil)
+    : precoMedio;
+  const valorIdealRange = stats && input.areaUtil > 0
+    ? (() => {
+        const ds = (stats.stdM2 ?? 0) * input.areaUtil;
+        const min = Math.max(stats.p25 * input.areaUtil, valorIdealDetCalc - ds);
+        const max = Math.min(stats.p75 * input.areaUtil, valorIdealDetCalc + ds);
+        const confianca: "alta" | "media" | "baixa" =
+          stats.dispersao === "baixa" && (stats.effectiveN ?? 0) >= 6 ? "alta"
+          : stats.dispersao === "alta" || (stats.effectiveN ?? 0) < 4 ? "baixa"
+          : "media";
+        return { min: Math.round(min), ideal: valorIdealDetCalc, max: Math.round(max), confianca };
+      })()
+    : undefined;
+  const estrategiaSugerida = suggestEstrategia(stats, listFlag);
+
   return {
     ...prev,
     comparaveis: listFlag,
@@ -417,5 +618,7 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
     diagnostico,
     pontosFortes,
     pontosAtencao,
+    valorIdealRange,
+    estrategiaSugerida,
   };
 }
