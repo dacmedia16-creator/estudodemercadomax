@@ -674,6 +674,16 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
       <div className="op-hero">
         <div className="op-hero-label">Valor recomendado para venda</div>
         <div className="op-hero-value">{formatBRL(valorIdeal)}</div>
+        {study.valorIdealRange && (
+          <div className="op-hero-meta" style={{ fontStyle: "italic", color: "#cfe0ff", marginBottom: 4 }}>
+            Faixa de confiança ({study.valorIdealRange.confianca}): {formatBRL(study.valorIdealRange.min)} – {formatBRL(study.valorIdealRange.max)}
+          </div>
+        )}
+        {study.iaSobrescrita && (
+          <div className="op-hero-meta" style={{ color: "#fde68a", fontWeight: 700 }}>
+            ⚠ IA ajustada para a mediana de mercado (divergia &gt; 15%).
+          </div>
+        )}
         <div className="op-hero-pills">
           <div className="op-hpill">
             <div className="lbl">Mínimo de fechamento</div>
