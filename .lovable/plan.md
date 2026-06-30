@@ -1,33 +1,30 @@
-# Plano: recuperar volume de comparáveis
+## Problema
 
-Diagnóstico: as Ondas 1–3 adicionaram 3 filtros que, combinados, descartam imóveis demais — principalmente em bairros com pouca oferta.
+Mexer em Localização / Conservação / Idade / Padrão / Reforma muda o "Valor sugerido" interno do painel ACM, mas **não muda o "Valor ideal de publicação"** que aparece no hero do relatório e é o número usado no PDF, carta e argumentos.
 
-## O que vou mexer
+Causa: `getValorIdeal()` em `src/lib/study-engine.ts` retorna `aiAnalysis.faixaRecomendada.ideal` (ou `mediana × área`) e só cai no `acm.valorSugerido` como último recurso. Os ajustes do ACM ficam órfãos.
 
-**`src/lib/study-engine.ts`**
+## Correção
 
-1. **Score de confiança — não excluir mais por score baixo**
-   - Hoje: imóveis com `confidenceScore < 30` são removidos do cálculo; `< 50` entra com peso 0.5.
-   - Novo: nenhum imóvel é removido por confiança. Peso vira:
-     - `>= 60` → peso 1.0
-     - `30–59` → peso 0.75
-     - `< 30` → peso 0.5 (entra, mas pesa menos)
-   - O badge de confiança continua aparecendo na UI/PDF para transparência, só não elimina ninguém.
+**`src/lib/study-engine.ts` — `getValorIdeal()`**
 
-2. **Dedup semântica — só agrupar duplicatas óbvias**
-   - Hoje: agrupa por área (±1 m²) + preço (±2%) + bairro → estava juntando imóveis parecidos mas distintos.
-   - Novo: só agrupa quando **mesmo prédio/endereço + mesma área exata + preço ±1%**. Sem prédio identificado, não deduplica. Mantém `dedupCount` para os casos reais.
+Aplicar o multiplicador ACM e o desconto de reforma sobre a base (IA ou determinística), em vez de ignorá-los:
 
-3. **Sanity de 15% sobre IA — afrouxar para 25%**
-   - Hoje: se a IA diverge >15% da mediana×área, o motor sobrescreve.
-   - Novo: tolerância sobe para 25% (a IA tem mais espaço quando a amostra é pequena ou dispersa). `iaSobrescrita` continua sinalizado no relatório quando dispara.
+1. Calcular `base` = IA (com guarda de 25%) ou `mediana × área`, como hoje.
+2. Calcular `mult` = produto dos 4 fatores ACM (localização × conservação × idade × padrão), default 1.0 quando todos a 100%.
+3. Calcular `descontoReforma` = `reformaPorM2 × areaUtil`.
+4. Retornar `Math.round(base × mult − descontoReforma)`, respeitando piso competitivo se `respeitarPiso` estiver ativo (mesma lógica do `computeAcm`).
+5. Quando todos os fatores estão neutros (100%, reforma 0), o resultado é idêntico ao de hoje — sem regressão para estudos que nunca tocaram o ACM.
 
-**`src/lib/study-runner.ts`**
-- Sem mudança de busca/portais (o problema não é coleta, é o que o motor descarta depois).
+**`src/routes/app.relatorio.$id.tsx`**
 
-**UI**
-- Nenhuma mudança visual. Badges e capa/contracapa do PDF continuam.
+A `ratioMin`/`ratioMax` da faixa de publicação já é derivada de `acm.valorSugerido`, então passa a refletir a margem corretamente sobre o novo `valorIdeal`. Sem mudança adicional.
 
-## Resultado esperado
+**Sem mudanças** em UI, PDF, AI prompts, busca, ou no `computeAcm` (continua sendo a fonte para o card "Resumo para venda" do painel).
 
-Mesma busca passa a manter ~20–40% mais comparáveis no estudo final, sem afrouxar os guardas de finalidade (venda/aluguel) nem de tipo (casa/apto) — esses continuam estritos.
+## Resultado
+
+Mover os sliders do ACM passa a alterar em tempo real:
+- Hero "Valor ideal de publicação" no relatório
+- Faixa min/máx de publicação
+- Valor ideal usado na Carta ao Proprietário e nos argumentos do PDF
