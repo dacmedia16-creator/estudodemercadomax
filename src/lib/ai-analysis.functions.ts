@@ -85,6 +85,11 @@ Regras críticas:
   "ajuste para o valor sugerido (ACM)" — diga "ajuste para o valor ideal de
   mercado (R$ X)", repetindo explicitamente o número de faixaRecomendada.ideal
   no discursoProprietario e em pelo menos um dos argumentosChave.
+- **SANIDADE OBRIGATÓRIA**: faixaRecomendada.ideal NUNCA pode divergir
+  mais de 15% da mediana × área (informada no payload como
+  mercado.median × imovel.areaUtil). Se calcular algo fora dessa faixa,
+  ajuste para dentro — o motor descarta seu número caso contrário.
+  Use mercado.p25 × área como piso e mercado.p75 × área como teto.
 
 CENÁRIO DE USO:
 O corretor frequentemente precisa convencer o proprietário a ajustar o valor
