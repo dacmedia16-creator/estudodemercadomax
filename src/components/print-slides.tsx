@@ -441,21 +441,39 @@ function OwnerPersuasionPage({
       : 0;
 
   // Faixa recomendada: usa IA quando existe; senão deriva dos percentis
-  const faixa = study.aiAnalysis?.faixaRecomendada ?? (stats
+  const faixaBase = study.aiAnalysis?.faixaRecomendada ?? (stats
     ? { entrada: stats.p25 * (input.areaUtil || 1), ideal: stats.median * (input.areaUtil || 1), teto: stats.p75 * (input.areaUtil || 1) }
     : { entrada: valorIdeal * 0.95, ideal: valorIdeal, teto: valorIdeal * 1.05 });
+  // Reescala a faixa da IA com o ACM corrente para o PDF refletir os sliders.
+  const faixa = study.aiAnalysis?.faixaRecomendada
+    ? {
+        entrada: applyAcmToValue(faixaBase.entrada, acm),
+        ideal: applyAcmToValue(faixaBase.ideal, acm),
+        teto: applyAcmToValue(faixaBase.teto, acm),
+      }
+    : faixaBase;
+  const ajustePairs = study.aiAnalysis?.faixaRecomendada
+    ? [
+        { original: study.aiAnalysis.faixaRecomendada.entrada, ajustado: faixa.entrada },
+        { original: study.aiAnalysis.faixaRecomendada.ideal, ajustado: faixa.ideal },
+        { original: study.aiAnalysis.faixaRecomendada.teto, ajustado: faixa.teto },
+      ]
+    : [];
 
   // Argumentos prontos — usa IA ou fallback determinístico
-  const argumentos =
+  const argumentos = (
     study.aiAnalysis?.argumentosChave && study.aiAnalysis.argumentosChave.length > 0
       ? study.aiAnalysis.argumentosChave
-      : buildFallbackArgs({ abaixoCount, totalComps, menorPreco, pretendido, acimaMedianaM2, valorIdeal, gapPct });
+      : buildFallbackArgs({ abaixoCount, totalComps, menorPreco, pretendido, acimaMedianaM2, valorIdeal, gapPct })
+  ).map((a) => rewriteCurrencyInText(a, ajustePairs));
 
   const riscos = study.aiAnalysis?.riscos && study.aiAnalysis.riscos.length > 0
     ? study.aiAnalysis.riscos
     : buildFallbackRiscos(gapPct);
 
-  const discurso = study.aiAnalysis?.discursoProprietario;
+  const discurso = study.aiAnalysis?.discursoProprietario
+    ? rewriteCurrencyInText(study.aiAnalysis.discursoProprietario, ajustePairs)
+    : undefined;
 
   const statusLabel = gapPct > 5 ? "ACIMA DO MERCADO" : gapPct < -5 ? "ABAIXO DO MERCADO" : "DENTRO DO MERCADO";
   const statusClass = gapPct > 5 ? "owner-status-alto" : gapPct < -5 ? "owner-status-baixo" : "owner-status-ok";
