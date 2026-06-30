@@ -485,7 +485,15 @@ export async function runStudy(
     if (priorizarEdificio && !buscaLivre) {
       try {
         const res = await adaptivePaginate(
-          { city: cidade, state: estado.toUpperCase(), businessType, keyword: edificio, propertyType },
+          {
+            city: cidade,
+            state: estado.toUpperCase(),
+            businessType,
+            keyword: edificio,
+            propertyType,
+            neighborhood: bairro || undefined,
+            propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+          },
           (collected) => collected.filter((p) => matchEdificio(p, edificio)).length >= TARGET,
           "condominio",
         );
@@ -523,7 +531,15 @@ export async function runStudy(
         // drops to zero when a specific number is in the query.
         const enderecoSemNumero = enderecoRaw.replace(/,?\s*\d+\s*$/, "").trim() || enderecoRaw;
         const res = await adaptivePaginate(
-          { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${enderecoSemNumero} ${bairro}`.trim(), propertyType },
+          {
+            city: cidade,
+            state: estado.toUpperCase(),
+            businessType,
+            keyword: `${enderecoSemNumero} ${bairro}`.trim(),
+            propertyType,
+            neighborhood: bairro || undefined,
+            propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+          },
           (collected) => {
             const matched = collected.filter((p) => matchEndereco(p, enderecoRaw)).length;
             return matched + condoMatches.length >= TARGET;
