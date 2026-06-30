@@ -457,6 +457,16 @@ function ReportPage() {
                     {(c.aproximado || c.incomplete) && (!c.areaUtil || c.areaUtil <= 0) && (
                       <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-muted-foreground/40 text-muted-foreground">Área não informada</Badge>
                     )}
+                    {typeof c.confidenceScore === "number" && c.confidenceScore < 50 && (
+                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-warning/60 text-warning-foreground" title={c.confidenceFactors?.join(" · ")}>
+                        Confiança {c.confidenceScore}
+                      </Badge>
+                    )}
+                    {typeof c.dedupCount === "number" && c.dedupCount > 1 && (
+                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-primary/60 text-primary" title={c.dedupAnunciantes?.join(", ")}>
+                        {c.dedupCount} anunciantes
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.bairro}</TableCell>
                   <TableCell className="text-right">{c.areaUtil > 0 ? `${c.areaUtil}m²` : "—"}</TableCell>
