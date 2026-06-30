@@ -1,5 +1,6 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
+import { descobrirBairrosVizinhos } from "@/lib/neighbors.functions";
 import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily, mapDiferenciaisToZapAmenities, isStructuralDiferencial, detectPortalFromUrl } from "@/lib/gecko-adapter";
 import { generateStudy, computeAcm, computeConfidence } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
@@ -168,6 +169,8 @@ export async function runStudy(
   const estado = overrides.estado ?? input.estado;
   const bairro = overrides.bairro ?? input.bairro;
   const bairrosProximos = overrides.bairrosProximos ?? input.bairrosProximos;
+  const expandirBairrosProximos =
+    overrides.expandirBairrosProximos ?? input.expandirBairrosProximos ?? false;
   const quartosMin = overrides.quartosMin ?? input.quartos;
   const quartosMax = overrides.quartosMax ?? input.quartos;
   const areaMin = overrides.areaMin ?? Math.round(input.areaUtil * 0.75);
