@@ -228,7 +228,20 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
                   placeholder="Adicionar bairro"
                 />
                 <Button type="button" variant="outline" size="sm" onClick={addBairro}>+</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={detectarVizinhos}
+                  disabled={detectando}
+                  title="Detectar bairros vizinhos automaticamente (~3 km)"
+                >
+                  {detectando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Auto"}
+                </Button>
               </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Use "Auto" para detectar vizinhos num raio de 3 km — ou deixe a lista vazia com a expansão ligada para detectarmos no próximo recálculo.
+              </p>
               {form.bairrosProximos.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {form.bairrosProximos.map((b) => (
