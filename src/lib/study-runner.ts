@@ -1281,6 +1281,23 @@ export async function runStudy(
   }
 
   onStep?.(3);
+  // Foco nos 10 mais baratos (default ligado): quando a busca devolve
+  // mais de 10 comparáveis, mantemos só os 10 de menor preço total. O motor
+  // (similaridade, ACM, IA, médias) roda em cima desse recorte sem qualquer
+  // outra alteração.
+  const top10Baratos = overrides.top10Baratos ?? true;
+  if (top10Baratos && properties.length > 10) {
+    const before = properties.length;
+    properties = [...properties]
+      .filter((p) => p && typeof p.preco === "number" && p.preco > 0)
+      .sort((a, b) => a.preco - b.preco)
+      .slice(0, 10);
+    funilBusca.push({
+      etapa: `Top 10 mais baratos (corte por preço — ${before} → 10)`,
+      total: 10,
+    });
+    criteriosAplicados.push("Foco nos 10 imóveis de menor preço");
+  }
   const result = generateStudy(input, properties, overrides.fieldModes);
   if (mesmoCondominioIds.size > 0) {
     result.comparaveis.forEach((c) => { if (mesmoCondominioIds.has(c.id)) c.mesmoCondominio = true; });
