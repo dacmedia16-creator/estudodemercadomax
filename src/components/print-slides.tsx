@@ -440,18 +440,14 @@ function OwnerPersuasionPage({
       ? ((precoM2Pretendido - stats.median) / stats.median) * 100
       : 0;
 
-  // Faixa recomendada: usa IA quando existe; senão deriva dos percentis
-  const faixaBase = study.aiAnalysis?.faixaRecomendada ?? (stats
-    ? { entrada: stats.p25 * (input.areaUtil || 1), ideal: stats.median * (input.areaUtil || 1), teto: stats.p75 * (input.areaUtil || 1) }
-    : { entrada: valorIdeal * 0.95, ideal: valorIdeal, teto: valorIdeal * 1.05 });
-  // Reescala a faixa da IA com o ACM corrente para o PDF refletir os sliders.
-  const faixa = study.aiAnalysis?.faixaRecomendada
-    ? {
-        entrada: applyAcmToValue(faixaBase.entrada, acm),
-        ideal: applyAcmToValue(faixaBase.ideal, acm),
-        teto: applyAcmToValue(faixaBase.teto, acm),
-      }
-    : faixaBase;
+  // Faixa Entrada / Ideal / Teto é a MESMA do painel ACM (única fonte da
+  // verdade). Mantemos os pares para reescrever números absolutos no texto
+  // da IA, garantindo coerência entre cards e Carta ao Proprietário.
+  const faixa = {
+    entrada: acm.valorMinimoFechamento,
+    ideal: acm.valorSugerido,
+    teto: acm.valorMaximoPublicacao,
+  };
   const ajustePairs = study.aiAnalysis?.faixaRecomendada
     ? [
         { original: study.aiAnalysis.faixaRecomendada.entrada, ajustado: faixa.entrada },
@@ -731,16 +727,11 @@ function OwnerLetterPage({
   const m2Medio = study.precoM2Medio;
   const acimaMedia = m2Medio > 0 && precoM2Pretendido > 0 ? ((precoM2Pretendido - m2Medio) / m2Medio) * 100 : 0;
 
-  const faixaBase = study.aiAnalysis?.faixaRecomendada ?? (stats
-    ? { entrada: stats.p25 * (input.areaUtil || 1), ideal: stats.median * (input.areaUtil || 1), teto: stats.p75 * (input.areaUtil || 1) }
-    : { entrada: valorIdeal * 0.95, ideal: valorIdeal, teto: valorIdeal * 1.05 });
-  const faixa = study.aiAnalysis?.faixaRecomendada
-    ? {
-        entrada: applyAcmToValue(faixaBase.entrada, acm),
-        ideal: applyAcmToValue(faixaBase.ideal, acm),
-        teto: applyAcmToValue(faixaBase.teto, acm),
-      }
-    : faixaBase;
+  const faixa = {
+    entrada: acm.valorMinimoFechamento,
+    ideal: acm.valorSugerido,
+    teto: acm.valorMaximoPublicacao,
+  };
   const ajustePairs = study.aiAnalysis?.faixaRecomendada
     ? [
         { original: study.aiAnalysis.faixaRecomendada.entrada, ajustado: faixa.entrada },
