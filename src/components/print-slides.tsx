@@ -731,9 +731,23 @@ function OwnerLetterPage({
   const m2Medio = study.precoM2Medio;
   const acimaMedia = m2Medio > 0 && precoM2Pretendido > 0 ? ((precoM2Pretendido - m2Medio) / m2Medio) * 100 : 0;
 
-  const faixa = study.aiAnalysis?.faixaRecomendada ?? (stats
+  const faixaBase = study.aiAnalysis?.faixaRecomendada ?? (stats
     ? { entrada: stats.p25 * (input.areaUtil || 1), ideal: stats.median * (input.areaUtil || 1), teto: stats.p75 * (input.areaUtil || 1) }
     : { entrada: valorIdeal * 0.95, ideal: valorIdeal, teto: valorIdeal * 1.05 });
+  const faixa = study.aiAnalysis?.faixaRecomendada
+    ? {
+        entrada: applyAcmToValue(faixaBase.entrada, acm),
+        ideal: applyAcmToValue(faixaBase.ideal, acm),
+        teto: applyAcmToValue(faixaBase.teto, acm),
+      }
+    : faixaBase;
+  const ajustePairs = study.aiAnalysis?.faixaRecomendada
+    ? [
+        { original: study.aiAnalysis.faixaRecomendada.entrada, ajustado: faixa.entrada },
+        { original: study.aiAnalysis.faixaRecomendada.ideal, ajustado: faixa.ideal },
+        { original: study.aiAnalysis.faixaRecomendada.teto, ajustado: faixa.teto },
+      ]
+    : [];
 
   const cidadeBairro = [input.bairro, input.cidade].filter(Boolean).join(", ");
 
@@ -744,8 +758,13 @@ function OwnerLetterPage({
 
   // Conteúdo da IA destinado ao proprietário (quando disponível)
   const ai = study.aiAnalysis;
-  const aiDiscurso = ai?.discursoProprietario?.trim();
-  const aiArgs = (ai?.argumentosChave ?? []).filter(Boolean).slice(0, 3);
+  const aiDiscurso = ai?.discursoProprietario
+    ? rewriteCurrencyInText(ai.discursoProprietario, ajustePairs).trim()
+    : undefined;
+  const aiArgs = (ai?.argumentosChave ?? [])
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((a) => rewriteCurrencyInText(a, ajustePairs));
 
   // Cor do destaque conforme a posição do preço pretendido
   const tone: "ok" | "ajustar" | "alto" =
