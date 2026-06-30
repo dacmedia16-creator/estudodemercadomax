@@ -62,12 +62,18 @@ function dedupComparables(list: ComparableProperty[]): ComparableProperty[] {
   for (const a of list) {
     if (used.has(a.id)) continue;
     const group = [a];
-    for (const b of list) {
-      if (b.id === a.id || used.has(b.id)) continue;
-      const sameArea = a.areaUtil > 0 && b.areaUtil > 0 && Math.abs(a.areaUtil - b.areaUtil) <= 1;
-      const samePrice = a.preco > 0 && b.preco > 0 && Math.abs(a.preco - b.preco) / a.preco <= 0.02;
-      const sameBairro = (a.bairro || "").toLowerCase() === (b.bairro || "").toLowerCase();
-      if (sameArea && samePrice && sameBairro) group.push(b);
+    // Só agrupa duplicatas óbvias: mesmo prédio/endereço + mesma área exata
+    // + preço ±1%. Sem âncora de prédio/endereço, não deduplica.
+    const aAnchor = a.mesmoCondominio || a.mesmoEndereco;
+    if (aAnchor) {
+      for (const b of list) {
+        if (b.id === a.id || used.has(b.id)) continue;
+        const bAnchor = b.mesmoCondominio || b.mesmoEndereco;
+        if (!bAnchor) continue;
+        const sameArea = a.areaUtil > 0 && b.areaUtil > 0 && a.areaUtil === b.areaUtil;
+        const samePrice = a.preco > 0 && b.preco > 0 && Math.abs(a.preco - b.preco) / a.preco <= 0.01;
+        if (sameArea && samePrice) group.push(b);
+      }
     }
     group.sort((x, y) => (y.confidenceScore ?? 0) - (x.confidenceScore ?? 0));
     const rep = group[0];
@@ -111,8 +117,8 @@ export function computeStats(items: Array<{ precoM2: number; preco: number; conf
     .filter((i) => Number.isFinite(i.precoM2) && i.precoM2 > 0)
     .map((i) => {
       const conf = typeof i.confidenceScore === "number" ? i.confidenceScore : 60;
-      if (conf < 30) return null;
-      let w = conf < 50 ? 0.5 : 1;
+      // Nunca excluir por confiança — só ajustar peso.
+      let w = conf >= 60 ? 1 : conf >= 30 ? 0.75 : 0.5;
       if (typeof i.diasMercado === "number" && i.diasMercado > 120) w *= 0.7;
       return { v: i.precoM2, w };
     })
@@ -441,7 +447,7 @@ export function getValorIdeal(
   if (typeof ia === "number" && ia > 0) {
     if (det > 0) {
       const diff = Math.abs(ia - det) / det;
-      if (diff > 0.15) {
+      if (diff > 0.25) {
         // marca metadata para a UI saber que a IA foi sobrescrita
         try {
           (study as { iaSobrescrita?: boolean }).iaSobrescrita = true;
