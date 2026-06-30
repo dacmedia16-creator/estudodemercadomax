@@ -1196,6 +1196,16 @@ export async function runStudy(
   if (mesmoEnderecoIds.size > 0) {
     result.comparaveis.forEach((c) => { if (mesmoEnderecoIds.has(c.id)) c.mesmoEndereco = true; });
   }
+  // Recalcula confiança após as flags "mesmo prédio/endereço" — esses
+  // matches dão bônus no score de confiança.
+  if (mesmoCondominioIds.size > 0 || mesmoEnderecoIds.size > 0) {
+    const { computeConfidence } = await import("@/lib/study-engine");
+    result.comparaveis.forEach((c) => {
+      const conf = computeConfidence(c);
+      c.confidenceScore = conf.score;
+      c.confidenceFactors = conf.factors;
+    });
+  }
   if (!fellBack) {
     criteriosAplicados.push(`Requisições: ${plpCalls} PLP + ${pdpCalls} PDP = ${plpCalls + pdpCalls}`);
     funilBusca.push({ etapa: `Requisições GeckoAPI (PLP+PDP)`, total: plpCalls + pdpCalls });
