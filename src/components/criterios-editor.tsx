@@ -251,6 +251,15 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
                   ))}
                 </div>
               )}
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/30 px-2 py-1.5">
+                <span className="text-[11px] text-muted-foreground">
+                  Detectar vizinhos automaticamente no recálculo (quando a lista estiver vazia)
+                </span>
+                <Switch
+                  checked={!!form.expandirBairrosProximos}
+                  onCheckedChange={(v) => set("expandirBairrosProximos", v)}
+                />
+              </div>
             </Field>
           </div>
 
