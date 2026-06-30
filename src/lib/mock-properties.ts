@@ -18,6 +18,8 @@ export interface MockProperty {
   anunciante: string;
   diferenciais: string[];
   imagem: string;
+  /** Lista completa de fotos do anúncio (quando o portal retorna mais de uma). `imagem` é a capa. */
+  imagens?: string[];
   dataColeta: string;
   incomplete?: boolean;
   aproximado?: boolean;
