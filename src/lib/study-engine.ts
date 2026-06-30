@@ -535,8 +535,17 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
     ...c,
     precoM2: c.areaUtil > 0 ? Math.round(c.preco / c.areaUtil) : c.precoM2 ?? 0,
   }));
-  const stats = computeStats(list);
-  const listFlag = flagOutliers(list, stats);
+  // (re)calcula confiança caso o item ainda não tenha
+  for (const c of list) {
+    if (typeof c.confidenceScore !== "number") {
+      const conf = computeConfidence(c);
+      c.confidenceScore = conf.score;
+      c.confidenceFactors = conf.factors;
+    }
+  }
+  const dedupd = dedupComparables(list);
+  const stats = computeStats(dedupd);
+  const listFlag = flagOutliers(dedupd, stats);
   const precos = listFlag.map((p) => p.preco);
   const precosM2 = listFlag.filter((p) => p.precoM2 > 0).map((p) => p.precoM2);
   const precoMedio = precos.length ? Math.round(avg(precos)) : 0;
@@ -577,6 +586,23 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
   if (input.areaUtil < avgArea * 0.85) pontosAtencao.push("Metragem abaixo da média");
   if (pontosAtencao.length === 0) pontosAtencao.push("Necessário destacar melhor o anúncio para se diferenciar");
 
+  const valorIdealDetCalc = stats && stats.median > 0 && input.areaUtil > 0
+    ? Math.round(stats.median * input.areaUtil)
+    : precoMedio;
+  const valorIdealRange = stats && input.areaUtil > 0
+    ? (() => {
+        const ds = (stats.stdM2 ?? 0) * input.areaUtil;
+        const min = Math.max(stats.p25 * input.areaUtil, valorIdealDetCalc - ds);
+        const max = Math.min(stats.p75 * input.areaUtil, valorIdealDetCalc + ds);
+        const confianca: "alta" | "media" | "baixa" =
+          stats.dispersao === "baixa" && (stats.effectiveN ?? 0) >= 6 ? "alta"
+          : stats.dispersao === "alta" || (stats.effectiveN ?? 0) < 4 ? "baixa"
+          : "media";
+        return { min: Math.round(min), ideal: valorIdealDetCalc, max: Math.round(max), confianca };
+      })()
+    : undefined;
+  const estrategiaSugerida = suggestEstrategia(stats, listFlag);
+
   return {
     ...prev,
     comparaveis: listFlag,
@@ -592,5 +618,7 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
     diagnostico,
     pontosFortes,
     pontosAtencao,
+    valorIdealRange,
+    estrategiaSugerida,
   };
 }
