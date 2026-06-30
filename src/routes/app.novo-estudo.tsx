@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, ArrowRight, Check, MapPin, Home, Sparkles, Globe, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,6 +47,8 @@ function NovoEstudo() {
   const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "ok" | "notfound" | "error">("idle");
   const [radiusKm] = useState<number>(5);
   const [fieldModes] = useState<Record<FieldKey, FieldMode>>({ ...DEFAULT_FIELD_MODES });
+  const [expandirBairros, setExpandirBairros] = useState(false);
+  const [bairroInput, setBairroInput] = useState("");
   const [data, setData] = useState<Partial<StudyInput>>({
     finalidade: "Venda",
     tipo: "Apartamento",
@@ -108,6 +112,23 @@ function NovoEstudo() {
     }
   };
 
+  const addBairroProximo = () => {
+    const v = bairroInput.trim();
+    if (!v) return;
+    const cur = data.bairrosProximos ?? [];
+    if (cur.map((x) => x.toLowerCase()).includes(v.toLowerCase())) {
+      setBairroInput("");
+      return;
+    }
+    update("bairrosProximos", [...cur, v]);
+    setBairroInput("");
+  };
+
+  const removeBairroProximo = (b: string) => {
+    const cur = data.bairrosProximos ?? [];
+    update("bairrosProximos", cur.filter((x) => x !== b));
+  };
+
   const formatCep = (raw: string) => {
     const d = raw.replace(/\D/g, "").slice(0, 8);
     return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
@@ -139,6 +160,7 @@ function NovoEstudo() {
 
   const handleSubmit = () => {
     const input = data as StudyInput;
+    if (!expandirBairros) input.bairrosProximos = [];
     sessionStorage.setItem("rip:pending", JSON.stringify(input));
     sessionStorage.setItem("rip:pending-radius", String(radiusKm));
     sessionStorage.setItem("rip:pending-fieldmodes", JSON.stringify(fieldModes));
@@ -224,6 +246,46 @@ function NovoEstudo() {
             <Field label="Cidade"><Input value={data.cidade} onChange={(e) => update("cidade", e.target.value)} /></Field>
             <Field label="Estado"><Input value={data.estado} onChange={(e) => update("estado", e.target.value)} maxLength={2} /></Field>
             <Field label="Bairro principal"><Input value={data.bairro} onChange={(e) => update("bairro", e.target.value)} /></Field>
+            <div className="md:col-span-2 rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium">Buscar também em bairros próximos</div>
+                  <div className="text-xs text-muted-foreground">
+                    Útil quando o bairro é pequeno ou muito específico e a busca tende a zerar. Cada bairro vira uma consulta extra (consome créditos).
+                  </div>
+                </div>
+                <Switch checked={expandirBairros} onCheckedChange={setExpandirBairros} />
+              </div>
+              {expandirBairros && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={bairroInput}
+                      onChange={(e) => setBairroInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addBairroProximo(); } }}
+                      placeholder="Ex.: Batel, Bigorrilho — Enter para adicionar"
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={addBairroProximo}>Adicionar</Button>
+                  </div>
+                  {(data.bairrosProximos ?? []).length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(data.bairrosProximos ?? []).map((b) => (
+                        <Badge
+                          key={b}
+                          variant="secondary"
+                          className="cursor-pointer text-[11px]"
+                          onClick={() => removeBairroProximo(b)}
+                        >
+                          {b} ×
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">Nenhum bairro adicionado ainda.</p>
+                  )}
+                </div>
+              )}
+            </div>
             <Field label="Endereço aproximado (opcional)" className="md:col-span-2">
               <Input value={data.endereco ?? ""} onChange={(e) => update("endereco", e.target.value)} placeholder="Ex: Rua Brasílio Itiberê, 1500" />
             </Field>
