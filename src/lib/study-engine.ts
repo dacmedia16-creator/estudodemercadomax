@@ -273,26 +273,33 @@ export function generateStudy(
     .filter((p) => (usingExternal ? true : allBairros.includes(p.bairro) || p.cidade === input.cidade))
     .map<ComparableProperty>((p) => {
       const sim = similarity(input, p, modes);
-      return {
+      const base = {
         ...p,
         precoM2: Math.round(p.preco / p.areaUtil),
         similaridade: sim.score,
         preferenciaAtendida: sim.preferenciaAtendida,
-      };
+      } as ComparableProperty;
+      const conf = computeConfidence(base);
+      base.confidenceScore = conf.score;
+      base.confidenceFactors = conf.factors;
+      return base;
     })
     .sort((a, b) => b.similaridade - a.similaridade);
+
+  // Deduplicação semântica: agrupa anúncios que apontam para o mesmo imóvel.
+  const dedupd = dedupComparables(filtered);
 
   // Portal interleaving: when more than one portal returned results, ensure
   // each portal contributes to the top 10 instead of one portal dominating.
   const top10 = (() => {
-    if (!usingExternal || filtered.length <= 10) return filtered.slice(0, 10);
+    if (!usingExternal || dedupd.length <= 10) return dedupd.slice(0, 10);
     const byPortal = new Map<string, ComparableProperty[]>();
-    for (const p of filtered) {
+    for (const p of dedupd) {
       const k = p.portal || "—";
       if (!byPortal.has(k)) byPortal.set(k, []);
       byPortal.get(k)!.push(p);
     }
-    if (byPortal.size <= 1) return filtered.slice(0, 10);
+    if (byPortal.size <= 1) return dedupd.slice(0, 10);
     const out: ComparableProperty[] = [];
     const queues = Array.from(byPortal.values());
     while (out.length < 10) {
@@ -364,6 +371,25 @@ export function generateStudy(
 
   const argumentoProprietario = `Com base nos imóveis semelhantes anunciados em ${input.bairro}, o valor ideal de mercado é ${fmt(valorIdealDet)} e a faixa competitiva de publicação fica entre ${fmt(faixaMin)} e ${fmt(faixaMax)}. Posicionar nessa faixa aumenta as chances de atrair interessados qualificados sem desvalorizar o imóvel.`;
 
+  // Valor Ideal range + estratégia sugerida
+  const valorIdealDetCalc = stats && stats.median > 0 && input.areaUtil > 0
+    ? Math.round(stats.median * input.areaUtil)
+    : precoMedio;
+  const valorIdealRange = stats && input.areaUtil > 0
+    ? (() => {
+        // Intervalo: ± 1 desvio-padrão × área, com piso em P25 e teto em P75
+        const ds = (stats.stdM2 ?? 0) * input.areaUtil;
+        const min = Math.max(stats.p25 * input.areaUtil, valorIdealDetCalc - ds);
+        const max = Math.min(stats.p75 * input.areaUtil, valorIdealDetCalc + ds);
+        const confianca: "alta" | "media" | "baixa" =
+          stats.dispersao === "baixa" && (stats.effectiveN ?? 0) >= 6 ? "alta"
+          : stats.dispersao === "alta" || (stats.effectiveN ?? 0) < 4 ? "baixa"
+          : "media";
+        return { min: Math.round(min), ideal: valorIdealDetCalc, max: Math.round(max), confianca };
+      })()
+    : undefined;
+  const estrategiaSugerida = suggestEstrategia(stats, top10WithFlags);
+
   return {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
@@ -384,6 +410,8 @@ export function generateStudy(
     tituloSugerido,
     descricaoSugerida,
     argumentoProprietario,
+    valorIdealRange,
+    estrategiaSugerida,
   };
 }
 
