@@ -21,6 +21,7 @@ import { AcmPanel } from "@/components/acm-panel";
 import { PrintSlides, PrintOwnerPages } from "@/components/print-slides";
 import { ComparaveisManager } from "@/components/comparaveis-manager";
 import { AiAnalysisCard } from "@/components/ai-analysis-card";
+import { PropertyPhotosCarousel } from "@/components/property-photos-carousel";
 import { analisarMercadoIa } from "@/lib/ai-analysis.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -539,20 +540,12 @@ function ReportPage() {
         <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Concorrentes diretos</div>
         <div className="grid gap-4 md:grid-cols-3">
           {sorted.slice(0, 3).map((c) => (
-            <Card key={c.id} className="overflow-hidden border-border/60">
+            <Card key={c.id} className="group overflow-hidden border-border/60">
               <div className="aspect-video w-full overflow-hidden bg-muted">
-                {c.imagem ? (
-                  <img
-                    src={c.imagem}
-                    alt={c.titulo}
-                    className="h-full w-full object-cover"
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                ) : null}
+                <PropertyPhotosCarousel
+                  images={c.imagens && c.imagens.length ? c.imagens : (c.imagem ? [c.imagem] : [])}
+                  alt={c.titulo}
+                />
               </div>
               <div className="p-4">
                 <div className="flex items-center justify-between">
