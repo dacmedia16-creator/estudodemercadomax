@@ -1,7 +1,7 @@
 import { geckoPlp, geckoPdp } from "@/lib/gecko.functions";
 import { geocodeAddress } from "@/lib/geocode.functions";
 import { geckoItemToProperty, enrichWithPdp, mapTipoToPropertyType, mapTipoToChavesAlias, normalizeText, isSameTipoFamily, mapDiferenciaisToZapAmenities, isStructuralDiferencial, detectPortalFromUrl } from "@/lib/gecko-adapter";
-import { generateStudy, computeAcm } from "@/lib/study-engine";
+import { generateStudy, computeAcm, computeConfidence } from "@/lib/study-engine";
 import type { StudyInput, StudyResult, SearchOverrides, FieldMode, FieldKey } from "@/lib/study-types";
 import { DEFAULT_FIELD_MODES, DEFAULT_ACM } from "@/lib/study-types";
 import { analisarMercadoIa } from "@/lib/ai-analysis.functions";
@@ -1199,7 +1199,6 @@ export async function runStudy(
   // Recalcula confiança após as flags "mesmo prédio/endereço" — esses
   // matches dão bônus no score de confiança.
   if (mesmoCondominioIds.size > 0 || mesmoEnderecoIds.size > 0) {
-    const { computeConfidence } = await import("@/lib/study-engine");
     result.comparaveis.forEach((c) => {
       const conf = computeConfidence(c);
       c.confidenceScore = conf.score;
