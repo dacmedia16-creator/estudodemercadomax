@@ -435,7 +435,7 @@ export const formatBRL = (n: number | null | undefined) => {
  */
 export function getValorIdeal(
   study: { aiAnalysis?: { faixaRecomendada?: { ideal?: number } } | null; stats?: { median?: number } | null; input: { areaUtil: number } },
-  acm: { valorSugerido: number },
+  acm: { valorSugerido: number; multiplicador?: number; descontoReforma?: number },
 ): number {
   // Sanidade: a IA tem prioridade, MAS se divergir mais de 15% da mediana×área,
   // o motor descarta o número da IA e usa o determinístico. Evita que a IA
@@ -444,6 +444,9 @@ export function getValorIdeal(
   const area = study.input.areaUtil;
   const det = typeof median === "number" && median > 0 && area > 0 ? Math.round(median * area) : 0;
   const ia = study.aiAnalysis?.faixaRecomendada?.ideal;
+  const mult = typeof acm.multiplicador === "number" && acm.multiplicador > 0 ? acm.multiplicador : 1;
+  const desconto = typeof acm.descontoReforma === "number" && acm.descontoReforma > 0 ? acm.descontoReforma : 0;
+  const applyAcm = (v: number) => Math.max(0, Math.round(v * mult - desconto));
   if (typeof ia === "number" && ia > 0) {
     if (det > 0) {
       const diff = Math.abs(ia - det) / det;
@@ -452,12 +455,12 @@ export function getValorIdeal(
         try {
           (study as { iaSobrescrita?: boolean }).iaSobrescrita = true;
         } catch { /* readonly: ignore */ }
-        return det;
+        return applyAcm(det);
       }
     }
-    return Math.round(ia);
+    return applyAcm(ia);
   }
-  if (det > 0) return det;
+  if (det > 0) return applyAcm(det);
   return acm.valorSugerido;
 }
 
