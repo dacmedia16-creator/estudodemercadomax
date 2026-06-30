@@ -7,6 +7,12 @@ export interface StudyInput {
   estado: string;
   bairro: string;
   bairrosProximos: string[];
+  /**
+   * Quando true, o runner usa os `bairrosProximos` informados. Se a lista
+   * vier vazia, ele tenta detectar automaticamente os vizinhos via Overpass
+   * (Nominatim como fallback de geocoding) e usa o resultado nesta busca.
+   */
+  expandirBairrosProximos?: boolean;
   endereco?: string;
   numero?: string;
   complemento?: string;
@@ -184,6 +190,8 @@ export interface SearchOverrides {
    * o imóvel base é 3 dorm/140 m²).
    */
   filtrarAncoras?: boolean;
+  /** Idem ao campo de StudyInput — pode ser sobrescrito no CriteriosEditor. */
+  expandirBairrosProximos?: boolean;
   /**
    * Per-field mode for the "extra" property attributes (suites, vagas, etc.).
    * - "ignore": campo só aparece no relatório, não afeta busca nem similaridade.
