@@ -193,6 +193,13 @@ export interface SearchOverrides {
   /** Idem ao campo de StudyInput — pode ser sobrescrito no CriteriosEditor. */
   expandirBairrosProximos?: boolean;
   /**
+   * Quando true (default), e a busca retornar **mais de 10 comparáveis**,
+   * mantém apenas os 10 de menor preço total (R$). Não afeta o motor de
+   * scoring/ACM/IA — apenas reduz a amostra antes do cálculo, focando o
+   * estudo na faixa mais competitiva da concorrência.
+   */
+  top10Baratos?: boolean;
+  /**
    * Per-field mode for the "extra" property attributes (suites, vagas, etc.).
    * - "ignore": campo só aparece no relatório, não afeta busca nem similaridade.
    * - "soft":   pesa na similaridade mas não elimina nada.
