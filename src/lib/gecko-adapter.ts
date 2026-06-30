@@ -328,6 +328,7 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     typeof rawImage === "string"
       ? rawImage.replace("{action}", "fit-in").replace("{width}", "800").replace("{height}", "600")
       : "";
+  const imagens = collectZapImages(item, anyItem);
 
   const url: string = item.url ?? anyItem.link ?? anyItem.permalink ?? "";
   const id: string = (item.id ?? anyItem.listingId ?? anyItem.code ?? url) || crypto.randomUUID();
@@ -386,6 +387,7 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     anunciante: item.advertiser?.name ?? anyItem.advertiser ?? anyItem.agency ?? "—",
     diferenciais: item.amenities ?? anyItem.features ?? [],
     imagem,
+    imagens,
     dataColeta: new Date().toISOString().slice(0, 10),
     incomplete,
     latitude,
@@ -457,6 +459,7 @@ function chavesItemToProperty(item: Record<string, any>, portal: string): MockPr
     (Array.isArray(item.images) && typeof item.images[0] === "string" ? item.images[0] : "") ||
     (Array.isArray(item.images) && item.images[0]?.url) ||
     "";
+  const imagens = collectChavesImages(item);
 
   const url: string = item.url ?? "";
   const id: string = (item.id ?? item.listingId ?? url) || crypto.randomUUID();
@@ -517,6 +520,7 @@ function chavesItemToProperty(item: Record<string, any>, portal: string): MockPr
     anunciante: adv.name ?? "—",
     diferenciais,
     imagem,
+    imagens,
     dataColeta: new Date().toISOString().slice(0, 10),
     incomplete,
     latitude,
@@ -621,6 +625,7 @@ function olxItemToProperty(itemRaw: Record<string, any>, portal: string): MockPr
   const rawImage =
     (Array.isArray(item.images) && (item.images[0]?.webpUrl || item.images[0]?.url)) || "";
   const imagem = typeof rawImage === "string" ? rawImage : "";
+  const imagens = collectOlxImages(item);
 
   const url: string = item.url ?? "";
   const id: string = String(item.id ?? item.listingId ?? item.adId ?? url) || crypto.randomUUID();
@@ -658,6 +663,7 @@ function olxItemToProperty(itemRaw: Record<string, any>, portal: string): MockPr
     anunciante,
     diferenciais: [],
     imagem,
+    imagens,
     dataColeta: new Date().toISOString().slice(0, 10),
     incomplete,
     latitude: undefined,
@@ -705,6 +711,7 @@ export function enrichWithPdp(p: MockProperty, pdpData: unknown): MockProperty {
     advertiserRating: enriched.advertiserRating ?? p.advertiserRating,
     virtualTourUrl: enriched.virtualTourUrl ?? p.virtualTourUrl,
     diferenciais: enriched.diferenciais.length ? enriched.diferenciais : p.diferenciais,
+    imagens: enriched.imagens && enriched.imagens.length ? enriched.imagens : p.imagens,
     anunciante: p.anunciante !== "—" ? p.anunciante : enriched.anunciante,
     areaUtil: p.areaUtil || enriched.areaUtil,
     quartos: p.quartos || enriched.quartos,
@@ -713,4 +720,53 @@ export function enrichWithPdp(p: MockProperty, pdpData: unknown): MockProperty {
     suites: p.suites || enriched.suites,
     descricao: p.descricao || enriched.descricao,
   };
+}
+
+// -----------------------------------------------------------------------------
+// Image collectors: extract up to N unique photo URLs per portal payload.
+// Mantém ordem original (capa primeiro) e descarta vazios/duplicados.
+// -----------------------------------------------------------------------------
+const MAX_IMGS = 10;
+function dedupNonEmpty(urls: Array<string | undefined | null>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of urls) {
+    if (typeof raw !== "string") continue;
+    const u = raw
+      .replace("{action}", "fit-in")
+      .replace("{width}", "800")
+      .replace("{height}", "600")
+      .trim();
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+    if (out.length >= MAX_IMGS) break;
+  }
+  return out;
+}
+function collectZapImages(item: GeckoItem, anyItem: Record<string, any>): string[] {
+  const arr: Array<string | undefined> = [];
+  if (Array.isArray(item.images)) for (const im of item.images) arr.push(im?.url);
+  if (Array.isArray(anyItem.photos)) for (const im of anyItem.photos) arr.push(typeof im === "string" ? im : im?.url);
+  if (typeof anyItem.image === "string") arr.push(anyItem.image);
+  if (typeof anyItem.cover === "string") arr.push(anyItem.cover);
+  return dedupNonEmpty(arr);
+}
+function collectChavesImages(item: Record<string, any>): string[] {
+  const arr: Array<string | undefined> = [];
+  if (typeof item.featuredImage === "string") arr.push(item.featuredImage);
+  if (Array.isArray(item.images)) {
+    for (const im of item.images) arr.push(typeof im === "string" ? im : im?.url);
+  }
+  if (Array.isArray(item.gallery)) {
+    for (const im of item.gallery) arr.push(typeof im === "string" ? im : im?.url);
+  }
+  return dedupNonEmpty(arr);
+}
+function collectOlxImages(item: Record<string, any>): string[] {
+  const arr: Array<string | undefined> = [];
+  if (Array.isArray(item.images)) {
+    for (const im of item.images) arr.push(im?.webpUrl || im?.url);
+  }
+  return dedupNonEmpty(arr);
 }
