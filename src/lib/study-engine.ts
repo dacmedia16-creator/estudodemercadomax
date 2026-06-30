@@ -475,6 +475,8 @@ export interface AcmComputed {
   valorPiso: number;
   /** Quando true, o piso clampeou o sugerido para cima. */
   pisoAplicado: boolean;
+  /** Quando true, o sugerido ficou abaixo do piso competitivo (apenas informativo). */
+  abaixoDoPiso: boolean;
   /** R$/m² base usado conforme a estratégia (mediana/P25/P75) — cai na média quando não há stats. */
   baseM2: number;
 }
@@ -508,14 +510,16 @@ export function computeAcm(study: StudyResult, adj?: Partial<AcmAdjustments>): A
 
   let valorSugerido = valorSugeridoRaw;
   let pisoAplicado = false;
+  let abaixoDoPiso = false;
   if (a.respeitarPiso && valorPiso > 0) {
     const teto = valorPiso * (1 + (a.maxAcimaPisoPct ?? 8) / 100);
     if (valorSugerido > teto) {
       valorSugerido = teto;
       pisoAplicado = true;
     }
-    // Garante que não cai abaixo do piso também — não faz sentido sugerir abaixo do mais barato.
-    if (valorSugerido < valorPiso) valorSugerido = valorPiso;
+    // Não força o sugerido para cima quando o avaliador baixa os fatores —
+    // apenas marca para a UI exibir aviso informativo.
+    if (valorSugerido < valorPiso) abaixoDoPiso = true;
   }
 
   const margem = (a.margemPublicacaoPct || 0) / 100;
@@ -528,6 +532,7 @@ export function computeAcm(study: StudyResult, adj?: Partial<AcmAdjustments>): A
     valorMinimoFechamento: Math.round(valorSugerido * (1 - margem)),
     valorPiso,
     pisoAplicado,
+    abaixoDoPiso,
     baseM2: Math.round(baseM2),
   };
 }
