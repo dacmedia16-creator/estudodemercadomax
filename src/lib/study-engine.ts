@@ -431,11 +431,27 @@ export function getValorIdeal(
   study: { aiAnalysis?: { faixaRecomendada?: { ideal?: number } } | null; stats?: { median?: number } | null; input: { areaUtil: number } },
   acm: { valorSugerido: number },
 ): number {
-  const ia = study.aiAnalysis?.faixaRecomendada?.ideal;
-  if (typeof ia === "number" && ia > 0) return Math.round(ia);
+  // Sanidade: a IA tem prioridade, MAS se divergir mais de 15% da mediana×área,
+  // o motor descarta o número da IA e usa o determinístico. Evita que a IA
+  // "viaje" no PDF.
   const median = study.stats?.median;
   const area = study.input.areaUtil;
-  if (typeof median === "number" && median > 0 && area > 0) return Math.round(median * area);
+  const det = typeof median === "number" && median > 0 && area > 0 ? Math.round(median * area) : 0;
+  const ia = study.aiAnalysis?.faixaRecomendada?.ideal;
+  if (typeof ia === "number" && ia > 0) {
+    if (det > 0) {
+      const diff = Math.abs(ia - det) / det;
+      if (diff > 0.15) {
+        // marca metadata para a UI saber que a IA foi sobrescrita
+        try {
+          (study as { iaSobrescrita?: boolean }).iaSobrescrita = true;
+        } catch { /* readonly: ignore */ }
+        return det;
+      }
+    }
+    return Math.round(ia);
+  }
+  if (det > 0) return det;
   return acm.valorSugerido;
 }
 
