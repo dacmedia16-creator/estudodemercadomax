@@ -347,6 +347,18 @@ export function CriteriosEditor({ study, input, onRerun, loading, warning }: Pro
                 onCheckedChange={(v) => set("filtrarAncoras", v)}
               />
             </div>
+            <div className="flex items-center justify-between gap-3 border-t border-primary/20 pt-3">
+              <div>
+                <div className="text-sm font-medium">Focar nos 10 mais baratos quando houver mais de 10</div>
+                <div className="text-xs text-muted-foreground">
+                  Quando a busca trouxer mais de 10 comparáveis, mantém apenas os 10 de menor preço total. Médias, ACM e IA passam a usar esse recorte — útil para posicionar o imóvel próximo do piso competitivo da região.
+                </div>
+              </div>
+              <Switch
+                checked={form.top10Baratos}
+                onCheckedChange={(v) => set("top10Baratos", v)}
+              />
+            </div>
           </div>
 
           <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
