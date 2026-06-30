@@ -243,7 +243,13 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
             label="Valor sugerido"
             value={formatBRL(computed.valorSugerido)}
             highlight
-          hint={computed.pisoAplicado ? "limitado pelo piso de mercado" : undefined}
+          hint={
+            computed.pisoAplicado
+              ? "limitado pelo teto acima do piso"
+              : computed.abaixoDoPiso
+                ? `abaixo do piso (${formatBRL(computed.valorPiso)})`
+                : undefined
+          }
           />
           <SummaryItem
             label="Mínimo de fechamento"
