@@ -851,56 +851,22 @@ function OwnerLetterPage({
         <div className="owner-letter-sign">— {brandName}</div>
       </div>
 
-      {/* Top comparáveis (espelha o one-pager) */}
-      <div className="owner-letter-top">
-        <div className="owner-letter-top-title">Imóveis parecidos sendo anunciados agora</div>
-        <table className="owner-letter-tabela">
-          <thead>
-            <tr>
-              <th style={{ width: "10%" }}>Portal</th>
-              <th>Endereço / título</th>
-              <th className="num" style={{ width: "6%" }}>m²</th>
-              <th className="num" style={{ width: "6%" }}>Qtos</th>
-              <th className="num" style={{ width: "13%" }}>Preço</th>
-              <th className="num" style={{ width: "11%" }}>R$/m²</th>
-              <th style={{ width: "16%" }}>Similaridade</th>
-            </tr>
-          </thead>
-          <tbody>
-            {topComps.map((c) => {
-              const tag = c.mesmoCondominio ? "mesmo prédio" : c.mesmoEndereco ? "mesmo endereço" : "";
-              return (
-                <tr key={c.id}>
-                  <td>{c.portal}</td>
-                  <td className="owner-imovel-cell">
-                    <div className="owner-imovel-titulo">{c.titulo || "—"}</div>
-                    {(c.bairro || tag) && (
-                      <div className="owner-imovel-tag">
-                        {c.bairro}{c.bairro && tag ? " · " : ""}{tag}
-                      </div>
-                    )}
-                  </td>
-                  <td className="num">{c.areaUtil > 0 ? c.areaUtil : "—"}</td>
-                  <td className="num">{c.quartos > 0 ? c.quartos : "—"}</td>
-                  <td className="num"><b>{formatBRL(c.preco)}</b></td>
-                  <td className="num">{c.precoM2 > 0 ? formatBRL(c.precoM2) : "—"}</td>
-                  <td>
-                    <div className="owner-letter-simwrap">
-                      <div className="owner-letter-simbar">
-                        <span style={{ width: `${Math.max(2, Math.min(100, c.similaridade))}%` }} />
-                      </div>
-                      <span className="owner-letter-simval">{c.similaridade}%</span>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {topComps.length === 0 && (
-              <tr><td colSpan={7} className="acm-empty">Sem comparáveis.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* Rodapé compacto: 3 comparáveis-chave em uma linha (espelha p.1, sem tabela cheia) */}
+      {topComps.length > 0 && (
+        <div className="owner-letter-mini">
+          <div className="owner-letter-mini-title">Resumo dos comparáveis (já detalhados na p.1)</div>
+          <div className="owner-letter-mini-row">
+            {topComps.slice(0, 3).map((c, i) => (
+              <div key={c.id} className="owner-letter-mini-cell">
+                <span className="owner-letter-mini-num">{i + 1}</span>
+                <span className="owner-letter-mini-info">
+                  {c.areaUtil > 0 ? `${c.areaUtil}m²` : "—"} · {c.quartos > 0 ? `${c.quartos} dorm` : "—"} · <b>{formatBRL(c.preco)}</b>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pontos fortes / atenção */}
       {(fortes.length > 0 || atencao.length > 0) && (
