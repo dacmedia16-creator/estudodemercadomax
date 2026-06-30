@@ -1,4 +1,4 @@
-import { applyAcmToValue, computeAcm, formatBRL, getValorIdeal, rewriteCurrencyInText } from "@/lib/study-engine";
+import { computeAcm, formatBRL, getValorIdeal, rewriteCurrencyInText } from "@/lib/study-engine";
 import { DEFAULT_ACM, type ComparableProperty, type StudyResult } from "@/lib/study-types";
 import { brandingStore } from "@/lib/branding-store";
 
