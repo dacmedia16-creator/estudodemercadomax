@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, Loader2, AlertTriangle, CheckCircle2, RotateCcw, Copy, MessageSquareQuote } from "lucide-react";
 import { toast } from "sonner";
 import { analisarMercadoIa } from "@/lib/ai-analysis.functions";
-import { applyAcmToValue, computeAcm, formatBRL, rewriteCurrencyInText } from "@/lib/study-engine";
+import { computeAcm, formatBRL, rewriteCurrencyInText } from "@/lib/study-engine";
 import { studyStore } from "@/lib/study-store";
 import { DEFAULT_ACM, type StudyResult } from "@/lib/study-types";
 
@@ -21,11 +21,12 @@ export function AiAnalysisCard({ study, onChange }: Props) {
   const ai = study.aiAnalysis;
   const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
 
-  // Reescala os números absolutos da IA usando o ACM corrente, em tempo real,
-  // para que mexer nos sliders reflita aqui sem regerar a análise.
-  const entradaAdj = ai ? applyAcmToValue(ai.faixaRecomendada.entrada, acm) : 0;
-  const idealAdj = ai ? applyAcmToValue(ai.faixaRecomendada.ideal, acm) : 0;
-  const tetoAdj = ai ? applyAcmToValue(ai.faixaRecomendada.teto, acm) : 0;
+  // Faixa Entrada / Ideal / Teto é a MESMA do painel ACM — única fonte da
+  // verdade. Assim os sliders, o piso competitivo e o teto de publicação
+  // refletem aqui sem divergir do card "Valor sugerido" acima.
+  const entradaAdj = ai ? acm.valorMinimoFechamento : 0;
+  const idealAdj = ai ? acm.valorSugerido : 0;
+  const tetoAdj = ai ? acm.valorMaximoPublicacao : 0;
   const pairs = ai
     ? [
         { original: ai.faixaRecomendada.entrada, ajustado: entradaAdj },
@@ -36,6 +37,7 @@ export function AiAnalysisCard({ study, onChange }: Props) {
   const discursoAjustado = ai?.discursoProprietario ? rewriteCurrencyInText(ai.discursoProprietario, pairs) : "";
   const argumentosAjustados = ai?.argumentosChave?.map((a) => rewriteCurrencyInText(a, pairs)) ?? [];
   const idealMudou = ai ? Math.abs(idealAdj - ai.faixaRecomendada.ideal) / Math.max(1, ai.faixaRecomendada.ideal) > 0.005 : false;
+  const hint = idealMudou ? "alinhado ao ACM" : undefined;
 
   const run = async () => {
     setLoading(true);
@@ -152,10 +154,15 @@ export function AiAnalysisCard({ study, onChange }: Props) {
             {ai.resumo}
           </div>
 
+          {acm.pisoAplicado && (
+            <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning-foreground">
+              Valor ajustado para respeitar o piso competitivo do mercado ({formatBRL(acm.valorPiso)}).
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-3">
-            <FaixaCell label="Entrada (rápido)" value={entradaAdj} tone="muted" hint={idealMudou ? "ajustado pelos fatores ACM" : undefined} />
-            <FaixaCell label="Ideal" value={idealAdj} tone="primary" hint={idealMudou ? "ajustado pelos fatores ACM" : undefined} />
-            <FaixaCell label="Teto de publicação" value={tetoAdj} tone="success" hint={idealMudou ? "ajustado pelos fatores ACM" : undefined} />
+            <FaixaCell label="Entrada (rápido)" value={entradaAdj} tone="muted" hint={hint} />
+            <FaixaCell label="Ideal" value={idealAdj} tone="primary" hint={hint} />
+            <FaixaCell label="Teto de publicação" value={tetoAdj} tone="success" hint={hint} />
           </div>
 
           <div className="rounded-lg border border-border bg-muted/20 p-4">

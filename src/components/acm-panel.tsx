@@ -245,10 +245,10 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
             highlight
           hint={
             computed.pisoAplicado
-              ? "limitado pelo teto acima do piso"
+              ? "limitado pelo teto acima do piso · também usado na Análise por IA"
               : computed.abaixoDoPiso
-                ? `abaixo do piso (${formatBRL(computed.valorPiso)})`
-                : undefined
+                ? `abaixo do piso (${formatBRL(computed.valorPiso)}) · também usado na Análise por IA`
+                : "referência única — replicada nos cards da Análise por IA"
           }
           />
           <SummaryItem
