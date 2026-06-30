@@ -210,9 +210,174 @@ export function PrintOwnerPages({
   } as React.CSSProperties;
   return (
     <section className="print-slides print-owner-pages" style={styleVars}>
+      <CoverPage study={study} branding={branding} dataStr={data} acm={acm} />
       <OwnerPersuasionPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
       <OwnerLetterPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
+      <BackCoverPage study={study} branding={branding} dataStr={data} />
     </section>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Página 0 — Capa
+ * Identidade do corretor + endereço do imóvel + data + Valor Ideal grande.
+ * ----------------------------------------------------------------------- */
+function CoverPage({
+  study,
+  branding,
+  dataStr,
+  acm,
+}: {
+  study: StudyResult;
+  branding: ReturnType<typeof brandingStore.get>;
+  dataStr: string;
+  acm: ReturnType<typeof computeAcm>;
+}) {
+  const { input } = study;
+  const valorIdeal = getValorIdeal(study, acm);
+  const range = study.valorIdealRange;
+  const enderecoLinha = [input.endereco, input.numero].filter(Boolean).join(", ");
+  return (
+    <div className="slide-page acm-page cover-page">
+      <div className="cover-top">
+        <div className="cover-brand">
+          {branding.logoUrl ? (
+            <img src={branding.logoUrl} alt={branding.brandName} className="cover-logo" />
+          ) : (
+            <div className="cover-logo-placeholder">{initials(branding.brandName)}</div>
+          )}
+          <div className="cover-brand-name">{branding.brandName}</div>
+        </div>
+        <div className="cover-tag">ESTUDO DE MERCADO</div>
+      </div>
+      <div className="cover-stripe" />
+      <div className="cover-body">
+        <div className="cover-eyebrow">Análise Comparativa de Mercado</div>
+        <h1 className="cover-title">
+          {input.tipo} em {input.bairro}
+        </h1>
+        <div className="cover-sub">
+          {[input.cidade, input.estado].filter(Boolean).join(" / ")}
+          {enderecoLinha ? ` · ${enderecoLinha}` : ""}
+          {input.edificio ? ` · ${input.edificio}` : ""}
+        </div>
+        <div className="cover-specs">
+          <span>{input.areaUtil} m²</span>
+          <span>{input.quartos} dorm{input.suites > 0 ? ` · ${input.suites} suíte${input.suites > 1 ? "s" : ""}` : ""}</span>
+          <span>{input.vagas} vaga{input.vagas !== 1 ? "s" : ""}</span>
+          <span>{input.finalidade}</span>
+        </div>
+
+        <div className="cover-hero">
+          <div className="cover-hero-lbl">Valor ideal de publicação</div>
+          <div className="cover-hero-val">{formatBRL(valorIdeal)}</div>
+          {range && (
+            <div className="cover-hero-range">
+              faixa de confiança ({range.confianca}): {formatBRL(range.min)} – {formatBRL(range.max)}
+            </div>
+          )}
+          {study.iaSobrescrita && (
+            <div className="cover-hero-warn">
+              ⚠ Valor da IA ajustado para a mediana de mercado (divergência &gt; 15%).
+            </div>
+          )}
+        </div>
+
+        <div className="cover-meta">
+          <div>
+            <span className="cover-meta-lbl">Pretendido</span>
+            <span className="cover-meta-val">{formatBRL(input.valorPretendido)}</span>
+          </div>
+          <div>
+            <span className="cover-meta-lbl">Comparáveis analisados</span>
+            <span className="cover-meta-val">{study.comparaveis.length}</span>
+          </div>
+          <div>
+            <span className="cover-meta-lbl">Data do estudo</span>
+            <span className="cover-meta-val">{dataStr}</span>
+          </div>
+        </div>
+      </div>
+      <div className="cover-footer">
+        <div>{branding.brandName} · ESTUDO DE MERCADO</div>
+        <div>#{study.id.slice(0, 8).toUpperCase()}</div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Última página — Contracapa
+ * Próximos passos + contato do corretor.
+ * ----------------------------------------------------------------------- */
+function BackCoverPage({
+  study,
+  branding,
+  dataStr,
+}: {
+  study: StudyResult;
+  branding: ReturnType<typeof brandingStore.get>;
+  dataStr: string;
+}) {
+  return (
+    <div className="slide-page acm-page backcover-page">
+      <div className="cover-top">
+        <div className="cover-brand">
+          {branding.logoUrl ? (
+            <img src={branding.logoUrl} alt={branding.brandName} className="cover-logo" />
+          ) : (
+            <div className="cover-logo-placeholder">{initials(branding.brandName)}</div>
+          )}
+          <div className="cover-brand-name">{branding.brandName}</div>
+        </div>
+        <div className="cover-tag">PRÓXIMOS PASSOS</div>
+      </div>
+      <div className="cover-stripe" />
+
+      <div className="backcover-body">
+        <h2 className="backcover-title">Vamos transformar este estudo em uma venda.</h2>
+        <p className="backcover-lede">
+          Este material reúne dados reais de imóveis anunciados nos principais portais.
+          O próximo passo é alinhar a estratégia de publicação, fotos e divulgação ativa.
+        </p>
+
+        <div className="backcover-steps">
+          <div className="backcover-step">
+            <div className="backcover-step-num">1</div>
+            <div>
+              <div className="backcover-step-title">Definir o valor de publicação</div>
+              <div className="backcover-step-body">Confirmar o valor ideal e a margem de negociação aceitável.</div>
+            </div>
+          </div>
+          <div className="backcover-step">
+            <div className="backcover-step-num">2</div>
+            <div>
+              <div className="backcover-step-title">Assinar o contrato e capturar o material</div>
+              <div className="backcover-step-body">Fotos profissionais, vídeo curto e descrição otimizada para os portais.</div>
+            </div>
+          </div>
+          <div className="backcover-step">
+            <div className="backcover-step-num">3</div>
+            <div>
+              <div className="backcover-step-title">Publicar com destaque</div>
+              <div className="backcover-step-body">Distribuição nos portais, divulgação para nossa carteira de compradores e acompanhamento semanal.</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="backcover-cta">
+          <div className="backcover-cta-title">Agende uma conversa</div>
+          <p>
+            Fale com seu corretor responsável para revisar a estratégia e iniciar a divulgação ativa do imóvel.
+          </p>
+          <div className="backcover-sign">— {branding.brandName}</div>
+        </div>
+      </div>
+
+      <div className="acm-page-meta">
+        {branding.brandName} · estudo {study.id.slice(0, 8)} · {dataStr} · contracapa
+      </div>
+    </div>
   );
 }
 
