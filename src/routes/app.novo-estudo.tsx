@@ -161,6 +161,7 @@ function NovoEstudo() {
   const handleSubmit = () => {
     const input = data as StudyInput;
     if (!expandirBairros) input.bairrosProximos = [];
+    input.expandirBairrosProximos = expandirBairros;
     sessionStorage.setItem("rip:pending", JSON.stringify(input));
     sessionStorage.setItem("rip:pending-radius", String(radiusKm));
     sessionStorage.setItem("rip:pending-fieldmodes", JSON.stringify(fieldModes));
