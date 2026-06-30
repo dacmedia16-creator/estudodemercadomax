@@ -577,21 +577,37 @@ export async function runStudy(
       //   - price sobe com faixa larga (±40%) — strictLocal segue ±30%.
       const userAdjustedQuartos = overrides.quartosMin !== undefined || overrides.quartosMax !== undefined;
       const userAdjustedArea = overrides.areaMin !== undefined || overrides.areaMax !== undefined;
-      const bedroomsList = !buscaLivre && userAdjustedQuartos && quartosMin > 0
-        ? Array.from(new Set([quartosMin, quartosMax].filter((n) => n > 0)))
+      // Bedrooms: sempre que o imóvel-alvo tem quartos > 0, mandamos faixa
+      // [q-1, q, q+1] — ajuda relevância sem zerar a página por mismatch único.
+      const bedroomsList = !buscaLivre && quartosMin > 0
+        ? (() => {
+            const base = userAdjustedQuartos
+              ? [quartosMin, quartosMax].filter((n) => n > 0)
+              : [quartosMin];
+            const set = new Set<number>();
+            for (const q of base) {
+              if (q - 1 > 0) set.add(q - 1);
+              set.add(q);
+              set.add(q + 1);
+            }
+            return Array.from(set).sort((a, b) => a - b);
+          })()
         : undefined;
-      const priceMinWide = Math.round(input.valorPretendido * 0.6);
-      const priceMaxWide = Math.round(input.valorPretendido * 1.4);
-      const priceMinSend = overrides.priceMin ?? (input.valorPretendido > 0 ? priceMinWide : 0);
-      const priceMaxSend = overrides.priceMax ?? (input.valorPretendido > 0 ? priceMaxWide : 0);
+      // Preço: só sobe ao PLP quando o usuário explicitamente apertou no
+      // editor de critérios. ±40% automático estava cortando muito imóvel
+      // legítimo (anúncios fora dessa faixa, mas dentro do mercado real).
+      const priceMinSend = overrides.priceMin ?? 0;
+      const priceMaxSend = overrides.priceMax ?? 0;
       // ---- Diferenciais nativos (amenities) ----
       const fieldModesEff: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(overrides.fieldModes ?? {}) };
       const allAmenities = mapDiferenciaisToZapAmenities(input.diferenciais ?? []);
       let amenitiesToSend: string[] | undefined;
       if (fieldModesEff.diferenciais === "hard" && allAmenities.length > 0) {
         amenitiesToSend = allAmenities;
-      } else if ((fieldModesEff.diferenciais === "soft" || fieldModesEff.diferenciais === "prefer") && allAmenities.length >= 3) {
-        // Envia apenas os 2 amenities mais "decisivos" — guia a busca sem ser restritivo.
+      } else if (fieldModesEff.diferenciais === "prefer" && allAmenities.length >= 3) {
+        // Em "prefer" mandamos só os 2 amenities mais decisivos — guia sem
+        // eliminar. Em "soft" (default) NÃO enviamos nada nativo: diferenciais
+        // pesam apenas na similaridade local e o Zap não corta a página.
         const priority = ["POOL", "GYM", "FURNISHED", "GOURMET_BALCONY", "BARBECUE_GRILL"];
         const sorted = [...allAmenities].sort(
           (a, b) => (priority.indexOf(a) === -1 ? 99 : priority.indexOf(a)) - (priority.indexOf(b) === -1 ? 99 : priority.indexOf(b)),
