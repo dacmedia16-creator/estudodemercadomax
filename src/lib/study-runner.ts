@@ -305,14 +305,20 @@ export async function runStudy(
         const remaining = targets.filter((t) => {
           if (exhaustedGlobal.has(t)) return false;
           if (keywordOnlyLayer && t === "chavesnamao.com.br") {
-            if (!chavesKeywordSkipNoted) {
-              funilBusca.push({
-                etapa: `Chaves na Mão: pulado em camadas de keyword (API não aceita 'keyword')`,
-                total: 1,
-              });
-              chavesKeywordSkipNoted = true;
+            // Chaves não aceita `keyword`, mas se temos `neighborhood` ou
+            // `city` montamos uma chamada paralela só com esses campos —
+            // alimenta a base do bairro mesmo nas camadas de prédio/endereço
+            // e evita que Chaves fique zerada na maioria dos estudos.
+            if (!params.neighborhood && !params.city) {
+              if (!chavesKeywordSkipNoted) {
+                funilBusca.push({
+                  etapa: `Chaves na Mão: pulado em camadas de keyword (sem bairro/cidade)`,
+                  total: 1,
+                });
+                chavesKeywordSkipNoted = true;
+              }
+              return false;
             }
-            return false;
           }
           return true;
         });
@@ -479,7 +485,15 @@ export async function runStudy(
     if (priorizarEdificio && !buscaLivre) {
       try {
         const res = await adaptivePaginate(
-          { city: cidade, state: estado.toUpperCase(), businessType, keyword: edificio, propertyType },
+          {
+            city: cidade,
+            state: estado.toUpperCase(),
+            businessType,
+            keyword: edificio,
+            propertyType,
+            neighborhood: bairro || undefined,
+            propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+          },
           (collected) => collected.filter((p) => matchEdificio(p, edificio)).length >= TARGET,
           "condominio",
         );
@@ -517,7 +531,15 @@ export async function runStudy(
         // drops to zero when a specific number is in the query.
         const enderecoSemNumero = enderecoRaw.replace(/,?\s*\d+\s*$/, "").trim() || enderecoRaw;
         const res = await adaptivePaginate(
-          { city: cidade, state: estado.toUpperCase(), businessType, keyword: `${enderecoSemNumero} ${bairro}`.trim(), propertyType },
+          {
+            city: cidade,
+            state: estado.toUpperCase(),
+            businessType,
+            keyword: `${enderecoSemNumero} ${bairro}`.trim(),
+            propertyType,
+            neighborhood: bairro || undefined,
+            propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+          },
           (collected) => {
             const matched = collected.filter((p) => matchEndereco(p, enderecoRaw)).length;
             return matched + condoMatches.length >= TARGET;
@@ -577,21 +599,37 @@ export async function runStudy(
       //   - price sobe com faixa larga (±40%) — strictLocal segue ±30%.
       const userAdjustedQuartos = overrides.quartosMin !== undefined || overrides.quartosMax !== undefined;
       const userAdjustedArea = overrides.areaMin !== undefined || overrides.areaMax !== undefined;
-      const bedroomsList = !buscaLivre && userAdjustedQuartos && quartosMin > 0
-        ? Array.from(new Set([quartosMin, quartosMax].filter((n) => n > 0)))
+      // Bedrooms: sempre que o imóvel-alvo tem quartos > 0, mandamos faixa
+      // [q-1, q, q+1] — ajuda relevância sem zerar a página por mismatch único.
+      const bedroomsList = !buscaLivre && quartosMin > 0
+        ? (() => {
+            const base = userAdjustedQuartos
+              ? [quartosMin, quartosMax].filter((n) => n > 0)
+              : [quartosMin];
+            const set = new Set<number>();
+            for (const q of base) {
+              if (q - 1 > 0) set.add(q - 1);
+              set.add(q);
+              set.add(q + 1);
+            }
+            return Array.from(set).sort((a, b) => a - b);
+          })()
         : undefined;
-      const priceMinWide = Math.round(input.valorPretendido * 0.6);
-      const priceMaxWide = Math.round(input.valorPretendido * 1.4);
-      const priceMinSend = overrides.priceMin ?? (input.valorPretendido > 0 ? priceMinWide : 0);
-      const priceMaxSend = overrides.priceMax ?? (input.valorPretendido > 0 ? priceMaxWide : 0);
+      // Preço: só sobe ao PLP quando o usuário explicitamente apertou no
+      // editor de critérios. ±40% automático estava cortando muito imóvel
+      // legítimo (anúncios fora dessa faixa, mas dentro do mercado real).
+      const priceMinSend = overrides.priceMin ?? 0;
+      const priceMaxSend = overrides.priceMax ?? 0;
       // ---- Diferenciais nativos (amenities) ----
       const fieldModesEff: Record<FieldKey, FieldMode> = { ...DEFAULT_FIELD_MODES, ...(overrides.fieldModes ?? {}) };
       const allAmenities = mapDiferenciaisToZapAmenities(input.diferenciais ?? []);
       let amenitiesToSend: string[] | undefined;
       if (fieldModesEff.diferenciais === "hard" && allAmenities.length > 0) {
         amenitiesToSend = allAmenities;
-      } else if ((fieldModesEff.diferenciais === "soft" || fieldModesEff.diferenciais === "prefer") && allAmenities.length >= 3) {
-        // Envia apenas os 2 amenities mais "decisivos" — guia a busca sem ser restritivo.
+      } else if (fieldModesEff.diferenciais === "prefer" && allAmenities.length >= 3) {
+        // Em "prefer" mandamos só os 2 amenities mais decisivos — guia sem
+        // eliminar. Em "soft" (default) NÃO enviamos nada nativo: diferenciais
+        // pesam apenas na similaridade local e o Zap não corta a página.
         const priority = ["POOL", "GYM", "FURNISHED", "GOURMET_BALCONY", "BARBECUE_GRILL"];
         const sorted = [...allAmenities].sort(
           (a, b) => (priority.indexOf(a) === -1 ? 99 : priority.indexOf(a)) - (priority.indexOf(b) === -1 ? 99 : priority.indexOf(b)),
@@ -644,15 +682,19 @@ export async function runStudy(
         const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br"] as PortalTarget[])
           .filter((t) =>
             targets.includes(t)
-            && (perPortal[t]?.bairro.recebidos ?? 0) === 0
+            // Antes era "=== 0" — agora reagimos a qualquer portal que veio
+            // bem abaixo do esperado (< 3), pra evitar dominância silenciosa
+            // do OLX.
+            && (perPortal[t]?.bairro.recebidos ?? 0) < 3
             // Não adianta afrouxar filtro quando a GeckoAPI caiu — o retry
             // só ajuda quando o portal respondeu mas devolveu lista vazia.
             && !upstream5xxPortals.has(t));
         for (const t of retryTargets) {
           // Solta exhaustedGlobal pra esse portal — vamos tentar com filtros relaxados.
           exhaustedGlobal.delete(t);
+          const recebidosAntes = perPortal[t]?.bairro.recebidos ?? 0;
           funilBusca.push({
-            etapa: `${PORTAL_TARGETS[t]}: 0 itens com filtros nativos — tentando retry`,
+            etapa: `${PORTAL_TARGETS[t]}: ${recebidosAntes} item(ns) com filtros nativos — tentando retry afrouxado`,
             total: 1,
           });
           const savedTargets = targets.slice();
@@ -715,6 +757,66 @@ export async function runStudy(
           } finally {
             targets.length = 0;
             for (const x of savedTargets) targets.push(x);
+          }
+        }
+      }
+      // ---- Passe de rebalanceamento por dominância ----
+      // Se um único portal está com > 70% do bruto E o total ainda é < 8,
+      // roda 1 chamada extra nos outros portais sem amenities, sem radius,
+      // com bedrooms ±1, só pra equilibrar o mix.
+      if (!buscaLivre && mainProperties.length < 8) {
+        const totalBruto = mainProperties.length;
+        if (totalBruto >= 3) {
+          const byPortal = new Map<string, number>();
+          for (const p of mainProperties) byPortal.set(p.portal, (byPortal.get(p.portal) ?? 0) + 1);
+          let dominante: PortalTarget | null = null;
+          for (const [name, n] of byPortal) {
+            if (n / totalBruto > 0.7) {
+              const found = (Object.entries(PORTAL_TARGETS) as [PortalTarget, string][])
+                .find(([, label]) => label === name);
+              if (found) dominante = found[0];
+            }
+          }
+          if (dominante) {
+            const outros = targets.filter((t) => t !== dominante && !upstream5xxPortals.has(t));
+            for (const t of outros) {
+              if ((perPortal[t]?.bairro.recebidos ?? 0) >= 3) continue; // já trouxe o suficiente
+              exhaustedGlobal.delete(t);
+              const savedTargets = targets.slice();
+              targets.length = 0;
+              targets.push(t);
+              try {
+                const rebal = await adaptivePaginate(
+                  {
+                    city: cidade,
+                    state: estado.toUpperCase(),
+                    businessType,
+                    keyword,
+                    propertyType,
+                    neighborhood: bairro || undefined,
+                    propertyTypes: (() => { const a = mapTipoToChavesAlias(tipo); return a ? [a] : undefined; })(),
+                    bedrooms: bedroomsList,
+                  },
+                  (collected) => collected.length >= TARGET,
+                  "bairro",
+                );
+                if (rebal.properties.length > 0) {
+                  const seen = new Set(mainProperties.map((p) => p.id));
+                  let added = 0;
+                  for (const p of rebal.properties) if (!seen.has(p.id)) { mainProperties.push(p); added++; }
+                  if (added > 0) {
+                    mainPages += rebal.pages;
+                    funilBusca.push({
+                      etapa: `${PORTAL_TARGETS[t]}: passe de rebalanceamento (${PORTAL_TARGETS[dominante]} dominava)`,
+                      total: added,
+                    });
+                  }
+                }
+              } finally {
+                targets.length = 0;
+                for (const x of savedTargets) targets.push(x);
+              }
+            }
           }
         }
       }
