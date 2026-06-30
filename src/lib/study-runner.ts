@@ -872,6 +872,52 @@ export async function runStudy(
       }
     }
 
+    // ---- Layer 3.5: bairros próximos (opcional) ----
+    // Quando o usuário ligou "buscar também em bairros próximos" no formulário
+    // (ou adicionou via CriteriosEditor), rodamos uma PLP extra por bairro
+    // adicionado, mesclando no resultado principal. Só dispara quando ainda
+    // não temos o TARGET — evita queima desnecessária de créditos.
+    if (!buscaLivre && bairrosProximos.length > 0) {
+      const jaTemos = () => {
+        const strict = mainProperties.filter(strictLocal).length;
+        return strict + condoMatches.length + enderecoMatches.length;
+      };
+      for (const bv of bairrosProximos) {
+        if (jaTemos() >= TARGET) break;
+        try {
+          const resBV = await adaptivePaginate(
+            {
+              city: cidade,
+              state: estado.toUpperCase(),
+              businessType,
+              keyword: `${tipo.toLowerCase()} ${bv}`.trim(),
+              propertyType,
+              neighborhood: bv,
+              propertyTypes: (() => {
+                const a = mapTipoToChavesAlias(tipo);
+                return a ? [a] : undefined;
+              })(),
+              bedrooms: quartosMin > 0 ? [quartosMin] : undefined,
+              latitude: geoLat,
+              longitude: geoLng,
+              radius: geoLat && geoLng ? radiusKm : undefined,
+            },
+            (collected) => collected.filter(strictLocal).length + jaTemos() >= TARGET,
+            "bairro",
+          );
+          if (resBV.properties.length > 0) {
+            // Dedup contra o que já foi coletado.
+            const seen = new Set(mainProperties.map((p) => p.url || p.id));
+            const novos = resBV.properties.filter((p) => !seen.has(p.url || p.id));
+            mainProperties = [...mainProperties, ...novos];
+            funilBusca.push({ etapa: `Bairro próximo "${bv}" (${resBV.pages} pág.)`, total: novos.length });
+          } else {
+            funilBusca.push({ etapa: `Bairro próximo "${bv}": sem resultados`, total: 0 });
+          }
+        } catch { /* best-effort */ }
+      }
+    }
+
     if (mainProperties.length === 0 && condoMatches.length === 0 && enderecoMatches.length === 0) {
       // Quando todos os portais ativos caíram com 5xx, deixa claro pro
       // usuário que é instabilidade da GeckoAPI, não filtro nosso.
