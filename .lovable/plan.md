@@ -1,29 +1,36 @@
-## Quando houver mais de 10 comparáveis, usar só os 10 de menor preço
+## Trocar multiplicador ACM de produto para média dos 4 fatores
 
-Regra simples: depois de toda a busca/filtros atuais, se sobrarem **mais de 10 comparáveis**, ordenar por **preço total (R$) crescente** e **manter apenas os 10 mais baratos**. Todo o resto do motor (ACM, IA, médias, faixas, PDF) continua igual — só recebe uma lista menor.
+Hoje os sliders de **Localização / Conservação / Idade / Padrão** se multiplicam entre si, o que faz o efeito compor demais (110% em todos = +46%). Vou trocar por **média aritmética dos 4 fatores**, que é o que você espera: 110% em todos = +10%, 90% em todos = −10%.
 
-### Mudanças
+### Mudança única
 
-**1. `src/lib/study-runner.ts`**
-- No fim do pipeline, logo antes de entregar os comparáveis para `study-engine`, aplicar:
-  ```
-  if (comparaveis.length > 10) {
-    comparaveis = [...comparaveis].sort((a,b) => a.preco - b.preco).slice(0, 10);
-    funil.push({ etapa: "Top 10 mais baratos (corte por preço)", total: 10 });
-  }
-  ```
-- Isso garante que médias, mediana, percentis, ACM e IA já trabalhem sobre os 10 escolhidos — sem precisar mexer no motor.
+**`src/lib/study-engine.ts`** (linha ~526, função `computeAcm`)
 
-**2. `CriteriosEditor` (`src/components/criterios-editor.tsx`)**
-- Adicionar switch **"Limitar aos 10 mais baratos quando houver mais de 10"** (ligado por padrão), salvando em `overridesAplicados.top10Baratos`.
-- Runner respeita a flag: se desligada, mantém a lista cheia.
+De:
+```ts
+const mult = (a.localizacao / 100) * (a.conservacao / 100) * (a.idade / 100) * (a.padrao / 100);
+```
 
-**3. Funil de busca (UI + PDF)**
-- A etapa "Top 10 mais baratos (corte por preço)" aparece naturalmente no painel de funil já existente, sem mudança de componente.
+Para:
+```ts
+const mult = (a.localizacao + a.conservacao + a.idade + a.padrao) / 4 / 100;
+```
 
-### Não vou mexer em
-- `study-engine.ts`, scoring, ACM, IA, filtros de busca, fallbacks, geocoding, portais — nada disso muda.
+### Efeito
 
-### Resultado
-- ≤10 comparáveis: comportamento atual, idêntico.
-- >10 comparáveis: estudo passa a ser baseado nos 10 mais baratos; valor sugerido, médias e faixas refletem esse recorte automaticamente; usuário pode desligar a regra no editor de critérios para voltar ao comportamento antigo.
+- Todos em 100% → **100%** (neutro, igual antes).
+- Todos em 110% → **110%** (+10%, antes era +46%).
+- Localização 120%, resto 100% → **105%** (o slider individual pesa 1/4, antes pesava 20% cheio).
+- Todos em 90% → **90%** (−10%, antes era −34%).
+
+Tudo o mais fica igual: desconto de reforma, margem de publicação, estratégia (agressivo/equilibrado/premium), piso competitivo, IA, PDF — nenhum outro cálculo muda.
+
+### Texto de ajuda embaixo dos sliders
+
+Atualizar a legenda em `src/components/acm-panel.tsx` para refletir a nova fórmula:
+
+De: "Multiplicador combinado: X% · cada fator parte de 100% (neutro). Acima valoriza, abaixo desvaloriza."
+
+Para: "Multiplicador combinado: X% · média dos 4 fatores (cada um pesa 1/4). 100% = neutro."
+
+Só isso. Confirma que era isso mesmo que você queria?
