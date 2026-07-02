@@ -160,7 +160,7 @@ export const DEFAULT_ACM: AcmAdjustments = {
   margemPublicacaoPct: 5,
   estrategia: "equilibrado",
   respeitarPiso: true,
-  maxAcimaPisoPct: 8,
+  maxAcimaPisoPct: 15,
 };
 
 export interface SearchOverrides {
