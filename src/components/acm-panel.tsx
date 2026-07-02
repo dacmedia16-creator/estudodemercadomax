@@ -165,7 +165,7 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
 
           <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
             Multiplicador combinado: <strong className="text-foreground">{(computed.multiplicador * 100).toFixed(1)}%</strong>{" "}
-            · cada fator parte de 100% (neutro). Acima valoriza, abaixo desvaloriza.
+            · média dos 4 fatores (cada um pesa 1/4). 100% = neutro.
           </div>
         </div>
 
