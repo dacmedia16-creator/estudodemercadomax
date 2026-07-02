@@ -279,6 +279,7 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
                 ? `abaixo do piso (${formatBRL(computed.valorPiso)}) · também usado na Análise por IA`
                 : "referência única — replicada nos cards da Análise por IA"
           }
+          hintTone={computed.pisoAplicado || computed.abaixoDoPiso ? "warning" : undefined}
           />
           <SummaryItem
             label="Mínimo de fechamento"
