@@ -357,8 +357,8 @@ function FactorSlider({
 }
 
 function SummaryItem({
-  label, value, hint, highlight,
-}: { label: string; value: string; hint?: string; highlight?: boolean }) {
+  label, value, hint, highlight, hintTone,
+}: { label: string; value: string; hint?: string; highlight?: boolean; hintTone?: "warning" }) {
   return (
     <div
       className={cn(
@@ -368,7 +368,16 @@ function SummaryItem({
     >
       <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={cn("mt-1 text-base font-bold tabular-nums", highlight && "text-primary")}>{value}</div>
-      {hint && <div className="mt-0.5 text-[10px] text-muted-foreground">{hint}</div>}
+      {hint && (
+        <div
+          className={cn(
+            "mt-0.5 text-[10px]",
+            hintTone === "warning" ? "font-semibold text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+          )}
+        >
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
