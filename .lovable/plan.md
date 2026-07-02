@@ -1,36 +1,32 @@
-## Trocar multiplicador ACM de produto para média dos 4 fatores
+## Manter média + destravar o piso competitivo
 
-Hoje os sliders de **Localização / Conservação / Idade / Padrão** se multiplicam entre si, o que faz o efeito compor demais (110% em todos = +46%). Vou trocar por **média aritmética dos 4 fatores**, que é o que você espera: 110% em todos = +10%, 90% em todos = −10%.
+Mantém a fórmula da **média dos 4 fatores** (mudança de hoje) e resolve o travamento do Valor sugerido pelo piso.
 
-### Mudança única
+### 1. Aumentar o teto default do piso
 
-**`src/lib/study-engine.ts`** (linha ~526, função `computeAcm`)
+**`src/lib/study-types.ts`** — `DEFAULT_ACM.maxAcimaPisoPct`: `8` → `15`.
 
-De:
-```ts
-const mult = (a.localizacao / 100) * (a.conservacao / 100) * (a.idade / 100) * (a.padrao / 100);
-```
+Efeito: em estudos novos, o Valor sugerido pode ficar até 15% acima do piso competitivo antes de travar (antes só podia 8%). Estudos antigos com valor já salvo continuam com o que estava.
 
-Para:
-```ts
-const mult = (a.localizacao + a.conservacao + a.idade + a.padrao) / 4 / 100;
-```
+### 2. Banner de aviso quando o piso trava
 
-### Efeito
+**`src/components/acm-panel.tsx`** — Quando `computed.pisoAplicado === true`, mostrar um bloco amarelo logo acima da grid dos fatores:
 
-- Todos em 100% → **100%** (neutro, igual antes).
-- Todos em 110% → **110%** (+10%, antes era +46%).
-- Localização 120%, resto 100% → **105%** (o slider individual pesa 1/4, antes pesava 20% cheio).
-- Todos em 90% → **90%** (−10%, antes era −34%).
+> **Valor sugerido travado pelo piso competitivo**
+> Piso: **R$ X** · teto atual: piso + **{maxAcimaPisoPct}%**. Os sliders de Localização/Conservação/Idade/Padrão não vão subir o Valor sugerido enquanto estiver travado.
+> [Aumentar teto para +25%] [Desligar "Respeitar piso"]
 
-Tudo o mais fica igual: desconto de reforma, margem de publicação, estratégia (agressivo/equilibrado/premium), piso competitivo, IA, PDF — nenhum outro cálculo muda.
+Os dois botões chamam `update({ maxAcimaPisoPct: 25 })` e `update({ respeitarPiso: false })`. Some quando `pisoAplicado` volta a ser false.
 
-### Texto de ajuda embaixo dos sliders
+### 3. Ajuste rápido no card "Valor sugerido"
 
-Atualizar a legenda em `src/components/acm-panel.tsx` para refletir a nova fórmula:
+Deixar o hint atual ("limitado pelo teto acima do piso") mais visível — trocar a cor para amarela (`text-warning-foreground`) quando `pisoAplicado`.
 
-De: "Multiplicador combinado: X% · cada fator parte de 100% (neutro). Acima valoriza, abaixo desvaloriza."
+### Fora do escopo
 
-Para: "Multiplicador combinado: X% · média dos 4 fatores (cada um pesa 1/4). 100% = neutro."
+- Fórmula do multiplicador (fica a média).
+- Cálculo do piso (`max(P10 × área, menorPreço × 1.02)`).
+- Motor de scoring, IA, PDF, margem de publicação, estratégia.
+- Estudos já salvos: o `DEFAULT_ACM` novo só vale pra quem ainda não tem `acm.maxAcimaPisoPct` salvo. Quem já salvou 8% continua com 8% (pode subir manualmente no slider ou usar o botão do banner).
 
-Só isso. Confirma que era isso mesmo que você queria?
+Confirma que é isso?

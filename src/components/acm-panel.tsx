@@ -132,13 +132,13 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
           </div>
           <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
             <span>Máx. acima do piso</span>
-            <span className="tabular-nums text-foreground">+{acm.maxAcimaPisoPct ?? 8}%</span>
+            <span className="tabular-nums text-foreground">+{acm.maxAcimaPisoPct ?? 15}%</span>
           </div>
           <Slider
             min={0}
             max={25}
             step={1}
-            value={[acm.maxAcimaPisoPct ?? 8]}
+            value={[acm.maxAcimaPisoPct ?? 15]}
             onValueChange={([v]) => update({ maxAcimaPisoPct: v })}
             disabled={!(acm.respeitarPiso ?? true)}
           />
@@ -154,6 +154,35 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
           stats={study.stats}
           sugeridoM2={computed.valorSugerido && study.input.areaUtil > 0 ? Math.round(computed.valorSugerido / study.input.areaUtil) : computed.valorM2Avaliado}
         />
+      )}
+
+      {computed.pisoAplicado && (
+        <div className="mt-4 rounded-lg border border-amber-400/60 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100 print:hidden">
+          <div className="mb-1 font-semibold">Valor sugerido travado pelo piso competitivo</div>
+          <div className="mb-3 text-[13px] leading-snug">
+            Piso: <strong>{formatBRL(computed.valorPiso)}</strong> · teto atual: piso +{" "}
+            <strong>{acm.maxAcimaPisoPct ?? 15}%</strong>. Enquanto estiver travado, os sliders de
+            Localização/Conservação/Idade/Padrão não conseguem subir o Valor sugerido.
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-500/60 bg-white text-amber-900 hover:bg-amber-100 dark:bg-transparent dark:text-amber-100 dark:hover:bg-amber-500/20"
+              onClick={() => update({ maxAcimaPisoPct: 25 })}
+            >
+              Aumentar teto para +25%
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-500/60 bg-white text-amber-900 hover:bg-amber-100 dark:bg-transparent dark:text-amber-100 dark:hover:bg-amber-500/20"
+              onClick={() => update({ respeitarPiso: false })}
+            >
+              Desligar "Respeitar piso"
+            </Button>
+          </div>
+        </div>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2 print:hidden">
@@ -250,6 +279,7 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
                 ? `abaixo do piso (${formatBRL(computed.valorPiso)}) · também usado na Análise por IA`
                 : "referência única — replicada nos cards da Análise por IA"
           }
+          hintTone={computed.pisoAplicado || computed.abaixoDoPiso ? "warning" : undefined}
           />
           <SummaryItem
             label="Mínimo de fechamento"
@@ -327,8 +357,8 @@ function FactorSlider({
 }
 
 function SummaryItem({
-  label, value, hint, highlight,
-}: { label: string; value: string; hint?: string; highlight?: boolean }) {
+  label, value, hint, highlight, hintTone,
+}: { label: string; value: string; hint?: string; highlight?: boolean; hintTone?: "warning" }) {
   return (
     <div
       className={cn(
@@ -338,7 +368,16 @@ function SummaryItem({
     >
       <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={cn("mt-1 text-base font-bold tabular-nums", highlight && "text-primary")}>{value}</div>
-      {hint && <div className="mt-0.5 text-[10px] text-muted-foreground">{hint}</div>}
+      {hint && (
+        <div
+          className={cn(
+            "mt-0.5 text-[10px]",
+            hintTone === "warning" ? "font-semibold text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+          )}
+        >
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
