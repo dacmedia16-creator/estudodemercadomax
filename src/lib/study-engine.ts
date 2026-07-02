@@ -554,10 +554,9 @@ export function computeAcm(study: StudyResult, adj?: Partial<AcmAdjustments>): A
   let abaixoDoPiso = false;
   if (a.respeitarPiso && valorPiso > 0) {
     const teto = valorPiso * (1 + (a.maxAcimaPisoPct ?? 8) / 100);
-    if (valorSugerido > teto) {
-      valorSugerido = teto;
-      pisoAplicado = true;
-    }
+    // Piso vira apenas aviso informativo — não clampa mais o Valor sugerido,
+    // pra que os sliders de ajuste sempre reflitam 1:1 no preço total.
+    if (valorSugerido > teto) pisoAplicado = true;
     // Não força o sugerido para cima quando o avaliador baixa os fatores —
     // apenas marca para a UI exibir aviso informativo.
     if (valorSugerido < valorPiso) abaixoDoPiso = true;
