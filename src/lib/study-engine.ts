@@ -523,7 +523,9 @@ export interface AcmComputed {
 /** Calcula o resumo no estilo da ACM clássica usada por corretores. */
 export function computeAcm(study: StudyResult, adj?: Partial<AcmAdjustments>): AcmComputed {
   const a: AcmAdjustments = { ...DEFAULT_ACM, ...(study.acm ?? {}), ...(adj ?? {}) };
-  const mult = (a.localizacao / 100) * (a.conservacao / 100) * (a.idade / 100) * (a.padrao / 100);
+  // Média aritmética dos 4 fatores (cada um pesa 1/4). 100% em todos = neutro;
+  // 110% em todos = +10% (antes multiplicávamos, o que compunha demais).
+  const mult = (a.localizacao + a.conservacao + a.idade + a.padrao) / 4 / 100;
   // Estratégia: mediana (default), P25 (agressivo) ou P75 (premium). Cai na média se não houver stats.
   const stats = study.stats;
   const baseM2 = stats
