@@ -1,13 +1,7 @@
-## Problema
-Ao apagar o número do campo, aparece "0" de volta e não dá para deixar vazio. Isso acontece por dois motivos no `NumberInput` (em `src/routes/app.novo-estudo.tsx`):
-1. O `onBlur` força `"0"` quando o texto está vazio.
-2. Vários defaults no estado inicial já são `0` (ex.: `areaTotal: 0`, `andar: 0`), então o campo renderiza "0".
+Plano para corrigir o problema do “0” que ainda volta nos campos:
 
-## Mudança
-- Remover o `onBlur` que força "0". Deixar o campo realmente vazio quando o usuário apagar.
-- Ao apagar tudo, emitir `0` para o estado (mantendo compatibilidade de tipo `number`) mas **não** reescrever o texto exibido — o input fica visualmente vazio.
-- Ajustar o `useEffect` de sincronização: quando o valor externo for `0` e o texto local estiver vazio, manter vazio (não sobrescrever com "0").
-- Nenhuma mudança nos defaults do formulário nem na lógica de submit.
-
-## Escopo
-- Arquivo único: `src/routes/app.novo-estudo.tsx`, função `NumberInput`.
+1. Ajustar o `NumberInput` para controlar também se o usuário já editou/limpou o campo, evitando que uma atualização externa reescreva `0` logo depois da digitação.
+2. Parar de passar `0` artificialmente para campos opcionais como `Área total`, `Ano de construção` e `Andar`; eles devem abrir vazios quando não tiverem valor.
+3. Permitir que o campo fique visualmente vazio enquanto o estado interno continua seguro para o cálculo.
+4. Normalizar somente na hora de gerar o estudo: campos obrigatórios vazios viram `0`; campos opcionais vazios continuam ausentes.
+5. Validar no preview apagando o valor de um campo que começa com `0` e confirmando que ele permanece vazio.
