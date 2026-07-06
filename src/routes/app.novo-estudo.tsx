@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -159,9 +159,33 @@ function NovoEstudo() {
   };
 
   const handleSubmit = () => {
-    const input = data as StudyInput;
-    if (!expandirBairros) input.bairrosProximos = [];
-    input.expandirBairrosProximos = expandirBairros;
+    const input: StudyInput = {
+      finalidade: data.finalidade ?? "Venda",
+      tipo: data.tipo ?? "Apartamento",
+      cidade: data.cidade ?? "",
+      estado: data.estado ?? "",
+      bairro: data.bairro ?? "",
+      bairrosProximos: expandirBairros ? data.bairrosProximos ?? [] : [],
+      expandirBairrosProximos: expandirBairros,
+      endereco: data.endereco,
+      numero: data.numero,
+      complemento: data.complemento,
+      edificio: data.edificio,
+      areaUtil: data.areaUtil ?? 0,
+      areaTotal: data.areaTotal,
+      quartos: data.quartos ?? 0,
+      suites: data.suites ?? 0,
+      banheiros: data.banheiros ?? 0,
+      vagas: data.vagas ?? 0,
+      andar: data.andar,
+      condominio: data.condominio ?? 0,
+      iptu: data.iptu ?? 0,
+      valorPretendido: data.valorPretendido ?? 0,
+      anoConstrucao: data.anoConstrucao,
+      diferenciais: data.diferenciais ?? [],
+      outrosDiferenciais: data.outrosDiferenciais,
+      portais: data.portais ?? [],
+    };
     sessionStorage.setItem("rip:pending", JSON.stringify(input));
     sessionStorage.setItem("rip:pending-radius", String(radiusKm));
     sessionStorage.setItem("rip:pending-fieldmodes", JSON.stringify(fieldModes));
@@ -307,18 +331,18 @@ function NovoEstudo() {
         {step === 2 && (
           <div className="space-y-6">
           <div className="grid gap-5 md:grid-cols-3">
-            <Field label="Área útil (m²)"><NumberInput v={data.areaUtil} onV={(v) => update("areaUtil", v)} /></Field>
-            <Field label="Área total (m²)"><NumberInput v={data.areaTotal ?? 0} onV={(v) => update("areaTotal", v)} /></Field>
-            <Field label="Ano de construção"><NumberInput v={data.anoConstrucao ?? 0} onV={(v) => update("anoConstrucao", v)} /></Field>
-            <Field label="Quartos"><NumberInput v={data.quartos} onV={(v) => update("quartos", v)} /></Field>
-            <Field label="Suítes"><NumberInput v={data.suites} onV={(v) => update("suites", v)} /></Field>
-            <Field label="Banheiros"><NumberInput v={data.banheiros} onV={(v) => update("banheiros", v)} /></Field>
-            <Field label="Vagas"><NumberInput v={data.vagas} onV={(v) => update("vagas", v)} /></Field>
-            <Field label="Andar"><NumberInput v={data.andar ?? 0} onV={(v) => update("andar", v)} /></Field>
+            <Field label="Área útil (m²)"><NumberInput v={data.areaUtil} onV={(v) => update("areaUtil", v ?? 0)} /></Field>
+            <Field label="Área total (m²)"><NumberInput v={data.areaTotal} onV={(v) => update("areaTotal", v)} /></Field>
+            <Field label="Ano de construção"><NumberInput v={data.anoConstrucao} onV={(v) => update("anoConstrucao", v)} /></Field>
+            <Field label="Quartos"><NumberInput v={data.quartos} onV={(v) => update("quartos", v ?? 0)} /></Field>
+            <Field label="Suítes"><NumberInput v={data.suites} onV={(v) => update("suites", v ?? 0)} /></Field>
+            <Field label="Banheiros"><NumberInput v={data.banheiros} onV={(v) => update("banheiros", v ?? 0)} /></Field>
+            <Field label="Vagas"><NumberInput v={data.vagas} onV={(v) => update("vagas", v ?? 0)} /></Field>
+            <Field label="Andar"><NumberInput v={data.andar} onV={(v) => update("andar", v)} /></Field>
             <div />
-            <Field label="Condomínio (R$)"><NumberInput v={data.condominio} onV={(v) => update("condominio", v)} /></Field>
-            <Field label="IPTU (R$)"><NumberInput v={data.iptu} onV={(v) => update("iptu", v)} /></Field>
-            <Field label="Valor pretendido (R$)"><NumberInput v={data.valorPretendido} onV={(v) => update("valorPretendido", v)} /></Field>
+            <Field label="Condomínio (R$)"><NumberInput v={data.condominio} onV={(v) => update("condominio", v ?? 0)} /></Field>
+            <Field label="IPTU (R$)"><NumberInput v={data.iptu} onV={(v) => update("iptu", v ?? 0)} /></Field>
+            <Field label="Valor pretendido (R$)"><NumberInput v={data.valorPretendido} onV={(v) => update("valorPretendido", v ?? 0)} /></Field>
           </div>
           </div>
         )}
@@ -397,30 +421,28 @@ function Field({ label, children, className }: { label: string; children: React.
   );
 }
 
-function NumberInput({ v, onV }: { v?: number; onV: (n: number) => void }) {
+function NumberInput({ v, onV }: { v?: number; onV: (n: number | undefined) => void }) {
+  const isEditingRef = useRef(false);
   const [text, setText] = useState<string>(v === undefined || v === null ? "" : String(v));
   useEffect(() => {
-    const external = v === undefined || v === null ? "" : String(v);
-    // Se o usuário deixou vazio (emitindo 0 internamente), não reescreve "0" no input.
-    if (text === "" && (v === 0 || v === undefined || v === null)) return;
-    const parsed = Number(text.replace(",", "."));
-    if (!(text !== "" && Number.isFinite(parsed) && parsed === v)) {
-      setText(external);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (isEditingRef.current) return;
+    setText(v === undefined || v === null ? "" : String(v));
   }, [v]);
   return (
     <Input
       type="text"
       inputMode="decimal"
       value={text}
+      onFocus={() => { isEditingRef.current = true; }}
+      onBlur={() => { isEditingRef.current = false; }}
       onChange={(e) => {
+        isEditingRef.current = true;
         const raw = e.target.value;
         // aceita dígitos, vírgula, ponto e sinal
         if (raw !== "" && !/^-?[0-9]*[.,]?[0-9]*$/.test(raw)) return;
         setText(raw);
         if (raw === "" || raw === "-" || raw === "." || raw === ",") {
-          onV(0);
+          onV(undefined);
           return;
         }
         const n = Number(raw.replace(",", "."));
