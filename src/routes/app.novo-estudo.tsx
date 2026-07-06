@@ -401,6 +401,8 @@ function NumberInput({ v, onV }: { v?: number; onV: (n: number) => void }) {
   const [text, setText] = useState<string>(v === undefined || v === null ? "" : String(v));
   useEffect(() => {
     const external = v === undefined || v === null ? "" : String(v);
+    // Se o usuário deixou vazio (emitindo 0 internamente), não reescreve "0" no input.
+    if (text === "" && (v === 0 || v === undefined || v === null)) return;
     const parsed = Number(text.replace(",", "."));
     if (!(text !== "" && Number.isFinite(parsed) && parsed === v)) {
       setText(external);
@@ -423,12 +425,6 @@ function NumberInput({ v, onV }: { v?: number; onV: (n: number) => void }) {
         }
         const n = Number(raw.replace(",", "."));
         if (Number.isFinite(n)) onV(n);
-      }}
-      onBlur={() => {
-        if (text === "" || text === "-" || text === "." || text === ",") {
-          setText("0");
-          onV(0);
-        }
       }}
     />
   );
