@@ -96,7 +96,7 @@ function NovoEstudo() {
     }
   }, []);
 
-  const update = <K extends keyof StudyInput>(k: K, v: StudyInput[K]) => setData((d) => ({ ...d, [k]: v }));
+  const update = <K extends keyof StudyInput>(k: K, v: Partial<StudyInput>[K]) => setData((d) => ({ ...d, [k]: v }));
 
   const toggleDif = (d: string) => {
     const cur = data.diferenciais ?? [];
@@ -331,18 +331,18 @@ function NovoEstudo() {
         {step === 2 && (
           <div className="space-y-6">
           <div className="grid gap-5 md:grid-cols-3">
-            <Field label="Área útil (m²)"><NumberInput v={data.areaUtil} onV={(v) => update("areaUtil", v ?? 0)} /></Field>
+            <Field label="Área útil (m²)"><NumberInput v={data.areaUtil} onV={(v) => update("areaUtil", v)} /></Field>
             <Field label="Área total (m²)"><NumberInput v={data.areaTotal} onV={(v) => update("areaTotal", v)} /></Field>
             <Field label="Ano de construção"><NumberInput v={data.anoConstrucao} onV={(v) => update("anoConstrucao", v)} /></Field>
-            <Field label="Quartos"><NumberInput v={data.quartos} onV={(v) => update("quartos", v ?? 0)} /></Field>
-            <Field label="Suítes"><NumberInput v={data.suites} onV={(v) => update("suites", v ?? 0)} /></Field>
-            <Field label="Banheiros"><NumberInput v={data.banheiros} onV={(v) => update("banheiros", v ?? 0)} /></Field>
-            <Field label="Vagas"><NumberInput v={data.vagas} onV={(v) => update("vagas", v ?? 0)} /></Field>
+            <Field label="Quartos"><NumberInput v={data.quartos} onV={(v) => update("quartos", v)} /></Field>
+            <Field label="Suítes"><NumberInput v={data.suites} onV={(v) => update("suites", v)} /></Field>
+            <Field label="Banheiros"><NumberInput v={data.banheiros} onV={(v) => update("banheiros", v)} /></Field>
+            <Field label="Vagas"><NumberInput v={data.vagas} onV={(v) => update("vagas", v)} /></Field>
             <Field label="Andar"><NumberInput v={data.andar} onV={(v) => update("andar", v)} /></Field>
             <div />
-            <Field label="Condomínio (R$)"><NumberInput v={data.condominio} onV={(v) => update("condominio", v ?? 0)} /></Field>
-            <Field label="IPTU (R$)"><NumberInput v={data.iptu} onV={(v) => update("iptu", v ?? 0)} /></Field>
-            <Field label="Valor pretendido (R$)"><NumberInput v={data.valorPretendido} onV={(v) => update("valorPretendido", v ?? 0)} /></Field>
+            <Field label="Condomínio (R$)"><NumberInput v={data.condominio} onV={(v) => update("condominio", v)} /></Field>
+            <Field label="IPTU (R$)"><NumberInput v={data.iptu} onV={(v) => update("iptu", v)} /></Field>
+            <Field label="Valor pretendido (R$)"><NumberInput v={data.valorPretendido} onV={(v) => update("valorPretendido", v)} /></Field>
           </div>
           </div>
         )}
