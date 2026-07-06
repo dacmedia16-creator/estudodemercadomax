@@ -1,17 +1,28 @@
-## Destravar o Valor sugerido quando o multiplicador cai
+## Objetivo
+Permitir digitar livremente nos campos numéricos do formulário (Área útil, Quartos, Valor pretendido, etc.), sem que o input "trave" ou apague o que está sendo digitado.
 
-Hoje, quando o `valorSugeridoRaw` (área × R$/m² ajustado) fica acima do teto (piso + 15%), o `computeAcm` fixa o Valor sugerido no teto. Resultado: você mexe os sliders pra baixo, o R$/m² acompanha, mas o Valor sugerido só sai do lugar quando o raw finalmente cai abaixo do teto — parece "travado".
+## Problema atual
+Em `src/routes/app.novo-estudo.tsx`, o helper `NumberInput` faz:
+```tsx
+<Input type="number" value={v ?? ""} onChange={(e) => onV(Number(e.target.value))} />
+```
+Quando o usuário apaga tudo, `Number("")` vira `0` e o campo mostra `0` no lugar do vazio. Ao tentar digitar "1500", às vezes o valor "pula" porque o estado converte imediatamente, atrapalhando edição (ex.: apagar o "0" inicial exige selecionar tudo antes).
 
-### Opções
+## Mudança
+Ajustar apenas o `NumberInput` para segurar o texto durante a digitação:
 
-**(A) Desligar "Respeitar piso" por padrão** — em `src/lib/study-types.ts`, `DEFAULT_ACM.respeitarPiso: true` → `false`. Slider passa a mexer no preço linearmente. O piso ainda existe como toggle opcional, mas fica desativado. Estudos antigos ficam como estavam.
+- Manter um estado local de string dentro do componente.
+- Sincronizar com a prop `v` quando ela mudar externamente.
+- No `onChange`, atualizar a string local e emitir `onV`:
+  - string vazia → emitir `0` (ou `undefined`, mantendo compatibilidade atual) sem forçar "0" visível.
+  - string válida → emitir `Number(str)`.
+- Aceitar vírgula/ponto (troca `,` por `.` antes de converter) para números decimais.
+- Usar `inputMode="decimal"` para melhor teclado no mobile.
 
-**(B) Manter o piso, mas subir o teto default pra +40%** — `maxAcimaPisoPct: 15` → `40`. Praticamente nunca trava, mas a proteção continua lá pra evitar preço absurdo abaixo do piso.
+## Escopo
+- Arquivo único: `src/routes/app.novo-estudo.tsx` (função `NumberInput`).
+- Nenhuma mudança em lógica de negócio, engine ou tipos.
 
-**(C) Mudar a lógica: piso só vira "aviso", nunca clampa** — em `src/components/acm-panel.tsx`/`study-engine.ts`, remover a linha que faz `valorSugerido = teto`. O piso só marca `pisoAplicado=true` pro hint amarelo, mas o Valor sugerido segue livre.
-
-### Recomendo
-
-**(C)** — o piso vira informação, não uma trava. O slider sempre responde 1:1 no preço total, e você ainda vê o aviso quando está acima do teto.
-
-Qual prefere: A, B ou C?
+## Fora do escopo
+- Formatação com máscara de moeda (R$) — pode ser feita depois se quiser.
+- Alterar outros inputs (CEP, texto) que já funcionam.

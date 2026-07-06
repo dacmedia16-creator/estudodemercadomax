@@ -398,5 +398,38 @@ function Field({ label, children, className }: { label: string; children: React.
 }
 
 function NumberInput({ v, onV }: { v?: number; onV: (n: number) => void }) {
-  return <Input type="number" value={v ?? ""} onChange={(e) => onV(Number(e.target.value))} />;
+  const [text, setText] = useState<string>(v === undefined || v === null ? "" : String(v));
+  useEffect(() => {
+    const external = v === undefined || v === null ? "" : String(v);
+    const parsed = Number(text.replace(",", "."));
+    if (!(text !== "" && Number.isFinite(parsed) && parsed === v)) {
+      setText(external);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v]);
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onChange={(e) => {
+        const raw = e.target.value;
+        // aceita dígitos, vírgula, ponto e sinal
+        if (raw !== "" && !/^-?[0-9]*[.,]?[0-9]*$/.test(raw)) return;
+        setText(raw);
+        if (raw === "" || raw === "-" || raw === "." || raw === ",") {
+          onV(0);
+          return;
+        }
+        const n = Number(raw.replace(",", "."));
+        if (Number.isFinite(n)) onV(n);
+      }}
+      onBlur={() => {
+        if (text === "" || text === "-" || text === "." || text === ",") {
+          setText("0");
+          onV(0);
+        }
+      }}
+    />
+  );
 }
