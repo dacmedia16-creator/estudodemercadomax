@@ -74,8 +74,6 @@ function NovoEstudo() {
     if (typeof window === "undefined") return;
     const v = localStorage.getItem("portal.chavesnamao");
     const enabled = v === null ? true : v === "1" || v === "true";
-    const vViva = localStorage.getItem("portal.vivareal");
-    const vivaEnabled = vViva === null ? true : vViva === "1" || vViva === "true";
     const vOlx = localStorage.getItem("portal.olx");
     const olxEnabled = vOlx === null ? true : vOlx === "1" || vOlx === "true";
     setData((d) => {
@@ -87,7 +85,8 @@ function NovoEstudo() {
         if (!on && has) next = next.filter((x) => x !== name);
       };
       sync("Chaves na Mão", enabled);
-      sync("Viva Real", vivaEnabled);
+      // Viva Real é fixo — sempre presente
+      if (!next.includes("Viva Real")) next.push("Viva Real");
       sync("OLX", olxEnabled);
       return next === cur ? d : { ...d, portais: next };
     });
@@ -120,7 +119,6 @@ function NovoEstudo() {
     if (typeof window !== "undefined") {
       const on = next.includes(p) ? "1" : "0";
       if (p === "Chaves na Mão") localStorage.setItem("portal.chavesnamao", on);
-      else if (p === "Viva Real") localStorage.setItem("portal.vivareal", on);
       else if (p === "OLX") localStorage.setItem("portal.olx", on);
     }
   };
