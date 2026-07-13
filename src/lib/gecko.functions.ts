@@ -5,14 +5,15 @@ import type { GeckoCallResult, GeckoPlpData, JsonValue } from "./gecko-types";
 
 const ENDPOINT = "https://api.geckoapi.com.br/v1/extract";
 
-const TARGETS = ["zapimoveis.com.br", "chavesnamao.com.br", "olx.com.br"] as const;
+const TARGETS = ["zapimoveis.com.br", "chavesnamao.com.br", "olx.com.br", "vivareal.com.br"] as const;
 type Target = (typeof TARGETS)[number];
 
-function portalKey(target: string | undefined): "zap" | "chaves" | "olx" | "other" {
+function portalKey(target: string | undefined): "zap" | "chaves" | "olx" | "viva" | "other" {
   if (!target) return "other";
   if (target.includes("zapimoveis")) return "zap";
   if (target.includes("chavesnamao")) return "chaves";
   if (target.includes("olx")) return "olx";
+  if (target.includes("vivareal")) return "viva";
   return "other";
 }
 
@@ -184,8 +185,9 @@ export const geckoPlp = createServerFn({ method: "POST" }).middleware([requireSu
     // propertyType uses Zap's vocabulary (APARTMENT/HOME/…); only send it
     // when targeting Zap to avoid over-filtering on Chaves na Mão.
     if (propertyType && target === "zapimoveis.com.br") body.propertyType = propertyType;
-    // Chaves-only fields.
-    if (target === "chavesnamao.com.br") {
+    // Chaves + VivaReal aceitam o mesmo vocabulário `propertyTypes` / amenities /
+    // neighborhood / directOwner / condominium / includeLaunches / sort.
+    if (target === "chavesnamao.com.br" || target === "vivareal.com.br") {
       if (neighborhood && neighborhood.trim().length > 0) body.neighborhood = neighborhood;
       if (propertyTypes && propertyTypes.length) body.propertyTypes = propertyTypes;
       if (amenities && amenities.length) body.amenities = amenities;

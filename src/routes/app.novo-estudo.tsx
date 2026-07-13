@@ -28,7 +28,7 @@ const DIFERENCIAIS = [
 const PORTAIS = [
   { nome: "Zap Imóveis", ativo: true },
   { nome: "Chaves na Mão", ativo: true },
-  { nome: "Viva Real", ativo: false },
+  { nome: "Viva Real", ativo: true },
   { nome: "OLX", ativo: true },
   { nome: "Imovelweb", ativo: false },
 ];
@@ -74,12 +74,22 @@ function NovoEstudo() {
     if (typeof window === "undefined") return;
     const v = localStorage.getItem("portal.chavesnamao");
     const enabled = v === null ? true : v === "1" || v === "true";
+    const vViva = localStorage.getItem("portal.vivareal");
+    const vivaEnabled = vViva === null ? true : vViva === "1" || vViva === "true";
+    const vOlx = localStorage.getItem("portal.olx");
+    const olxEnabled = vOlx === null ? true : vOlx === "1" || vOlx === "true";
     setData((d) => {
       const cur = d.portais ?? [];
-      const has = cur.includes("Chaves na Mão");
-      if (enabled && !has) return { ...d, portais: [...cur, "Chaves na Mão"] };
-      if (!enabled && has) return { ...d, portais: cur.filter((x) => x !== "Chaves na Mão") };
-      return d;
+      let next = cur.slice();
+      const sync = (name: string, on: boolean) => {
+        const has = next.includes(name);
+        if (on && !has) next.push(name);
+        if (!on && has) next = next.filter((x) => x !== name);
+      };
+      sync("Chaves na Mão", enabled);
+      sync("Viva Real", vivaEnabled);
+      sync("OLX", olxEnabled);
+      return next === cur ? d : { ...d, portais: next };
     });
   }, []);
 
@@ -107,8 +117,11 @@ function NovoEstudo() {
     const cur = data.portais ?? [];
     const next = cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p];
     update("portais", next);
-    if (p === "Chaves na Mão" && typeof window !== "undefined") {
-      localStorage.setItem("portal.chavesnamao", next.includes(p) ? "1" : "0");
+    if (typeof window !== "undefined") {
+      const on = next.includes(p) ? "1" : "0";
+      if (p === "Chaves na Mão") localStorage.setItem("portal.chavesnamao", on);
+      else if (p === "Viva Real") localStorage.setItem("portal.vivareal", on);
+      else if (p === "OLX") localStorage.setItem("portal.olx", on);
     }
   };
 

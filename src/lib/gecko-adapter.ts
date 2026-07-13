@@ -150,12 +150,13 @@ export function normalizeText(s: string): string {
 }
 
 /** Identifica o portal a partir da URL colada pelo usuário. */
-export function detectPortalFromUrl(url: string): { target: "zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br"; portal: "Zap Imóveis" | "Chaves na Mão" | "OLX" } | null {
+export function detectPortalFromUrl(url: string): { target: "zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br" | "vivareal.com.br"; portal: "Zap Imóveis" | "Chaves na Mão" | "OLX" | "Viva Real" } | null {
   try {
     const host = new URL(url).hostname.toLowerCase();
     if (host.includes("zapimoveis.com.br")) return { target: "zapimoveis.com.br", portal: "Zap Imóveis" };
     if (host.includes("chavesnamao.com.br")) return { target: "chavesnamao.com.br", portal: "Chaves na Mão" };
     if (host.includes("olx.com.br")) return { target: "olx.com.br", portal: "OLX" };
+    if (host.includes("vivareal.com.br")) return { target: "vivareal.com.br", portal: "Viva Real" };
     return null;
   } catch {
     return null;
@@ -245,6 +246,17 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
       anyItem.location && typeof anyItem.location.ddd === "string");
   if (looksLikeOlx) {
     return olxItemToProperty(anyItem, portal === "OLX" ? portal : "OLX");
+  }
+
+  // ---- Dispatch to Viva Real parser ----
+  // VivaReal item shape has `attributes` as an object with array fields
+  // (usableAreas[], bedrooms[], …) and `prices` as an array of {value, condominium, iptu}.
+  const looksLikeViva =
+    portal === "Viva Real" ||
+    (anyItem.attributes && typeof anyItem.attributes === "object" && !Array.isArray(anyItem.attributes) &&
+      Array.isArray((anyItem.attributes as any).usableAreas) && Array.isArray(anyItem.prices));
+  if (looksLikeViva) {
+    return vivaRealItemToProperty(anyItem, portal === "Viva Real" ? portal : "Viva Real");
   }
 
   // ---- Dispatch to Chaves na Mão parser when shape matches ----
@@ -769,4 +781,135 @@ function collectOlxImages(item: Record<string, any>): string[] {
     for (const im of item.images) arr.push(im?.webpUrl || im?.url);
   }
   return dedupNonEmpty(arr);
+}
+
+function collectVivaImages(item: Record<string, any>): string[] {
+  const arr: Array<string | undefined> = [];
+  if (Array.isArray(item.media)) {
+    for (const m of item.media) arr.push(typeof m === "string" ? m : m?.url);
+  }
+  if (Array.isArray(item.images)) {
+    for (const im of item.images) arr.push(typeof im === "string" ? im : im?.url);
+  }
+  return dedupNonEmpty(arr);
+}
+
+/** Parser for Viva Real PLP/PDP item shape — see docs/vivareal-com-br-plp. */
+function vivaRealItemToProperty(item: Record<string, any>, portal: string): MockProperty | null {
+  // Skip inactive / removed listings.
+  if (typeof item.status === "string" && item.status.toUpperCase() !== "ACTIVE") return null;
+
+  const attrs = (item.attributes && typeof item.attributes === "object" ? item.attributes : {}) as Record<string, any>;
+  const priceObj = Array.isArray(item.prices) && item.prices.length > 0 ? item.prices[0] : null;
+
+  const desc: string = item.description ?? item.title ?? "";
+  const preco =
+    (priceObj && typeof priceObj.value === "number" && priceObj.value > 0 ? priceObj.value : 0) ||
+    parsePrice(priceObj?.value) ||
+    extractNumber(desc, [/R\$\s*([\d.,]+)/i]) ||
+    0;
+  if (!preco) return null;
+
+  const quartosRaw =
+    firstNumber(attrs.bedrooms) ??
+    extractNumber(desc, [/(\d+)\s*quartos?/i, /(\d+)\s*dorm/i]);
+  const areaUtilRaw =
+    firstNumber(attrs.usableAreas) ??
+    firstNumber(attrs.totalAreas) ??
+    extractNumber(desc, [/(\d+(?:[.,]\d+)?)\s*m[²2]/i]);
+
+  const incomplete = quartosRaw === null || !areaUtilRaw || areaUtilRaw <= 0;
+  const quartos = quartosRaw ?? 0;
+  const areaUtil = areaUtilRaw && areaUtilRaw > 0 ? areaUtilRaw : 0;
+
+  const banheiros =
+    firstNumber(attrs.bathrooms) ??
+    extractNumber(desc, [/(\d+)\s*banheiros?/i]) ??
+    Math.max(1, quartos - 1 || 1);
+  const suites = firstNumber(attrs.suites) ?? 0;
+  const vagas =
+    firstNumber(attrs.parkingSpaces) ??
+    extractNumber(desc, [/(\d+)\s*vagas?/i, /(\d+)\s*garagens?/i]) ??
+    0;
+
+  const addr = (item.address ?? {}) as Record<string, any>;
+  const bairro: string = addr.neighborhood ?? "—";
+  const cidade: string = addr.city ?? "—";
+  const estado: string = addr.stateAcronym ?? addr.state ?? "—";
+  const coords = (addr.coordinates ?? {}) as Record<string, any>;
+  const latitude = typeof coords.latitude === "number" ? coords.latitude : undefined;
+  const longitude = typeof coords.longitude === "number" ? coords.longitude : undefined;
+
+  const imagens = collectVivaImages(item);
+  const imagem = imagens[0] ?? "";
+
+  const url: string = item.url ?? "";
+  const id: string = String(item.id ?? item.sourceId ?? item.legacyId ?? url) || crypto.randomUUID();
+
+  const condominio =
+    (priceObj && typeof priceObj.condominium === "number" ? priceObj.condominium : 0) || 0;
+  const iptu =
+    (priceObj && typeof priceObj.iptu === "number" ? priceObj.iptu : 0) || 0;
+
+  const createdAtStr = item.createdAt ?? item.updatedAt ?? "";
+  let diasMercado: number | undefined;
+  if (createdAtStr) {
+    const t = Date.parse(createdAtStr);
+    if (!isNaN(t)) diasMercado = Math.max(0, Math.floor((Date.now() - t) / 86400000));
+  }
+
+  const adv = (item.advertiser ?? {}) as Record<string, any>;
+  const advertiserPhone = adv.phoneNumbers?.[0] || undefined;
+  const advertiserWhatsapp = adv.whatsappNumber || item.whatsappNumber || undefined;
+  const advertiserCreci = adv.license || undefined;
+  const advertiserRating = typeof adv.rating === "number" ? adv.rating : undefined;
+
+  const diferenciais: string[] = [
+    ...(Array.isArray(item.amenities) ? item.amenities : []),
+    ...(Array.isArray(item.mergedAmenities) ? item.mergedAmenities : []),
+  ];
+  const dedupDif = Array.from(new Set(diferenciais));
+
+  // Building name — great for "same building" matching.
+  const condominioName: string | undefined =
+    typeof item.condominiumName === "string" && item.condominiumName ? item.condominiumName : undefined;
+  const tituloBase = item.title || desc || (condominioName ? `Imóvel em ${condominioName}` : `Imóvel em ${bairro}`);
+
+  return {
+    id,
+    portal,
+    titulo: String(tituloBase).slice(0, 80),
+    url,
+    bairro,
+    cidade,
+    estado,
+    preco,
+    condominio,
+    iptu,
+    areaUtil,
+    quartos,
+    suites,
+    banheiros,
+    vagas,
+    descricao: typeof desc === "string" ? desc : "",
+    anunciante: adv.name ?? "—",
+    diferenciais: dedupDif,
+    imagem,
+    imagens,
+    dataColeta: new Date().toISOString().slice(0, 10),
+    incomplete,
+    latitude,
+    longitude,
+    diasMercado,
+    publicationType: typeof item.publicationType === "string" ? item.publicationType : undefined,
+    mainAmenities: dedupDif.length ? dedupDif.slice(0, 5) : undefined,
+    infoTags: Array.isArray(item.stamps) ? item.stamps : undefined,
+    advertiserPhone,
+    advertiserWhatsapp,
+    advertiserCreci,
+    advertiserRating,
+    virtualTourUrl: typeof item.videoTourUrl === "string" ? item.videoTourUrl : undefined,
+    agregadoCount: Array.isArray(item.children) && item.children.length > 0 ? item.children.length : undefined,
+    finalidade: detectFinalidade(item),
+  };
 }

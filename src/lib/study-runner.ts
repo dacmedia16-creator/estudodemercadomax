@@ -12,12 +12,14 @@ const PORTAL_TARGETS = {
   "zapimoveis.com.br": "Zap Imóveis",
   "chavesnamao.com.br": "Chaves na Mão",
   "olx.com.br": "OLX",
+  "vivareal.com.br": "Viva Real",
 } as const;
 type PortalTarget = keyof typeof PORTAL_TARGETS;
 const PORTAL_NAME_TO_TARGET: Record<string, PortalTarget> = {
   "Zap Imóveis": "zapimoveis.com.br",
   "Chaves na Mão": "chavesnamao.com.br",
   "OLX": "olx.com.br",
+  "Viva Real": "vivareal.com.br",
 };
 
 export function isChavesEnabled(): boolean {
@@ -38,6 +40,15 @@ export function isOlxEnabled(): boolean {
   } catch { return true; }
 }
 
+export function isVivaEnabled(): boolean {
+  try {
+    if (typeof localStorage === "undefined") return true;
+    const v = localStorage.getItem("portal.vivareal");
+    if (v === null) return true; // default ON
+    return v === "1" || v === "true";
+  } catch { return true; }
+}
+
 function activeTargets(input?: StudyInput): PortalTarget[] {
   const list: PortalTarget[] = ["zapimoveis.com.br"];
   // Per-study selection wins over the global toggle.
@@ -48,6 +59,9 @@ function activeTargets(input?: StudyInput): PortalTarget[] {
   const hasOlxInStudy = portais.some((p) => p.toLowerCase() === "olx" || p.toLowerCase().includes("olx"));
   const olxOn = portais.length > 0 ? hasOlxInStudy : isOlxEnabled();
   if (olxOn) list.push("olx.com.br");
+  const hasVivaInStudy = portais.some((p) => p.toLowerCase().includes("viva"));
+  const vivaOn = portais.length > 0 ? hasVivaInStudy : isVivaEnabled();
+  if (vivaOn) list.push("vivareal.com.br");
   return list;
 }
 
@@ -725,7 +739,7 @@ export async function runStudy(
       //   passo A) tira amenities + radius (mantém bedrooms/price/area)
       //   passo B) tira tudo nativo (city/state/keyword/propertyType/neighborhood)
       if (!buscaLivre) {
-        const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br"] as PortalTarget[])
+        const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br", "vivareal.com.br"] as PortalTarget[])
           .filter((t) =>
             targets.includes(t)
             // Antes era "=== 0" — agora reagimos a qualquer portal que veio
