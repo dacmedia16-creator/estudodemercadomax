@@ -22,35 +22,11 @@ const PORTAL_NAME_TO_TARGET: Record<string, PortalTarget> = {
   "Viva Real": "vivareal.com.br",
 };
 
-export function isChavesEnabled(): boolean {
-  try {
-    if (typeof localStorage === "undefined") return true;
-    const v = localStorage.getItem("portal.chavesnamao");
-    if (v === null) return true; // default ON
-    return v === "1" || v === "true";
-  } catch { return true; }
-}
-
-export function isOlxEnabled(): boolean {
-  try {
-    if (typeof localStorage === "undefined") return true;
-    const v = localStorage.getItem("portal.olx");
-    if (v === null) return true; // default ON
-    return v === "1" || v === "true";
-  } catch { return true; }
-}
-
-function activeTargets(input?: StudyInput): PortalTarget[] {
-  const list: PortalTarget[] = ["zapimoveis.com.br", "vivareal.com.br"];
-  // Per-study selection wins over the global toggle.
-  const portais = input?.portais ?? [];
-  const hasChavesInStudy = portais.some((p) => p.toLowerCase().includes("chaves"));
-  const enabled = portais.length > 0 ? hasChavesInStudy : isChavesEnabled();
-  if (enabled) list.push("chavesnamao.com.br");
-  const hasOlxInStudy = portais.some((p) => p.toLowerCase() === "olx" || p.toLowerCase().includes("olx"));
-  const olxOn = portais.length > 0 ? hasOlxInStudy : isOlxEnabled();
-  if (olxOn) list.push("olx.com.br");
-  return list;
+function activeTargets(_input?: StudyInput): PortalTarget[] {
+  // Todos os 4 portais integrados são fixos. Falha por portal é tolerada
+  // dentro do Promise.all (ver "Per-portal params" abaixo): erro devolve
+  // null, é registrado no funil e a camada segue com os demais.
+  return ["zapimoveis.com.br", "vivareal.com.br", "chavesnamao.com.br", "olx.com.br"];
 }
 
 /** Maps "Apartamento"/"Venda" → "imoveis/venda-de-apartamentos" for OLX PLP. */
@@ -727,7 +703,7 @@ export async function runStudy(
       //   passo A) tira amenities + radius (mantém bedrooms/price/area)
       //   passo B) tira tudo nativo (city/state/keyword/propertyType/neighborhood)
       if (!buscaLivre) {
-        const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br", "vivareal.com.br"] as PortalTarget[])
+        const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br", "vivareal.com.br", "olx.com.br"] as PortalTarget[])
           .filter((t) =>
             targets.includes(t)
             // Antes era "=== 0" — agora reagimos a qualquer portal que veio
