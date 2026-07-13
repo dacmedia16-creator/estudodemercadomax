@@ -27,16 +27,6 @@ function Configuracoes() {
   const [plpState, setPlpState] = useState("PR");
   const [plpTesting, setPlpTesting] = useState(false);
   const [plpResult, setPlpResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
-  const [chavesOn, setChavesOn] = useState<boolean>(() => {
-    if (typeof localStorage === "undefined") return true;
-    const v = localStorage.getItem("portal.chavesnamao");
-    return v === null ? true : v === "1" || v === "true";
-  });
-  const [olxOn, setOlxOn] = useState<boolean>(() => {
-    if (typeof localStorage === "undefined") return true;
-    const v = localStorage.getItem("portal.olx");
-    return v === null ? true : v === "1" || v === "true";
-  });
   const [branding, setBranding] = useState<BrandingSettings>(() => brandingStore.get());
 
   const updateBranding = (patch: Partial<BrandingSettings>) => {
@@ -67,17 +57,6 @@ function Configuracoes() {
     brandingStore.reset();
     setBranding(DEFAULT_BRANDING);
     toast.success("Marca restaurada para o padrão Radar.");
-  };
-
-  const toggleChaves = (on: boolean) => {
-    setChavesOn(on);
-    try { localStorage.setItem("portal.chavesnamao", on ? "1" : "0"); } catch {}
-    toast.success(on ? "Chaves na Mão ativada nas buscas." : "Chaves na Mão desativada.");
-  };
-  const toggleOlx = (on: boolean) => {
-    setOlxOn(on);
-    try { localStorage.setItem("portal.olx", on ? "1" : "0"); } catch {}
-    toast.success(on ? "OLX ativada nas buscas." : "OLX desativada.");
   };
 
   useEffect(() => {
@@ -351,9 +330,9 @@ function Configuracoes() {
         <div className="mt-4 space-y-3">
           {[
             { n: "Zap Imóveis", on: true, locked: true, checked: true },
-            { n: "Chaves na Mão", on: true, locked: false, checked: chavesOn, toggle: toggleChaves },
+            { n: "Chaves na Mão", on: true, locked: true, checked: true },
             { n: "Viva Real", on: true, locked: true, checked: true },
-            { n: "OLX", on: true, locked: false, checked: olxOn, toggle: toggleOlx },
+            { n: "OLX", on: true, locked: true, checked: true },
             { n: "Imovelweb", on: false, locked: true, checked: false },
           ].map((p) => (
             <div key={p.n} className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
@@ -366,11 +345,13 @@ function Configuracoes() {
               <Switch
                 checked={p.checked}
                 disabled={p.locked}
-                onCheckedChange={(v) => p.toggle?.(v)}
               />
             </div>
           ))}
         </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Se algum portal estiver instável, ele é ignorado automaticamente e o estudo segue com os outros.
+        </p>
       </Card>
 
       <Card className="mt-6 border-border/60 p-6">
