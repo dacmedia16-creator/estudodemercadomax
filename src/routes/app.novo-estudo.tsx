@@ -68,30 +68,6 @@ function NovoEstudo() {
     portais: PORTAIS.filter((p) => p.ativo).map((p) => p.nome),
   });
 
-  // Seed Chaves na Mão a partir do flag global (default ligado).
-  // Aceita "1"/"true" (on) e "0"/"false" (off) para compatibilidade.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const v = localStorage.getItem("portal.chavesnamao");
-    const enabled = v === null ? true : v === "1" || v === "true";
-    const vOlx = localStorage.getItem("portal.olx");
-    const olxEnabled = vOlx === null ? true : vOlx === "1" || vOlx === "true";
-    setData((d) => {
-      const cur = d.portais ?? [];
-      let next = cur.slice();
-      const sync = (name: string, on: boolean) => {
-        const has = next.includes(name);
-        if (on && !has) next.push(name);
-        if (!on && has) next = next.filter((x) => x !== name);
-      };
-      sync("Chaves na Mão", enabled);
-      // Viva Real é fixo — sempre presente
-      if (!next.includes("Viva Real")) next.push("Viva Real");
-      sync("OLX", olxEnabled);
-      return next === cur ? d : { ...d, portais: next };
-    });
-  }, []);
-
   // Hidrata do prefill (vindo da busca rápida "Ajustar campos")
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -110,17 +86,6 @@ function NovoEstudo() {
   const toggleDif = (d: string) => {
     const cur = data.diferenciais ?? [];
     update("diferenciais", cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]);
-  };
-
-  const togglePortal = (p: string) => {
-    const cur = data.portais ?? [];
-    const next = cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p];
-    update("portais", next);
-    if (typeof window !== "undefined") {
-      const on = next.includes(p) ? "1" : "0";
-      if (p === "Chaves na Mão") localStorage.setItem("portal.chavesnamao", on);
-      else if (p === "OLX") localStorage.setItem("portal.olx", on);
-    }
   };
 
   const addBairroProximo = () => {
