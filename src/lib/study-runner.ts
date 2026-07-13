@@ -1259,12 +1259,10 @@ export async function runStudy(
   }
 
   onStep?.(3);
-  // Foco nos 10 mais baratos (default ligado): quando a busca devolve
-  // mais de 10 comparáveis, mantemos só os 10 de menor preço total. O motor
-  // (similaridade, ACM, IA, médias) roda em cima desse recorte sem qualquer
-  // outra alteração.
-  const top10Baratos = overrides.top10Baratos ?? true;
-  if (top10Baratos && properties.length > 10) {
+  // Foco nos 10 mais baratos (fixo): quando a busca devolve mais de 10
+  // comparáveis, mantemos só os 10 de menor preço total. O motor
+  // (similaridade, ACM, IA, médias) roda em cima desse recorte.
+  if (properties.length > 10) {
     const before = properties.length;
     properties = [...properties]
       .filter((p) => p && typeof p.preco === "number" && p.preco > 0)
@@ -1277,6 +1275,23 @@ export async function runStudy(
     criteriosAplicados.push("Foco nos 10 imóveis de menor preço");
   }
   const result = generateStudy(input, properties, overrides.fieldModes);
+  // Última etapa: prioriza anúncios mais recentes (menor `diasMercado` primeiro).
+  // Anúncios sem data conhecida vão para o fim, mas continuam na amostra.
+  if (result.comparaveis.length > 1) {
+    const RANK = (p: { diasMercado?: number }) =>
+      typeof p.diasMercado === "number" ? p.diasMercado : Number.POSITIVE_INFINITY;
+    result.comparaveis = [...result.comparaveis].sort((a, b) => {
+      const da = RANK(a);
+      const db = RANK(b);
+      if (da !== db) return da - db;
+      return (a.preco || 0) - (b.preco || 0);
+    });
+    funilBusca.push({
+      etapa: "Priorização por data de inclusão (mais recentes primeiro)",
+      total: result.comparaveis.length,
+    });
+    criteriosAplicados.push("Anúncios mais recentes priorizados");
+  }
   if (mesmoCondominioIds.size > 0) {
     result.comparaveis.forEach((c) => { if (mesmoCondominioIds.has(c.id)) c.mesmoCondominio = true; });
   }
