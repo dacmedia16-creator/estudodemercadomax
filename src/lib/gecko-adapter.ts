@@ -150,12 +150,13 @@ export function normalizeText(s: string): string {
 }
 
 /** Identifica o portal a partir da URL colada pelo usuário. */
-export function detectPortalFromUrl(url: string): { target: "zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br"; portal: "Zap Imóveis" | "Chaves na Mão" | "OLX" } | null {
+export function detectPortalFromUrl(url: string): { target: "zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br" | "vivareal.com.br"; portal: "Zap Imóveis" | "Chaves na Mão" | "OLX" | "Viva Real" } | null {
   try {
     const host = new URL(url).hostname.toLowerCase();
     if (host.includes("zapimoveis.com.br")) return { target: "zapimoveis.com.br", portal: "Zap Imóveis" };
     if (host.includes("chavesnamao.com.br")) return { target: "chavesnamao.com.br", portal: "Chaves na Mão" };
     if (host.includes("olx.com.br")) return { target: "olx.com.br", portal: "OLX" };
+    if (host.includes("vivareal.com.br")) return { target: "vivareal.com.br", portal: "Viva Real" };
     return null;
   } catch {
     return null;
