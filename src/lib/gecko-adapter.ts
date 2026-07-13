@@ -248,6 +248,17 @@ export function geckoItemToProperty(item: GeckoItem, portal: string = "Zap Imóv
     return olxItemToProperty(anyItem, portal === "OLX" ? portal : "OLX");
   }
 
+  // ---- Dispatch to Viva Real parser ----
+  // VivaReal item shape has `attributes` as an object with array fields
+  // (usableAreas[], bedrooms[], …) and `prices` as an array of {value, condominium, iptu}.
+  const looksLikeViva =
+    portal === "Viva Real" ||
+    (anyItem.attributes && typeof anyItem.attributes === "object" && !Array.isArray(anyItem.attributes) &&
+      Array.isArray((anyItem.attributes as any).usableAreas) && Array.isArray(anyItem.prices));
+  if (looksLikeViva) {
+    return vivaRealItemToProperty(anyItem, portal === "Viva Real" ? portal : "Viva Real");
+  }
+
   // ---- Dispatch to Chaves na Mão parser when shape matches ----
   // Chaves payloads expose `counts.bedrooms.count`, `prices.rawPrice`, `area.useful`.
   const looksLikeChaves =
