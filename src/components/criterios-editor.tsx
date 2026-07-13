@@ -26,7 +26,7 @@ interface Props {
 const TIPOS = ["Apartamento", "Casa", "Cobertura", "Sobrado", "Studio", "Kitnet", "Sala", "Terreno"];
 
 /** Builds the form's starting state from the last execution's overrides, falling back to derived defaults. */
-function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<SearchOverrides, "bairrosProximos" | "fieldModes">> & {
+function initialFrom(input: StudyInput, study: StudyResult): Required<Omit<SearchOverrides, "bairrosProximos" | "fieldModes" | "top10Baratos">> & {
   bairrosProximos: string[];
   fieldModes: Record<FieldKey, FieldMode>;
 } {
