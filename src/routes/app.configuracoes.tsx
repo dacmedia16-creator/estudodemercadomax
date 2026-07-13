@@ -37,11 +37,6 @@ function Configuracoes() {
     const v = localStorage.getItem("portal.olx");
     return v === null ? true : v === "1" || v === "true";
   });
-  const [vivaOn, setVivaOn] = useState<boolean>(() => {
-    if (typeof localStorage === "undefined") return true;
-    const v = localStorage.getItem("portal.vivareal");
-    return v === null ? true : v === "1" || v === "true";
-  });
   const [branding, setBranding] = useState<BrandingSettings>(() => brandingStore.get());
 
   const updateBranding = (patch: Partial<BrandingSettings>) => {
@@ -83,11 +78,6 @@ function Configuracoes() {
     setOlxOn(on);
     try { localStorage.setItem("portal.olx", on ? "1" : "0"); } catch {}
     toast.success(on ? "OLX ativada nas buscas." : "OLX desativada.");
-  };
-  const toggleViva = (on: boolean) => {
-    setVivaOn(on);
-    try { localStorage.setItem("portal.vivareal", on ? "1" : "0"); } catch {}
-    toast.success(on ? "Viva Real ativada nas buscas." : "Viva Real desativada.");
   };
 
   useEffect(() => {
@@ -362,7 +352,7 @@ function Configuracoes() {
           {[
             { n: "Zap Imóveis", on: true, locked: true, checked: true },
             { n: "Chaves na Mão", on: true, locked: false, checked: chavesOn, toggle: toggleChaves },
-            { n: "Viva Real", on: true, locked: false, checked: vivaOn, toggle: toggleViva },
+            { n: "Viva Real", on: true, locked: true, checked: true },
             { n: "OLX", on: true, locked: false, checked: olxOn, toggle: toggleOlx },
             { n: "Imovelweb", on: false, locked: true, checked: false },
           ].map((p) => (
