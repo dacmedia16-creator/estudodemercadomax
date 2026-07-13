@@ -1,45 +1,27 @@
-# Adicionar Viva Real ao motor de busca
+# Tornar Viva Real fixo no motor de busca
 
-Viva Real usa o mesmo endpoint `POST /v1/extract` da GeckoAPI, com `target: "vivareal.com.br"` e vocabulário quase idêntico ao Zap Imóveis (mesmo grupo). Diferenças notáveis:
-
-- Item shape usa `attributes.usableAreas[]`, `attributes.bedrooms[]`, `attributes.bathrooms[]`, `attributes.parkingSpaces[]`, `attributes.suites[]`, `attributes.unitFloor` e `prices[].value / condominium / iptu` (array em vez de objeto único).
-- Aceita `neighborhood`, `propertyTypes[]`, `amenities[]`, `bedrooms[]`, `bathrooms[]`, `parkingSpots[]`, `priceMin/Max`, `areaMin/Max`, `latitude/longitude`, `sort`, `directOwner`, `condominium`, `includeLaunches` — igual ao Zap/Chaves.
-- **Não aceita `keyword`** (como Chaves). URL pública é opcional.
+Hoje o Zap Imóveis é o único portal "locked" (sempre ativo). Chaves na Mão, Viva Real e OLX são opcionais via toggle. A mudança promove o Viva Real a fixo, deixando só Chaves e OLX como opcionais.
 
 ## Mudanças
 
-### 1. `src/lib/gecko.functions.ts`
-- Adicionar `"vivareal.com.br"` no array `TARGETS`.
-- Expandir `portalKey()` retornando `"viva"` para vivareal.
-- No handler `geckoPlp`: tratar Viva Real no mesmo bloco do Zap (aceita quase todos os filtros nativos), mas **sem `keyword`** — só envia keyword quando target é Zap. Enviar `neighborhood`, `propertyTypes`, `amenities`, `directOwner`, `condominium`, `includeLaunches`, `sort` quando target for viva ou chaves.
+### 1. `src/routes/app.configuracoes.tsx`
+- Remover estado `vivaOn`, `toggleViva` e a leitura de `localStorage.getItem("portal.vivareal")`.
+- Na lista "Portais ativos", trocar a linha do Viva Real para `{ n: "Viva Real", on: true, locked: true, checked: true }` (mesmo formato do Zap).
+- Manter a opção "Viva Real" no seletor de teste PDP/PLP — o diagnóstico continua funcionando.
+- Opcional: garantir uma vez que `localStorage.portal.vivareal = "1"` para não deixar resquício de usuários que já haviam desligado antes.
 
-### 2. `src/lib/gecko-adapter.ts`
-- `detectPortalFromUrl`: adicionar caso `vivareal.com.br` → `"Viva Real"`.
-- Novo parser `vivaRealItemToProperty(item, portal)` que lê `attributes.*` (arrays) e `prices[0].value/condominium/iptu`. Reaproveita helpers existentes (`firstNumber`, `parsePrice`, imagens).
-- `geckoItemToProperty`: detectar shape Viva Real (presença de `attributes` + `prices` como array) e delegar ao novo parser, análogo ao que já é feito com Chaves.
+### 2. `src/routes/app.novo-estudo.tsx`
+- No `useEffect` de seed, remover o bloco que sincroniza `portal.vivareal` a partir do localStorage. Viva Real entra sempre na lista `portais` (assim como Zap já entra).
+- Em `togglePortal`, remover a persistência de `portal.vivareal` no localStorage. (O toggle do wizard pode continuar existindo visualmente, mas sem estado global — ou, mais limpo: tratar Viva Real como sempre selecionado no passo 4, sem checkbox editável, igual ao Zap.)
 
 ### 3. `src/lib/study-runner.ts`
-- `PORTAL_TARGETS`: adicionar `"vivareal.com.br": "Viva Real"`.
-- `PORTAL_NAME_TO_TARGET`: adicionar `"Viva Real": "vivareal.com.br"`.
-- Toggle localStorage `portal.vivareal` (default ligado). Incluir em `list` como o Chaves/OLX.
-- Camadas de âncora (mesmo prédio / endereço / bairro): Viva Real entra no mesmo caminho estrutural do Zap (usando `neighborhood` + `propertyTypes` em vez de `keyword`, já que Viva não aceita keyword). O `keywordOnlyLayer` deve pular Viva assim como já pula Chaves.
-- Retry afrouxado: incluir Viva Real na lista `retryTargets` junto com Zap e Chaves.
-
-### 4. `src/routes/app.configuracoes.tsx`
-- Adicionar `"vivareal.com.br"` no union type de `testTarget`.
-- Adicionar `<option value="vivareal.com.br">Viva Real</option>` no seletor de teste PDP e uma URL de exemplo.
-- Estado `vivaOn` com localStorage `portal.vivareal`, toggle e linha na lista "Portais ativos".
-
-### 5. `src/routes/app.novo-estudo.tsx`
-- Ler `portal.vivareal` do localStorage e incluir "Viva Real" na lista de portais selecionáveis do wizard (passo 4).
-
-### 6. `src/components/busca-rapida.tsx` (verificar)
-- Se listar portais explicitamente, incluir Viva Real.
+- Substituir `isVivaEnabled()` por `true` fixo (ou remover a função) em todos os pontos onde é consultada. Viva Real sempre participa do funil e do `retryTargets`.
 
 ## Fora de escopo
-- Endpoint PDP (`geckoPdp`) já é agnóstico ao portal — funciona sem alteração.
-- Retry específico do OLX / avisos de portal indisponível — outro tópico.
+- Adapter e handler do Gecko para Viva Real permanecem inalterados.
+- Toggles de Chaves na Mão e OLX continuam opcionais.
 
 ## Validação
-- Rodar um estudo em SP/Vila Mariana com todos os portais ligados e conferir o funil.
-- Testar PDP Viva Real em Configurações → Diagnóstico com URL pública.
+- Abrir Configurações → confirmar Viva Real listado como "sempre ativo" (sem switch).
+- Novo estudo → Viva Real aparece marcado e não editável no passo 4.
+- Rodar um estudo e conferir no log/funil que Viva Real é consultado mesmo com `localStorage.portal.vivareal = "0"` legado.
