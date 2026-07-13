@@ -739,7 +739,7 @@ export async function runStudy(
       //   passo A) tira amenities + radius (mantém bedrooms/price/area)
       //   passo B) tira tudo nativo (city/state/keyword/propertyType/neighborhood)
       if (!buscaLivre) {
-        const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br"] as PortalTarget[])
+        const retryTargets: PortalTarget[] = (["zapimoveis.com.br", "chavesnamao.com.br", "vivareal.com.br"] as PortalTarget[])
           .filter((t) =>
             targets.includes(t)
             // Antes era "=== 0" — agora reagimos a qualquer portal que veio
