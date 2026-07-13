@@ -19,7 +19,7 @@ function Configuracoes() {
   const [tokenConfigured, setTokenConfigured] = useState<boolean | null>(null);
   const [endpoint, setEndpoint] = useState("https://api.geckoapi.com.br/v1/extract");
   const [testUrl, setTestUrl] = useState("https://www.zapimoveis.com.br/imovel/aluguel-apartamento-4-quartos-com-piscina-agua-verde-curitiba-pr-158m2-id-2795564422/");
-  const [testTarget, setTestTarget] = useState<"zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br">("zapimoveis.com.br");
+  const [testTarget, setTestTarget] = useState<"zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br" | "vivareal.com.br">("zapimoveis.com.br");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<null | { ok: boolean; message: string; sample?: string }>(null);
   const [plpKeyword, setPlpKeyword] = useState("apartamento 3 quartos");
@@ -35,6 +35,11 @@ function Configuracoes() {
   const [olxOn, setOlxOn] = useState<boolean>(() => {
     if (typeof localStorage === "undefined") return true;
     const v = localStorage.getItem("portal.olx");
+    return v === null ? true : v === "1" || v === "true";
+  });
+  const [vivaOn, setVivaOn] = useState<boolean>(() => {
+    if (typeof localStorage === "undefined") return true;
+    const v = localStorage.getItem("portal.vivareal");
     return v === null ? true : v === "1" || v === "true";
   });
   const [branding, setBranding] = useState<BrandingSettings>(() => brandingStore.get());
@@ -78,6 +83,11 @@ function Configuracoes() {
     setOlxOn(on);
     try { localStorage.setItem("portal.olx", on ? "1" : "0"); } catch {}
     toast.success(on ? "OLX ativada nas buscas." : "OLX desativada.");
+  };
+  const toggleViva = (on: boolean) => {
+    setVivaOn(on);
+    try { localStorage.setItem("portal.vivareal", on ? "1" : "0"); } catch {}
+    toast.success(on ? "Viva Real ativada nas buscas." : "Viva Real desativada.");
   };
 
   useEffect(() => {
@@ -288,13 +298,15 @@ function Configuracoes() {
             <select
               value={testTarget}
               onChange={(e) => {
-                const v = e.target.value as "zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br";
+                const v = e.target.value as "zapimoveis.com.br" | "chavesnamao.com.br" | "olx.com.br" | "vivareal.com.br";
                 setTestTarget(v);
                 setTestUrl(
                   v === "chavesnamao.com.br"
                     ? "https://www.chavesnamao.com.br/imovel/apartamento-a-venda-4-quartos-com-garagem-sc-balneario-picarras-centro-496m2-RS5990000/id-29279133/"
                     : v === "olx.com.br"
                     ? "https://sp.olx.com.br/sorocaba-e-regiao/imoveis/apartamento-3-quartos-parque-campolim-sorocaba-1234567890"
+                    : v === "vivareal.com.br"
+                    ? "https://www.vivareal.com.br/imovel/apartamento-3-quartos-vila-mariana-zona-sul-sao-paulo-com-garagem-112m2-venda-RS980000-id-2787552284/"
                     : "https://www.zapimoveis.com.br/imovel/aluguel-apartamento-4-quartos-com-piscina-agua-verde-curitiba-pr-158m2-id-2795564422/",
                 );
               }}
@@ -303,6 +315,7 @@ function Configuracoes() {
               <option value="zapimoveis.com.br">Zap Imóveis</option>
               <option value="chavesnamao.com.br">Chaves na Mão</option>
               <option value="olx.com.br">OLX</option>
+            <option value="vivareal.com.br">Viva Real</option>
             </select>
             <Input value={testUrl} onChange={(e) => setTestUrl(e.target.value)} placeholder="https://www..." />
             <Button onClick={handleTest} disabled={testing || !testUrl} className="gap-2">
@@ -349,7 +362,7 @@ function Configuracoes() {
           {[
             { n: "Zap Imóveis", on: true, locked: true, checked: true },
             { n: "Chaves na Mão", on: true, locked: false, checked: chavesOn, toggle: toggleChaves },
-            { n: "Viva Real", on: false, locked: true, checked: false },
+            { n: "Viva Real", on: true, locked: false, checked: vivaOn, toggle: toggleViva },
             { n: "OLX", on: true, locked: false, checked: olxOn, toggle: toggleOlx },
             { n: "Imovelweb", on: false, locked: true, checked: false },
           ].map((p) => (
