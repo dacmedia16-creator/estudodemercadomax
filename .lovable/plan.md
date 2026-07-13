@@ -1,44 +1,49 @@
-# Tornar todos os 4 portais fixos, com falha isolada por portal
+# Fixar corte "Top 10 mais baratos" + priorizar anúncios recentes
 
-Todos os portais integrados (Zap, Viva Real, Chaves na Mão, OLX) passam a rodar sempre em todas as buscas. Se algum deles falhar, é ignorado e a busca continua com os outros — sem quebrar o estudo.
+Objetivo: remover o caráter opcional do corte pelos 10 mais baratos e adicionar, como **última etapa** do funil, um filtro que privilegia anúncios com data de inclusão mais próxima do dia do estudo.
 
-## Boa notícia sobre a "falha isolada"
+## 1. Corte fixo pelos 10 mais baratos (`src/lib/study-runner.ts`)
 
-O `study-runner.ts` **já isola falhas por portal**: cada chamada `geckoPlp` está dentro de um `try/catch` num `Promise.all` (linhas 378–431). Portal que dá erro devolve `null`, é registrado no funil e a camada segue com os demais. Ou seja, esse comportamento já existe hoje para Zap/Chaves/OLX/Viva. A mudança abaixo é só de UI e da lista fixa; o motor não precisa de retrabalho.
+- Remover a leitura de `overrides.top10Baratos` (linhas ~1266–1277). O corte passa a rodar **sempre** que a amostra tiver mais de 10 comparáveis.
+- Manter o registro no funil (`etapa: "Top 10 mais baratos (corte por preço — X → 10)"`) e em `criteriosAplicados`.
+- Marcar `SearchOverrides.top10Baratos` como `@deprecated` em `src/lib/study-types.ts` (mantido para não quebrar estudos salvos, mas ignorado).
 
-## Mudanças
+## 2. Nova última etapa: priorizar recência (`src/lib/study-runner.ts` / `src/lib/study-engine.ts`)
 
-### 1. `src/lib/study-runner.ts`
-- Remover as funções `isChavesEnabled()` e `isOlxEnabled()` (e o `isVivaEnabled` já foi removido).
-- `activeTargets()` passa a retornar sempre `["zapimoveis.com.br", "vivareal.com.br", "chavesnamao.com.br", "olx.com.br"]`, ignorando o `input.portais` para efeito de seleção (o campo continua existindo em `StudyInput` para compatibilidade, mas não filtra mais nada).
-- Incluir `olx.com.br` também em `retryTargets` (hoje ele fica de fora do retry afrouxado).
+Depois do corte pelos 10 mais baratos (e antes do `computeStats`), aplicar reordenação por `diasMercado`:
 
-### 2. `src/routes/app.configuracoes.tsx`
-- Remover estados `chavesOn`, `olxOn` e handlers `toggleChaves`, `toggleOlx`.
-- Na lista "Portais ativos", deixar os 4 como `locked: true, checked: true` (todos "Sempre ativo", sem interruptor).
-- Adicionar uma pequena nota abaixo da lista: "Se algum portal estiver instável, ele é ignorado automaticamente e o estudo segue com os outros."
-- Manter o seletor de teste PDP/PLP com os 4 portais (diagnóstico inalterado).
-- Imovelweb continua como "Em breve" (locked, desligado).
+- Regra: dentro dos 10 finais, ordenar do menor `diasMercado` (mais recente) para o maior. Empates: menor preço total.
+- Anúncios **sem `diasMercado`** (campo ausente em alguns retornos de portal): tratados como "idade desconhecida" e vão para o fim da lista, mas **continuam nos 10** — nunca descartar por falta de data, para não esvaziar a amostra.
+- Não é um filtro que **elimina** — é reordenação. A amostra dos 10 permanece a mesma; muda só a apresentação/ordem no relatório e a rotulagem de "mais atuais".
+- Registrar no funil: `etapa: "Priorização por data de inclusão (mais recentes primeiro)"`.
 
-### 3. `src/routes/app.novo-estudo.tsx`
-- Remover todo o `useEffect` que lia `portal.chavesnamao` / `portal.olx` do localStorage.
-- Inicializar `portais` com os 4 fixos e remover a lógica de sync/toggle.
-- Remover a persistência em `localStorage` dentro de `togglePortal` (a função pode ser removida se não for mais usada em nenhum lugar da UI; o passo 4 do wizard hoje só mostra um Card informativo, não expõe toggles).
+## 3. UI — remover o toggle opcional
 
-### 4. Limpeza de localStorage legado
-- Não vamos migrar/limpar as chaves antigas (`portal.chavesnamao`, `portal.olx`, `portal.vivareal`) — elas simplesmente deixam de ser lidas. Sem risco funcional.
+- `src/components/criterios-editor.tsx` (ou onde o campo "Focar nos 10 mais baratos" for exposto): remover o checkbox/toggle. O comportamento é fixo — nenhuma opção editável.
+- `src/routes/app.relatorio.$id.tsx`: a legenda "Foco nos 10 mais baratos" continua aparecendo em `criteriosAplicados` (vem do runner).
 
-## Fora de escopo
-- Adapter Gecko e handler `geckoPlp` — inalterados.
-- Retry por 5xx dentro do `callGecko` — já existe (3 tentativas) e continua.
-- Aviso visual no relatório dizendo "portal X ficou fora nesta busca" — pode ser um próximo passo, mas hoje o funil já mostra `firstError` no debug; não vou mexer nisso agora.
+## 4. Fora de escopo
 
-## Impacto esperado
-- Estudos consomem créditos dos 4 portais sempre (antes era variável).
-- Robustez maior: portal caído não trava mais nada — já era assim, agora fica explícito e sem interruptor pra confundir o usuário.
-- Tempo do estudo pode subir levemente quando algum portal está lento, já que a camada espera o `Promise.all` resolver.
+- Não mexer no scoring de similaridade, ACM, IA, dedup, `computeStats`, `flagOutliers` ou peso de confiança por DOM (que já existe em `computeConfidence`).
+- Não mudar as camadas de busca nem os filtros hard/soft/prefer.
+- Não descartar comparáveis por idade — só reordenar.
 
-## Validação
-- Configurações → 4 portais listados como "Sempre ativo", sem switches (só Imovelweb desligado).
-- Novo estudo → passo 4 mostra só o card informativo, sem toggles.
-- Simular erro de um portal (ex.: URL de teste inválida no diagnóstico) e confirmar que estudo real segue normalmente com os outros três — o funil deve mostrar o portal que falhou como `error`/`0 itens`.
+## Detalhes técnicos
+
+Ordem final do funil (em `study-runner.ts` → `study-engine.ts`):
+
+```text
+busca multi-portal
+  → dedup semântica
+  → filtros hard (tipo, finalidade, quartos, área, campos "hard")
+  → ordenação por similaridade
+  → interleaving por portal (top 10 balanceados)
+  → [NOVO — FIXO] corte pelos 10 mais baratos (preço total)
+  → [NOVO] reordenação por diasMercado (mais recentes primeiro; sem data = fim)
+  → flagOutliers + computeStats
+```
+
+Impacto:
+- Estudos onde a busca traz >10 comparáveis passam a **sempre** aplicar o corte de preço (hoje, mesmo com default ligado, o override podia desligar).
+- Relatório passa a listar os comparáveis com o mais recente no topo.
+- Zero migração de dados: `SearchOverrides.top10Baratos` fica no schema, apenas ignorado.
