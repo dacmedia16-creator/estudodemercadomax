@@ -193,10 +193,9 @@ export interface SearchOverrides {
   /** Idem ao campo de StudyInput — pode ser sobrescrito no CriteriosEditor. */
   expandirBairrosProximos?: boolean;
   /**
-   * Quando true (default), e a busca retornar **mais de 10 comparáveis**,
-   * mantém apenas os 10 de menor preço total (R$). Não afeta o motor de
-   * scoring/ACM/IA — apenas reduz a amostra antes do cálculo, focando o
-   * estudo na faixa mais competitiva da concorrência.
+   * @deprecated Sempre ativo — o motor força o corte pelos 10 mais baratos
+   * quando a amostra tem mais de 10 comparáveis. Mantido no schema apenas
+   * para não quebrar estudos salvos; o valor é ignorado.
    */
   top10Baratos?: boolean;
   /**
