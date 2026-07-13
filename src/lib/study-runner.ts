@@ -40,17 +40,8 @@ export function isOlxEnabled(): boolean {
   } catch { return true; }
 }
 
-export function isVivaEnabled(): boolean {
-  try {
-    if (typeof localStorage === "undefined") return true;
-    const v = localStorage.getItem("portal.vivareal");
-    if (v === null) return true; // default ON
-    return v === "1" || v === "true";
-  } catch { return true; }
-}
-
 function activeTargets(input?: StudyInput): PortalTarget[] {
-  const list: PortalTarget[] = ["zapimoveis.com.br"];
+  const list: PortalTarget[] = ["zapimoveis.com.br", "vivareal.com.br"];
   // Per-study selection wins over the global toggle.
   const portais = input?.portais ?? [];
   const hasChavesInStudy = portais.some((p) => p.toLowerCase().includes("chaves"));
@@ -59,9 +50,6 @@ function activeTargets(input?: StudyInput): PortalTarget[] {
   const hasOlxInStudy = portais.some((p) => p.toLowerCase() === "olx" || p.toLowerCase().includes("olx"));
   const olxOn = portais.length > 0 ? hasOlxInStudy : isOlxEnabled();
   if (olxOn) list.push("olx.com.br");
-  const hasVivaInStudy = portais.some((p) => p.toLowerCase().includes("viva"));
-  const vivaOn = portais.length > 0 ? hasVivaInStudy : isVivaEnabled();
-  if (vivaOn) list.push("vivareal.com.br");
   return list;
 }
 
