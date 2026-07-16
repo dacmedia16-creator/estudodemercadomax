@@ -211,8 +211,9 @@ export function PrintOwnerPages({
   return (
     <section className="print-slides print-owner-pages" style={styleVars}>
       <CoverPage study={study} branding={branding} dataStr={data} acm={acm} />
-      <OwnerPersuasionPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
+      {/* Nova ordem: primeiro a Carta (linguagem simples), depois os Argumentos (dados). */}
       <OwnerLetterPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
+      <OwnerPersuasionPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
       <BackCoverPage study={study} branding={branding} dataStr={data} />
     </section>
   );
@@ -273,12 +274,12 @@ function CoverPage({
           <div className="cover-hero-val">{formatBRL(valorIdeal)}</div>
           {range && (
             <div className="cover-hero-range">
-              faixa de confiança ({range.confianca}): {formatBRL(range.min)} – {formatBRL(range.max)}
+              margem de segurança da estimativa ({range.confianca}): {formatBRL(range.min)} – {formatBRL(range.max)}
             </div>
           )}
           {study.iaSobrescrita && (
             <div className="cover-hero-warn">
-              ⚠ Valor da IA ajustado para a mediana de mercado (divergência &gt; 15%).
+              ⚠ Estimativa ajustada para o preço médio de mercado (divergência &gt; 15%).
             </div>
           )}
         </div>
@@ -424,14 +425,14 @@ function OwnerPersuasionPage({
     0,
   );
 
-  // Posição percentil aproximada do preço pretendido
+  // Posição aproximada do preço pretendido na faixa de preços observada
   let percentilPos: string | null = null;
   if (stats && pretendido > 0) {
-    if (pretendido >= stats.p90) percentilPos = "topo 10%";
-    else if (pretendido >= stats.p75) percentilPos = "topo 25%";
-    else if (pretendido >= stats.median) percentilPos = "metade superior";
-    else if (pretendido >= stats.p25) percentilPos = "metade inferior";
-    else percentilPos = "25% mais baratos";
+    if (pretendido >= stats.p90) percentilPos = "entre os 10% mais caros";
+    else if (pretendido >= stats.p75) percentilPos = "entre os 25% mais caros";
+    else if (pretendido >= stats.median) percentilPos = "acima do meio da faixa";
+    else if (pretendido >= stats.p25) percentilPos = "abaixo do meio da faixa";
+    else percentilPos = "entre os 25% mais baratos";
   }
 
   const precoM2Pretendido = input.areaUtil > 0 ? pretendido / input.areaUtil : 0;
@@ -508,10 +509,10 @@ function OwnerPersuasionPage({
           <div className="owner-block-title">Por que o preço atual afasta compradores</div>
           <ul className="owner-facts">
             {percentilPos && (
-              <li>Entre os comparáveis, seu preço está no <b>{percentilPos}</b> da faixa observada.</li>
+              <li>Entre os imóveis parecidos analisados, seu preço está <b>{percentilPos}</b>.</li>
             )}
             {acimaMedianaM2 > 1 && (
-              <li>O R$/m² pretendido (<b>{formatBRL(precoM2Pretendido)}</b>) está <b>{acimaMedianaM2.toFixed(1)}%</b> acima da mediana do bairro (<b>{formatBRL(stats?.median || 0)}/m²</b>).</li>
+              <li>Seu preço por metro quadrado (<b>{formatBRL(precoM2Pretendido)}</b>) está <b>{acimaMedianaM2.toFixed(1)}%</b> acima do preço mediano do bairro (<b>{formatBRL(stats?.median || 0)}/m²</b>).</li>
             )}
             {totalComps > 0 && abaixoCount > 0 && (
               <li><b>{abaixoCount} de {totalComps}</b> imóveis semelhantes hoje custam menos que o valor pretendido.</li>
@@ -520,7 +521,7 @@ function OwnerPersuasionPage({
               <li>Há concorrente equivalente anunciado por <b>{formatBRL(menorPreco)}</b> — diferença de <b>{formatBRL(pretendido - menorPreco)}</b>.</li>
             )}
             {stats && (
-              <li>Faixa observada de R$/m² no estudo: <b>{formatBRL(stats.p10)}</b> (P10) a <b>{formatBRL(stats.p90)}</b> (P90); mediana <b>{formatBRL(stats.median)}</b>.</li>
+              <li>Preços por metro quadrado encontrados: de <b>{formatBRL(stats.p10)}</b> (10% mais baratos) até <b>{formatBRL(stats.p90)}</b> (10% mais caros); no meio da faixa: <b>{formatBRL(stats.median)}</b>.</li>
             )}
           </ul>
         </div>
@@ -570,22 +571,22 @@ function OwnerPersuasionPage({
 
       {/* Faixa recomendada */}
       <div className="owner-faixa">
-        <div className="owner-faixa-title">Faixa recomendada de publicação</div>
+        <div className="owner-faixa-title">Faixa recomendada para anunciar</div>
         <div className="owner-faixa-row">
           <div className="owner-faixa-cell">
-            <div className="owner-faixa-lbl">Entrada (vende rápido)</div>
+            <div className="owner-faixa-lbl">Preço para vender rápido</div>
             <div className="owner-faixa-val">{formatBRL(faixa.entrada)}</div>
           </div>
           <div className="owner-faixa-cell owner-faixa-ideal">
-            <div className="owner-faixa-lbl">Ideal (sugerido)</div>
+            <div className="owner-faixa-lbl">Preço recomendado</div>
             <div className="owner-faixa-val">{formatBRL(faixa.ideal)}</div>
           </div>
           <div className="owner-faixa-cell">
-            <div className="owner-faixa-lbl">Teto (com margem)</div>
+            <div className="owner-faixa-lbl">Teto com margem de negociação</div>
             <div className="owner-faixa-val">{formatBRL(faixa.teto)}</div>
           </div>
           <div className="owner-faixa-cell owner-faixa-pub">
-            <div className="owner-faixa-lbl">Máx. de publicação (ACM)</div>
+            <div className="owner-faixa-lbl">Preço máximo para anunciar</div>
             <div className="owner-faixa-val">{formatBRL(acm.valorMaximoPublicacao)}</div>
           </div>
         </div>
@@ -633,7 +634,7 @@ function buildFallbackArgs(p: {
     out.push(`O concorrente mais agressivo está em ${formatBRL(p.menorPreco)} — comprador racional começa por ele.`);
   }
   if (p.acimaMedianaM2 > 1) {
-    out.push(`Seu R$/m² está ${p.acimaMedianaM2.toFixed(1)}% acima da mediana da região; portais penalizam anúncios fora da curva.`);
+    out.push(`Seu preço por metro quadrado está ${p.acimaMedianaM2.toFixed(1)}% acima da média da região — anúncios muito acima do mercado aparecem pior nas buscas dos portais.`);
   }
   if (p.gapPct > 3) {
     out.push(`Ajustar para o valor ideal de ${formatBRL(p.valorIdeal)} alinha o imóvel ao centro do mercado e amplia o público qualificado.`);
@@ -645,12 +646,12 @@ function buildFallbackArgs(p: {
 
 function buildFallbackRiscos(gapPct: number): string[] {
   const base = [
-    "Baixa relevância nos portais — anúncios acima da curva caem no ranking de busca.",
-    "Queda de visitas e poucas propostas qualificadas nos primeiros 30 dias.",
+    "Menos visibilidade nos portais — anúncios acima do preço de mercado aparecem em posições piores nas buscas.",
+    "Poucas visitas e propostas nos primeiros 30 dias, que costumam ser os mais importantes.",
     "Risco de descontos maiores depois, quando o imóvel já 'envelheceu' no mercado.",
   ];
   if (gapPct > 10) {
-    base.unshift("Diferença atual >10% acima do mercado tende a eliminar o imóvel das comparações dos compradores.");
+    base.unshift("Diferença atual acima de 10% do mercado tende a fazer o comprador descartar o imóvel antes mesmo de olhar.");
   }
   return base;
 }

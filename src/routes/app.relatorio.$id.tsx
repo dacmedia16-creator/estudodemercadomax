@@ -669,54 +669,54 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
         <div className="op-hero-value">{formatBRL(valorIdeal)}</div>
         {study.valorIdealRange && (
           <div className="op-hero-meta" style={{ fontStyle: "italic", color: "#cfe0ff", marginBottom: 4 }}>
-            Faixa de confiança ({study.valorIdealRange.confianca}): {formatBRL(study.valorIdealRange.min)} – {formatBRL(study.valorIdealRange.max)}
+            Margem de segurança da estimativa ({study.valorIdealRange.confianca}): {formatBRL(study.valorIdealRange.min)} – {formatBRL(study.valorIdealRange.max)}
           </div>
         )}
         {study.iaSobrescrita && (
           <div className="op-hero-meta" style={{ color: "#fde68a", fontWeight: 700 }}>
-            ⚠ IA ajustada para a mediana de mercado (divergia &gt; 15%).
+            ⚠ Estimativa ajustada para o preço médio de mercado (divergência &gt; 15%).
           </div>
         )}
         <div className="op-hero-pills">
           <div className="op-hpill">
-            <div className="lbl">Mínimo de fechamento</div>
+            <div className="lbl">Preço para vender rápido</div>
             <div className="val">{formatBRL(idealMin)}</div>
           </div>
           <div className="op-hpill op-hpill-strong">
-            <div className="lbl">Valor ideal</div>
+            <div className="lbl">Preço recomendado</div>
             <div className="val">{formatBRL(valorIdeal)}</div>
           </div>
           <div className="op-hpill">
-            <div className="lbl">Máximo de publicação</div>
+            <div className="lbl">Preço máximo para anunciar</div>
             <div className="val">{formatBRL(idealMax)}</div>
           </div>
         </div>
         <div className="op-hero-meta">
-          {study.comparaveis.length} comparáveis analisados · média de mercado {formatBRL(study.precoM2Medio)}/m² · status <b>{study.status}</b>
+          {study.comparaveis.length} imóveis parecidos analisados · preço médio de mercado {formatBRL(study.precoM2Medio)}/m² · situação: <b>{study.status}</b>
         </div>
       </div>
 
       {/* KPIs 3 colunas */}
       <div className="op-kpis">
         <div className="op-kpi">
-          <div className="lbl">Pretendido pelo proprietário</div>
+          <div className="lbl">Preço pretendido pelo proprietário</div>
           <div className="val">{formatBRL(input.valorPretendido)}</div>
           <div className="meta">{formatBRL(study.precoM2Pretendido)}/m² · cond. {formatBRL(input.condominio)}</div>
         </div>
         <div className="op-kpi">
-          <div className="lbl">Mercado comparado</div>
+          <div className="lbl">Preço médio dos imóveis parecidos</div>
           <div className="val">{formatBRL(study.precoMedio)}</div>
           <div className="meta">faixa {formatBRL(study.faixaMin)} – {formatBRL(study.faixaMax)}</div>
         </div>
         <div className="op-kpi">
-          <div className="lbl">Diagnóstico</div>
+          <div className="lbl">O que o estudo mostra</div>
           <div className="val op-kpi-status">{study.status}</div>
           <div className="meta">{study.diagnostico}</div>
         </div>
       </div>
 
       {/* Comparáveis */}
-      <div className="op-section-title">Top comparáveis</div>
+      <div className="op-section-title">Imóveis parecidos anunciados hoje</div>
       <table className="op-table">
         <thead>
           <tr>
@@ -726,7 +726,7 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
             <th className="num" style={{ width: "7%" }}>Qtos</th>
             <th className="num" style={{ width: "13%" }}>Preço</th>
             <th className="num" style={{ width: "11%" }}>R$/m²</th>
-            <th style={{ width: "16%" }}>Similaridade</th>
+            <th style={{ width: "16%" }}>Semelhança</th>
           </tr>
         </thead>
         <tbody>
