@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, RotateCcw, Save, ShieldCheck } from "lucide-react";
+import { Calculator, RotateCcw, Save } from "lucide-react";
 import { computeAcm, formatBRL } from "@/lib/study-engine";
 import { DEFAULT_ACM, type AcmAdjustments, type StudyResult } from "@/lib/study-types";
 import { studyStore } from "@/lib/study-store";
