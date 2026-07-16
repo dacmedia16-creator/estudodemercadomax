@@ -274,7 +274,7 @@ function CoverPage({
           <div className="cover-hero-val">{formatBRL(valorIdeal)}</div>
           {range && (
             <div className="cover-hero-range">
-              faixa de confiança ({range.confianca}): {formatBRL(range.min)} – {formatBRL(range.max)}
+              margem de segurança da estimativa ({range.confianca}): {formatBRL(range.min)} – {formatBRL(range.max)}
             </div>
           )}
           {study.iaSobrescrita && (
