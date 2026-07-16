@@ -262,13 +262,6 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
             label="Valor pretendido pelo cliente"
             value={formatBRL(study.input.valorPretendido)}
           />
-        {computed.valorPiso > 0 && (
-          <SummaryItem
-            label="Piso competitivo"
-            value={formatBRL(computed.valorPiso)}
-            hint="referência do mais barato"
-          />
-        )}
           <div className="rounded-lg border border-border/70 bg-background p-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Pretendido vs. sugerido
