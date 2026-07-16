@@ -279,7 +279,7 @@ function CoverPage({
           )}
           {study.iaSobrescrita && (
             <div className="cover-hero-warn">
-              ⚠ Valor da IA ajustado para a mediana de mercado (divergência &gt; 15%).
+              ⚠ Estimativa ajustada para o preço médio de mercado (divergência &gt; 15%).
             </div>
           )}
         </div>
