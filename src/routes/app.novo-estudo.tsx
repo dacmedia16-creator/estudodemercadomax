@@ -61,9 +61,9 @@ function NovoEstudo() {
     suites: 1,
     banheiros: 2,
     vagas: 2,
-    condominio: 850,
-    iptu: 220,
-    valorPretendido: 780000,
+    condominio: undefined,
+    iptu: undefined,
+    valorPretendido: undefined,
     diferenciais: ["Piscina", "Churrasqueira", "Sacada"],
     portais: PORTAIS.filter((p) => p.ativo).map((p) => p.nome),
   });
@@ -316,9 +316,9 @@ function NovoEstudo() {
             <Field label="Vagas"><NumberInput v={data.vagas} onV={(v) => update("vagas", v)} /></Field>
             <Field label="Andar"><NumberInput v={data.andar} onV={(v) => update("andar", v)} /></Field>
             <div />
-            <Field label="Condomínio (R$)"><NumberInput v={data.condominio} onV={(v) => update("condominio", v)} /></Field>
-            <Field label="IPTU (R$)"><NumberInput v={data.iptu} onV={(v) => update("iptu", v)} /></Field>
-            <Field label="Valor pretendido (R$)"><NumberInput v={data.valorPretendido} onV={(v) => update("valorPretendido", v)} /></Field>
+            <Field label="Condomínio"><CurrencyInput v={data.condominio} onV={(v) => update("condominio", v)} /></Field>
+            <Field label="IPTU"><CurrencyInput v={data.iptu} onV={(v) => update("iptu", v)} /></Field>
+            <Field label="Valor pretendido"><CurrencyInput v={data.valorPretendido} onV={(v) => update("valorPretendido", v)} /></Field>
           </div>
           </div>
         )}
@@ -422,6 +422,34 @@ function NumberInput({ v, onV }: { v?: number; onV: (n: number | undefined) => v
           return;
         }
         const n = Number(raw.replace(",", "."));
+        if (Number.isFinite(n)) onV(n);
+      }}
+    />
+  );
+}
+
+const brlFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+function CurrencyInput({ v, onV }: { v?: number; onV: (n: number | undefined) => void }) {
+  const display = v === undefined || v === null || !Number.isFinite(v) ? "" : brlFormatter.format(v);
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      value={display}
+      placeholder="R$ 0"
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, "");
+        if (digits === "") {
+          onV(undefined);
+          return;
+        }
+        const n = Number(digits);
         if (Number.isFinite(n)) onV(n);
       }}
     />
