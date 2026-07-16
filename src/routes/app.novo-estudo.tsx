@@ -239,7 +239,10 @@ function NovoEstudo() {
               </Select>
             </Field>
             <Field label="Tipo do imóvel">
-              <Select value={data.tipo} onValueChange={(v) => update("tipo", v)}>
+              <Select value={data.tipo} onValueChange={(v) => {
+                update("tipo", v);
+                if (v === "Apartamento") update("areaTotal", undefined);
+              }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{TIPOS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
@@ -308,7 +311,9 @@ function NovoEstudo() {
           <div className="space-y-6">
           <div className="grid gap-5 md:grid-cols-3">
             <Field label="Área útil (m²)"><NumberInput v={data.areaUtil} onV={(v) => update("areaUtil", v)} /></Field>
-            <Field label="Área total (m²)"><NumberInput v={data.areaTotal} onV={(v) => update("areaTotal", v)} /></Field>
+            {data.tipo !== "Apartamento" && (
+              <Field label="Área total (m²)"><NumberInput v={data.areaTotal} onV={(v) => update("areaTotal", v)} /></Field>
+            )}
             <Field label="Ano de construção"><NumberInput v={data.anoConstrucao} onV={(v) => update("anoConstrucao", v)} /></Field>
             <Field label="Quartos"><NumberInput v={data.quartos} onV={(v) => update("quartos", v)} /></Field>
             <Field label="Suítes"><NumberInput v={data.suites} onV={(v) => update("suites", v)} /></Field>
