@@ -204,22 +204,6 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
             </div>
           </div>
 
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-sm font-medium">Margem de negociação</label>
-              <span className="text-sm tabular-nums text-muted-foreground">±{acm.margemPublicacaoPct}%</span>
-            </div>
-            <Slider
-              min={0}
-              max={15}
-              step={1}
-              value={[acm.margemPublicacaoPct]}
-              onValueChange={([v]) => update({ margemPublicacaoPct: v })}
-            />
-            <div className="mt-1 text-[11px] text-muted-foreground">
-              Aplicada para cima (valor máximo de publicação) e para baixo (mínimo de fechamento).
-            </div>
-          </div>
         </div>
       </div>
 
