@@ -616,7 +616,7 @@ function OwnerPersuasionPage({
       )}
 
       <div className="acm-page-meta">
-        {brandName} · estudo {study.id.slice(0, 8)} · {dataStr} · página 2
+        {brandName} · estudo {study.id.slice(0, 8)} · {dataStr} · página 3
       </div>
     </div>
   );
