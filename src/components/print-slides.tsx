@@ -571,22 +571,22 @@ function OwnerPersuasionPage({
 
       {/* Faixa recomendada */}
       <div className="owner-faixa">
-        <div className="owner-faixa-title">Faixa recomendada de publicação</div>
+        <div className="owner-faixa-title">Faixa recomendada para anunciar</div>
         <div className="owner-faixa-row">
           <div className="owner-faixa-cell">
-            <div className="owner-faixa-lbl">Entrada (vende rápido)</div>
+            <div className="owner-faixa-lbl">Preço para vender rápido</div>
             <div className="owner-faixa-val">{formatBRL(faixa.entrada)}</div>
           </div>
           <div className="owner-faixa-cell owner-faixa-ideal">
-            <div className="owner-faixa-lbl">Ideal (sugerido)</div>
+            <div className="owner-faixa-lbl">Preço recomendado</div>
             <div className="owner-faixa-val">{formatBRL(faixa.ideal)}</div>
           </div>
           <div className="owner-faixa-cell">
-            <div className="owner-faixa-lbl">Teto (com margem)</div>
+            <div className="owner-faixa-lbl">Teto com margem de negociação</div>
             <div className="owner-faixa-val">{formatBRL(faixa.teto)}</div>
           </div>
           <div className="owner-faixa-cell owner-faixa-pub">
-            <div className="owner-faixa-lbl">Máx. de publicação (ACM)</div>
+            <div className="owner-faixa-lbl">Preço máximo para anunciar</div>
             <div className="owner-faixa-val">{formatBRL(acm.valorMaximoPublicacao)}</div>
           </div>
         </div>
@@ -634,7 +634,7 @@ function buildFallbackArgs(p: {
     out.push(`O concorrente mais agressivo está em ${formatBRL(p.menorPreco)} — comprador racional começa por ele.`);
   }
   if (p.acimaMedianaM2 > 1) {
-    out.push(`Seu R$/m² está ${p.acimaMedianaM2.toFixed(1)}% acima da mediana da região; portais penalizam anúncios fora da curva.`);
+    out.push(`Seu preço por metro quadrado está ${p.acimaMedianaM2.toFixed(1)}% acima da média da região — anúncios muito acima do mercado aparecem pior nas buscas dos portais.`);
   }
   if (p.gapPct > 3) {
     out.push(`Ajustar para o valor ideal de ${formatBRL(p.valorIdeal)} alinha o imóvel ao centro do mercado e amplia o público qualificado.`);
@@ -646,12 +646,12 @@ function buildFallbackArgs(p: {
 
 function buildFallbackRiscos(gapPct: number): string[] {
   const base = [
-    "Baixa relevância nos portais — anúncios acima da curva caem no ranking de busca.",
-    "Queda de visitas e poucas propostas qualificadas nos primeiros 30 dias.",
+    "Menos visibilidade nos portais — anúncios acima do preço de mercado aparecem em posições piores nas buscas.",
+    "Poucas visitas e propostas nos primeiros 30 dias, que costumam ser os mais importantes.",
     "Risco de descontos maiores depois, quando o imóvel já 'envelheceu' no mercado.",
   ];
   if (gapPct > 10) {
-    base.unshift("Diferença atual >10% acima do mercado tende a eliminar o imóvel das comparações dos compradores.");
+    base.unshift("Diferença atual acima de 10% do mercado tende a fazer o comprador descartar o imóvel antes mesmo de olhar.");
   }
   return base;
 }
