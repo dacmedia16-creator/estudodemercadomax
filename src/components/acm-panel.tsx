@@ -253,11 +253,6 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
           hintTone={computed.pisoAplicado || computed.abaixoDoPiso ? "warning" : undefined}
           />
           <SummaryItem
-            label="Mínimo de fechamento"
-            value={formatBRL(computed.valorMinimoFechamento)}
-            hint={`-${acm.margemPublicacaoPct}%`}
-          />
-          <SummaryItem
             label="Máximo de publicação"
             value={formatBRL(computed.valorMaximoPublicacao)}
             hint={`+${acm.margemPublicacaoPct}%`}

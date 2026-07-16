@@ -1,20 +1,12 @@
 ## Objetivo
 
-No passo 2 do "Novo estudo", ocultar o campo **"Área total (m²)"** quando o tipo do imóvel selecionado for **"Apartamento"**.
+Ocultar o card **"Mínimo de fechamento"** no resumo da Avaliação ACM.
 
-## Alteração — `src/routes/app.novo-estudo.tsx`
+## Alteração — `src/components/acm-panel.tsx`
 
-No passo 2, envolver o `<Field label="Área total (m²)">` em um condicional:
-
-```tsx
-{data.tipo !== "Apartamento" && (
-  <Field label="Área total (m²)"><NumberInput ... /></Field>
-)}
-```
-
-Quando ocultado, também limpar `data.areaTotal` para não enviar valor residual caso o usuário troque de tipo depois de digitar. Isso é feito ajustando o `onValueChange` do Select de tipo no passo 1: se novo tipo for "Apartamento", setar `areaTotal: undefined`.
+Remover (ou comentar) o bloco `<SummaryItem label="Mínimo de fechamento" ... />` dentro do grid de resumo (linha ~334).
 
 ## Fora do escopo
 
-- Não alterar outros campos nem outros tipos.
-- Não mexer no `StudyInput` — `areaTotal` já é opcional.
+- Não alterar cálculo de `valorMinimoFechamento` em `study-engine` (permanece disponível caso seja usado em outros lugares como relatório/slides).
+- Não mexer nos outros cards do resumo.
