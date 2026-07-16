@@ -427,3 +427,31 @@ function NumberInput({ v, onV }: { v?: number; onV: (n: number | undefined) => v
     />
   );
 }
+
+const brlFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+function CurrencyInput({ v, onV }: { v?: number; onV: (n: number | undefined) => void }) {
+  const display = v === undefined || v === null || !Number.isFinite(v) ? "" : brlFormatter.format(v);
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      value={display}
+      placeholder="R$ 0"
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, "");
+        if (digits === "") {
+          onV(undefined);
+          return;
+        }
+        const n = Number(digits);
+        if (Number.isFinite(n)) onV(n);
+      }}
+    />
+  );
+}
