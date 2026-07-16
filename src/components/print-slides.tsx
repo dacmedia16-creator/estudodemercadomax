@@ -425,14 +425,14 @@ function OwnerPersuasionPage({
     0,
   );
 
-  // Posição percentil aproximada do preço pretendido
+  // Posição aproximada do preço pretendido na faixa de preços observada
   let percentilPos: string | null = null;
   if (stats && pretendido > 0) {
-    if (pretendido >= stats.p90) percentilPos = "topo 10%";
-    else if (pretendido >= stats.p75) percentilPos = "topo 25%";
-    else if (pretendido >= stats.median) percentilPos = "metade superior";
-    else if (pretendido >= stats.p25) percentilPos = "metade inferior";
-    else percentilPos = "25% mais baratos";
+    if (pretendido >= stats.p90) percentilPos = "entre os 10% mais caros";
+    else if (pretendido >= stats.p75) percentilPos = "entre os 25% mais caros";
+    else if (pretendido >= stats.median) percentilPos = "acima do meio da faixa";
+    else if (pretendido >= stats.p25) percentilPos = "abaixo do meio da faixa";
+    else percentilPos = "entre os 25% mais baratos";
   }
 
   const precoM2Pretendido = input.areaUtil > 0 ? pretendido / input.areaUtil : 0;
@@ -509,10 +509,10 @@ function OwnerPersuasionPage({
           <div className="owner-block-title">Por que o preço atual afasta compradores</div>
           <ul className="owner-facts">
             {percentilPos && (
-              <li>Entre os comparáveis, seu preço está no <b>{percentilPos}</b> da faixa observada.</li>
+              <li>Entre os imóveis parecidos analisados, seu preço está <b>{percentilPos}</b>.</li>
             )}
             {acimaMedianaM2 > 1 && (
-              <li>O R$/m² pretendido (<b>{formatBRL(precoM2Pretendido)}</b>) está <b>{acimaMedianaM2.toFixed(1)}%</b> acima da mediana do bairro (<b>{formatBRL(stats?.median || 0)}/m²</b>).</li>
+              <li>Seu preço por metro quadrado (<b>{formatBRL(precoM2Pretendido)}</b>) está <b>{acimaMedianaM2.toFixed(1)}%</b> acima do preço mediano do bairro (<b>{formatBRL(stats?.median || 0)}/m²</b>).</li>
             )}
             {totalComps > 0 && abaixoCount > 0 && (
               <li><b>{abaixoCount} de {totalComps}</b> imóveis semelhantes hoje custam menos que o valor pretendido.</li>
@@ -521,7 +521,7 @@ function OwnerPersuasionPage({
               <li>Há concorrente equivalente anunciado por <b>{formatBRL(menorPreco)}</b> — diferença de <b>{formatBRL(pretendido - menorPreco)}</b>.</li>
             )}
             {stats && (
-              <li>Faixa observada de R$/m² no estudo: <b>{formatBRL(stats.p10)}</b> (P10) a <b>{formatBRL(stats.p90)}</b> (P90); mediana <b>{formatBRL(stats.median)}</b>.</li>
+              <li>Preços por metro quadrado encontrados: de <b>{formatBRL(stats.p10)}</b> (10% mais baratos) até <b>{formatBRL(stats.p90)}</b> (10% mais caros); no meio da faixa: <b>{formatBRL(stats.median)}</b>.</li>
             )}
           </ul>
         </div>
