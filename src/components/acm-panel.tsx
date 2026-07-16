@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, RotateCcw, Save, ShieldCheck } from "lucide-react";
+import { Calculator, RotateCcw, Save } from "lucide-react";
 import { computeAcm, formatBRL } from "@/lib/study-engine";
 import { DEFAULT_ACM, type AcmAdjustments, type StudyResult } from "@/lib/study-types";
 import { studyStore } from "@/lib/study-store";
@@ -84,7 +84,7 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
       </div>
 
       {/* Estratégia + piso competitivo */}
-      <div className="mb-5 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 print:hidden md:grid-cols-2">
+      <div className="mb-5 grid gap-4 rounded-xl border border-border bg-muted/20 p-4 print:hidden">
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Estratégia de precificação
@@ -110,40 +110,6 @@ export function AcmPanel({ study, onChange }: { study: StudyResult; onChange?: (
                 <div className="opacity-70">{opt.hint}</div>
               </button>
             ))}
-          </div>
-        </div>
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <ShieldCheck className="h-3.5 w-3.5" /> Respeitar piso de mercado
-            </div>
-            <button
-              type="button"
-              onClick={() => update({ respeitarPiso: !(acm.respeitarPiso ?? true) })}
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition",
-                (acm.respeitarPiso ?? true)
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background text-muted-foreground",
-              )}
-            >
-              {(acm.respeitarPiso ?? true) ? "ATIVO" : "INATIVO"}
-            </button>
-          </div>
-          <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Máx. acima do piso</span>
-            <span className="tabular-nums text-foreground">+{acm.maxAcimaPisoPct ?? 15}%</span>
-          </div>
-          <Slider
-            min={0}
-            max={25}
-            step={1}
-            value={[acm.maxAcimaPisoPct ?? 15]}
-            onValueChange={([v]) => update({ maxAcimaPisoPct: v })}
-            disabled={!(acm.respeitarPiso ?? true)}
-          />
-          <div className="mt-2 text-[11px] text-muted-foreground">
-            Garante que o sugerido não fica muito longe do imóvel mais barato do mercado.
           </div>
         </div>
       </div>
