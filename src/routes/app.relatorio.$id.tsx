@@ -726,7 +726,7 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
             <th className="num" style={{ width: "7%" }}>Qtos</th>
             <th className="num" style={{ width: "13%" }}>Preço</th>
             <th className="num" style={{ width: "11%" }}>R$/m²</th>
-            <th style={{ width: "16%" }}>Similaridade</th>
+            <th style={{ width: "16%" }}>Semelhança</th>
           </tr>
         </thead>
         <tbody>
