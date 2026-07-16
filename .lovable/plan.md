@@ -1,38 +1,20 @@
 ## Objetivo
 
-No passo 2 do "Novo estudo", os campos monetários (Condomínio, IPTU, Valor pretendido) devem:
-1. Começar **vazios** (sem valores pré-preenchidos).
-2. Exibir o valor formatado como **moeda brasileira** (R$) enquanto o usuário digita.
+No passo 2 do "Novo estudo", ocultar o campo **"Área total (m²)"** quando o tipo do imóvel selecionado for **"Apartamento"**.
 
-## Alterações — `src/routes/app.novo-estudo.tsx`
+## Alteração — `src/routes/app.novo-estudo.tsx`
 
-### 1. Estado inicial vazio
-No `useState` do `data` (defaults iniciais), remover os valores:
-- `condominio: 850` → removido (undefined)
-- `iptu: 220` → removido (undefined)
-- `valorPretendido: 780000` → removido (undefined)
+No passo 2, envolver o `<Field label="Área total (m²)">` em um condicional:
 
-Outros numéricos (área, quartos, etc.) permanecem como estão — o pedido é sobre os campos em moeda.
-
-### 2. Novo componente `CurrencyInput`
-Criar componente local ao lado de `NumberInput`, com a mesma API (`v?: number; onV: (n) => void`), mas:
-- Formata o valor exibido como `R$ 1.234,56` (Intl.NumberFormat pt-BR, style currency BRL).
-- Aceita apenas dígitos na digitação; internamente converte para número (centavos → reais) ou trata como valor inteiro em reais (sem centavos, já que os campos atuais usam inteiros).
-- Placeholder vazio (`R$ 0,00` cinza) quando `v === undefined`.
-- No blur, mantém o valor formatado; no focus, mantém a máscara (não vira input cru).
-
-Decisão de precisão: manter em **reais inteiros** (sem centavos), como hoje, para não mudar o `StudyInput`. Ex.: digitar "850" → exibe `R$ 850`. Se preferir suportar centavos, aviso para confirmar — mas o padrão do form hoje é inteiro.
-
-### 3. Trocar os 3 inputs no passo 2
-```
-<Field label="Condomínio (R$)"><CurrencyInput ... /></Field>
-<Field label="IPTU (R$)"><CurrencyInput ... /></Field>
-<Field label="Valor pretendido (R$)"><CurrencyInput ... /></Field>
+```tsx
+{data.tipo !== "Apartamento" && (
+  <Field label="Área total (m²)"><NumberInput ... /></Field>
+)}
 ```
 
-Os labels perdem o `(R$)` redundante, virando "Condomínio", "IPTU", "Valor pretendido".
+Quando ocultado, também limpar `data.areaTotal` para não enviar valor residual caso o usuário troque de tipo depois de digitar. Isso é feito ajustando o `onValueChange` do Select de tipo no passo 1: se novo tipo for "Apartamento", setar `areaTotal: undefined`.
 
 ## Fora do escopo
-- Não muda `StudyInput` nem lógica do estudo.
-- Não altera outros campos numéricos (área, quartos, ano, etc.).
-- Não mexe no passo 1, 3 ou 4.
+
+- Não alterar outros campos nem outros tipos.
+- Não mexer no `StudyInput` — `areaTotal` já é opcional.
