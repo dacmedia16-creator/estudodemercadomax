@@ -1,49 +1,38 @@
-# Fixar corte "Top 10 mais baratos" + priorizar anúncios recentes
+## Objetivo
 
-Objetivo: remover o caráter opcional do corte pelos 10 mais baratos e adicionar, como **última etapa** do funil, um filtro que privilegia anúncios com data de inclusão mais próxima do dia do estudo.
+No passo 2 do "Novo estudo", os campos monetários (Condomínio, IPTU, Valor pretendido) devem:
+1. Começar **vazios** (sem valores pré-preenchidos).
+2. Exibir o valor formatado como **moeda brasileira** (R$) enquanto o usuário digita.
 
-## 1. Corte fixo pelos 10 mais baratos (`src/lib/study-runner.ts`)
+## Alterações — `src/routes/app.novo-estudo.tsx`
 
-- Remover a leitura de `overrides.top10Baratos` (linhas ~1266–1277). O corte passa a rodar **sempre** que a amostra tiver mais de 10 comparáveis.
-- Manter o registro no funil (`etapa: "Top 10 mais baratos (corte por preço — X → 10)"`) e em `criteriosAplicados`.
-- Marcar `SearchOverrides.top10Baratos` como `@deprecated` em `src/lib/study-types.ts` (mantido para não quebrar estudos salvos, mas ignorado).
+### 1. Estado inicial vazio
+No `useState` do `data` (defaults iniciais), remover os valores:
+- `condominio: 850` → removido (undefined)
+- `iptu: 220` → removido (undefined)
+- `valorPretendido: 780000` → removido (undefined)
 
-## 2. Nova última etapa: priorizar recência (`src/lib/study-runner.ts` / `src/lib/study-engine.ts`)
+Outros numéricos (área, quartos, etc.) permanecem como estão — o pedido é sobre os campos em moeda.
 
-Depois do corte pelos 10 mais baratos (e antes do `computeStats`), aplicar reordenação por `diasMercado`:
+### 2. Novo componente `CurrencyInput`
+Criar componente local ao lado de `NumberInput`, com a mesma API (`v?: number; onV: (n) => void`), mas:
+- Formata o valor exibido como `R$ 1.234,56` (Intl.NumberFormat pt-BR, style currency BRL).
+- Aceita apenas dígitos na digitação; internamente converte para número (centavos → reais) ou trata como valor inteiro em reais (sem centavos, já que os campos atuais usam inteiros).
+- Placeholder vazio (`R$ 0,00` cinza) quando `v === undefined`.
+- No blur, mantém o valor formatado; no focus, mantém a máscara (não vira input cru).
 
-- Regra: dentro dos 10 finais, ordenar do menor `diasMercado` (mais recente) para o maior. Empates: menor preço total.
-- Anúncios **sem `diasMercado`** (campo ausente em alguns retornos de portal): tratados como "idade desconhecida" e vão para o fim da lista, mas **continuam nos 10** — nunca descartar por falta de data, para não esvaziar a amostra.
-- Não é um filtro que **elimina** — é reordenação. A amostra dos 10 permanece a mesma; muda só a apresentação/ordem no relatório e a rotulagem de "mais atuais".
-- Registrar no funil: `etapa: "Priorização por data de inclusão (mais recentes primeiro)"`.
+Decisão de precisão: manter em **reais inteiros** (sem centavos), como hoje, para não mudar o `StudyInput`. Ex.: digitar "850" → exibe `R$ 850`. Se preferir suportar centavos, aviso para confirmar — mas o padrão do form hoje é inteiro.
 
-## 3. UI — remover o toggle opcional
-
-- `src/components/criterios-editor.tsx` (ou onde o campo "Focar nos 10 mais baratos" for exposto): remover o checkbox/toggle. O comportamento é fixo — nenhuma opção editável.
-- `src/routes/app.relatorio.$id.tsx`: a legenda "Foco nos 10 mais baratos" continua aparecendo em `criteriosAplicados` (vem do runner).
-
-## 4. Fora de escopo
-
-- Não mexer no scoring de similaridade, ACM, IA, dedup, `computeStats`, `flagOutliers` ou peso de confiança por DOM (que já existe em `computeConfidence`).
-- Não mudar as camadas de busca nem os filtros hard/soft/prefer.
-- Não descartar comparáveis por idade — só reordenar.
-
-## Detalhes técnicos
-
-Ordem final do funil (em `study-runner.ts` → `study-engine.ts`):
-
-```text
-busca multi-portal
-  → dedup semântica
-  → filtros hard (tipo, finalidade, quartos, área, campos "hard")
-  → ordenação por similaridade
-  → interleaving por portal (top 10 balanceados)
-  → [NOVO — FIXO] corte pelos 10 mais baratos (preço total)
-  → [NOVO] reordenação por diasMercado (mais recentes primeiro; sem data = fim)
-  → flagOutliers + computeStats
+### 3. Trocar os 3 inputs no passo 2
+```
+<Field label="Condomínio (R$)"><CurrencyInput ... /></Field>
+<Field label="IPTU (R$)"><CurrencyInput ... /></Field>
+<Field label="Valor pretendido (R$)"><CurrencyInput ... /></Field>
 ```
 
-Impacto:
-- Estudos onde a busca traz >10 comparáveis passam a **sempre** aplicar o corte de preço (hoje, mesmo com default ligado, o override podia desligar).
-- Relatório passa a listar os comparáveis com o mais recente no topo.
-- Zero migração de dados: `SearchOverrides.top10Baratos` fica no schema, apenas ignorado.
+Os labels perdem o `(R$)` redundante, virando "Condomínio", "IPTU", "Valor pretendido".
+
+## Fora do escopo
+- Não muda `StudyInput` nem lógica do estudo.
+- Não altera outros campos numéricos (área, quartos, ano, etc.).
+- Não mexe no passo 1, 3 ou 4.
