@@ -210,11 +210,9 @@ export function PrintOwnerPages({
   } as React.CSSProperties;
   return (
     <section className="print-slides print-owner-pages" style={styleVars}>
-      <CoverPage study={study} branding={branding} dataStr={data} acm={acm} />
       {/* Nova ordem: primeiro a Carta (linguagem simples), depois os Argumentos (dados). */}
       <OwnerLetterPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
       <OwnerPersuasionPage study={study} sorted={sorted} acm={acm} dataStr={data} brandName={branding.brandName} />
-      <BackCoverPage study={study} branding={branding} dataStr={data} />
     </section>
   );
 }
