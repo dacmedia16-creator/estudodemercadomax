@@ -666,7 +666,7 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
       ...aiAnalysis,
       faixaRecomendada: {
         ...aiAnalysis.faixaRecomendada,
-        entrada: valorIdealRange?.max ?? faixaMax,
+        entrada: valorIdealRange?.min ?? faixaMin,
         ideal: valorIdealDetCalc,
         teto: valorIdealRange?.max ?? faixaMax,
       },
