@@ -657,6 +657,22 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
     : undefined;
   const estrategiaSugerida = suggestEstrategia(stats, listFlag);
 
+  // Reprojeta a faixa recomendada da IA sobre os novos stats — sem isso, o
+  // "Valor recomendado" no hero fica ancorado no snapshot antigo da IA e não
+  // reage a inclusão/remoção de comparáveis (getValorIdeal prioriza a IA).
+  let aiAnalysis = prev.aiAnalysis;
+  if (aiAnalysis && aiAnalysis.faixaRecomendada && valorIdealDetCalc > 0) {
+    aiAnalysis = {
+      ...aiAnalysis,
+      faixaRecomendada: {
+        ...aiAnalysis.faixaRecomendada,
+        entrada: valorIdealRange?.min ?? faixaMin,
+        ideal: valorIdealDetCalc,
+        teto: valorIdealRange?.max ?? faixaMax,
+      },
+    };
+  }
+
   return {
     ...prev,
     comparaveis: listFlag,
@@ -674,5 +690,6 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
     pontosAtencao,
     valorIdealRange,
     estrategiaSugerida,
+    aiAnalysis,
   };
 }
