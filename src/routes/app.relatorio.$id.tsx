@@ -810,22 +810,68 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
   );
 }
 
-function Info({ icon: Icon, label, value, highlight }: { icon?: typeof Home; label: string; value: string; highlight?: boolean }) {
+function DetailKV({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-        {Icon && <Icon className="h-3 w-3" />} {label}
-      </div>
-      <div className={cn("mt-1 text-sm font-semibold", highlight && "text-primary text-base")}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-0.5 font-medium tabular-nums">{value}</div>
     </div>
   );
 }
 
-function Indicator({ label, value }: { label: string; value: string }) {
+function ResumoHero({
+  study,
+  valorIdeal,
+  idealMin,
+  idealMax,
+  statusToneClass,
+  StatusIcon,
+}: {
+  study: StudyResult;
+  valorIdeal: number;
+  idealMin: number;
+  idealMax: number;
+  statusToneClass: string;
+  StatusIcon: typeof TrendingUp;
+}) {
   return (
-    <Card className="border-border/60 p-5">
-      <div className="text-xs font-medium text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-bold tracking-tight text-foreground">{value}</div>
+    <Card className="border-primary/40 bg-primary/5 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-primary">Valor recomendado para venda</div>
+          <div className="mt-1 text-4xl font-bold tracking-tight text-primary">{formatBRL(valorIdeal)}</div>
+          {study.valorIdealRange && (
+            <div className="mt-1 text-xs italic text-muted-foreground">
+              Margem de segurança ({study.valorIdealRange.confianca}): {formatBRL(study.valorIdealRange.min)} – {formatBRL(study.valorIdealRange.max)}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs">
+          <StatusIcon className={cn("h-4 w-4", statusToneClass)} />
+          <span>situação: <span className={cn("font-semibold", statusToneClass)}>{study.status}</span></span>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-border bg-background p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Vender rápido</div>
+          <div className="mt-1 text-lg font-bold tabular-nums">{formatBRL(idealMin)}</div>
+        </div>
+        <div className="rounded-lg border-2 border-primary bg-primary/10 p-3">
+          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
+            <Sparkles className="h-3 w-3" /> Recomendado
+          </div>
+          <div className="mt-1 text-lg font-bold tabular-nums text-primary">{formatBRL(valorIdeal)}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Anunciar até</div>
+          <div className="mt-1 text-lg font-bold tabular-nums">{formatBRL(idealMax)}</div>
+        </div>
+      </div>
+
+      <div className="mt-4 text-xs text-muted-foreground">
+        {study.comparaveis.length} imóveis parecidos analisados · média de {formatBRL(study.precoM2Medio)}/m²
+      </div>
     </Card>
   );
 }
