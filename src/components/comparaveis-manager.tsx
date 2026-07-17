@@ -21,8 +21,9 @@ export function ComparaveisManager({ study, onChange, originals }: Props) {
 
   const handleRemove = (id: string) => {
     const next = study.comparaveis.filter((c) => c.id !== id);
-    onChange(recomputeStudy(study, next));
-    toast.success("Imóvel removido. Estudo recalculado.");
+    const recalculado = recomputeStudy(study, next);
+    onChange(recalculado);
+    void persist(recalculado, "Imóvel removido. Recalculado e salvo.");
   };
 
   const handleAdd = async () => {
@@ -46,9 +47,10 @@ export function ComparaveisManager({ study, onChange, originals }: Props) {
         origem: "manual",
       };
       const next = [comp, ...study.comparaveis];
-      onChange(recomputeStudy(study, next));
+      const recalculado = recomputeStudy(study, next);
+      onChange(recalculado);
       setUrl("");
-      toast.success(`Imóvel adicionado · ${formatBRL(p.preco)}`);
+      void persist(recalculado, `Imóvel adicionado · ${formatBRL(p.preco)} · salvo.`);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -57,8 +59,18 @@ export function ComparaveisManager({ study, onChange, originals }: Props) {
   };
 
   const handleRestore = () => {
-    onChange(recomputeStudy(study, originals));
-    toast.success("Lista original restaurada.");
+    const recalculado = recomputeStudy(study, originals);
+    onChange(recalculado);
+    void persist(recalculado, "Lista original restaurada e salva.");
+  };
+
+  const persist = async (next: StudyResult, successMsg: string) => {
+    try {
+      await studyStore.save(next);
+      toast.success(successMsg);
+    } catch (err) {
+      toast.error(`Recalculado, mas não foi possível salvar: ${(err as Error).message}`);
+    }
   };
 
   const manuais = study.comparaveis.filter((c) => c.origem === "manual").length;
