@@ -1,75 +1,93 @@
-## Objetivo
+# Refatorar `/app/relatorio/$id` — foco no corretor
 
-Tornar o PDF entregue ao proprietário mais simples, completo e visualmente melhor. Escopo apenas nas páginas de impressão (`src/components/print-slides.tsx` + estilos em `src/styles.css`), sem mexer na lógica de cálculo.
+Escopo: só a organização visual da tela (`print-hide-on-print`) em `src/routes/app.relatorio.$id.tsx`. **Nada** de mudar `computeAcm`, `runStudy`, `studyStore`, `PrintOnePager`, `PrintSlides` ou `PrintOwnerPages`. Header, `max-w-7xl`, `print-section` e `print-break-before` ficam intactos.
 
-## 1. Reordenação das páginas
+## Nova ordem da tela
 
-Ordem atual do PDF (`PrintOwnerPages`):
+1. **Header** — inalterado.
+2. **`ResumoHero`** (novo, só na tela) — hero de valor.
+3. **Faixa fina de indicadores** — 1 linha em `text-muted-foreground`.
+4. **Card "Como apresentar ao proprietário"** — funde `diagnostico` + `AiAnalysisCard` + sugestão comercial.
+5. **Card "Prova de mercado"** — gráfico principal + tabela enxuta + concorrentes diretos; gráfico secundário e "Anunciantes mais ativos" dentro de `<details> Ver mais dados`.
+6. **Accordion "Ajustar estudo (avançado)"** — colapsado por padrão, contém `AcmPanel`, `CriteriosEditor`, `ComparaveisManager`.
+7. **Pontos fortes / Pontos de atenção** — inalterados.
+8. **Slide ACM (preview)** — mantido no fim.
+
 ```text
-Capa → ACM técnica → Argumentos → Carta ao Proprietário → Contracapa
+┌───────────── Header (Exportar PDF · ACM · Compartilhar) ─────────────┐
+│                                                                      │
+│  HERO: Valor recomendado para venda                                  │
+│  ┌──────────────────────────────────────────────────────────────┐    │
+│  │ R$ 1.150.000                              (margem ±X: A–B)   │    │
+│  │ [Vender rápido]  [Recomendado ★]  [Anunciar até]             │    │
+│  │ 12 imóveis parecidos · R$ 9.200/m² · situação: Dentro média  │    │
+│  └──────────────────────────────────────────────────────────────┘    │
+│  Preço médio X · Menor Y · Maior Z · Faixa A–B                       │
+│                                                                      │
+│  [ Como apresentar ao proprietário ]                                 │
+│  [ Prova de mercado ]                                                │
+│  ▸ Ajustar estudo (avançado)                                         │
+│  Pontos fortes | Pontos de atenção                                   │
+│  Slide ACM (preview)                                                 │
+└──────────────────────────────────────────────────────────────────────┘
 ```
-Nova ordem:
-```text
-Capa → Carta ao Proprietário → Argumentos → ACM técnica (anexo) → Contracapa
-```
-Alteração em `PrintOwnerPages` (ordem dos componentes) e no cabeçalho da ACM: adicionar rótulo **"Anexo técnico"** para deixar claro que é material de apoio.
 
-Também renumerar o rodapé "página X" para refletir a nova ordem.
+## Detalhes por bloco
 
-## 2. Simplificar linguagem (remover jargão)
+### 2. `ResumoHero` (novo componente no mesmo arquivo)
+- Rótulo "Valor recomendado para venda" + valor grande usando `getValorIdeal(study, acm)`.
+- Se `study.valorIdealRange`: linha pequena "margem de segurança ({confianca}): {min} – {max}".
+- 3 pills lado a lado, **Recomendado** destacado:
+  - `idealMin = valorIdeal * (acm.valorMinimoFechamento / acm.valorSugerido)`
+  - `idealMax = valorIdeal * (acm.valorMaximoPublicacao / acm.valorSugerido)`
+- Rodapé: "{n} imóveis parecidos analisados · R$ {precoM2Medio}/m² de média · situação: {status}", palavra do status colorida (verde/âmbar/azul) via tokens `text-success | text-warning | text-primary`.
+- Estilo: `bg-primary/5 border border-primary/40`, valor em `text-primary`. Sem gradiente/sombra pesada.
 
-Substituições em todas as páginas do PDF:
+### 3. Faixa fina
+Substitui os 6 `Indicator`. Uma `<p>` em `text-xs text-muted-foreground`: "Preço médio: X · Menor: Y · Maior: Z · Faixa recomendada: A–B".
 
-| Termo técnico atual | Substituir por |
-|---|---|
-| ACM / Análise Comparativa de Mercado | "Estudo de Preço de Mercado" (mantém "ACM" só no anexo, com nota "sigla técnica do setor") |
-| P10 / P25 / P75 / P90 | "10% mais baratos", "25% mais baratos", "25% mais caros", "10% mais caros" |
-| Mediana | "preço do meio da faixa" (com mediana entre parênteses no anexo) |
-| R$/m² | "preço por metro quadrado" no corpo do texto; "R$/m²" só em tabelas |
-| Percentil / posição percentil | "posição na faixa de preços" |
-| Faixa de confiança | "margem de segurança da estimativa" |
-| Valor Máximo de Publicação | "Preço máximo para anunciar" |
-| Valor Mínimo de Fechamento / Entrada | "Preço para vender rápido" |
-| Valor Sugerido | "Preço recomendado para anunciar" |
-| Fatores ACM (Localização/Conservação/Idade/Padrão) | Manter só no anexo, com legenda explicando "100% = neutro, acima aumenta valor, abaixo reduz" |
-| Multiplicador combinado | Remover do resumo; deixar só na tabela do anexo |
-| Desconto de reforma | "Ajuste para custos de reforma" |
+### 4. "Como apresentar ao proprietário"
+Um único `Card` com subseções:
+- **Resumo** — `study.diagnostico` + `aiAnalysis.resumo` se houver.
+- **Discurso pro proprietário** — `aiAnalysis.discursoProprietario` + botão Copiar.
+- **Anúncio pronto** — `study.tituloSugerido` e `study.descricaoSugerida`, cada um com botão Copiar.
+- Botão "Gerar novamente" da IA no header do card (reaproveita a função de `AiAnalysisCard`).
+- Riscos e Recomendações da IA como duas colunas no fim do card.
 
-Textos de bullets já existentes nas páginas "Argumentos" e "Carta" recebem passada de revisão para tirar termos como "penalizam anúncios fora da curva", "portais penalizam", "ranking de busca" → linguagem cotidiana.
+Implementação: extrair um `ApresentacaoCard` que recebe `study`/`onChange` e chama internamente a mesma server fn (`analisarMercadoIa`) que o `AiAnalysisCard` usa hoje — para não duplicar lógica, `AiAnalysisCard` pode ser reaproveitado internamente ou refatorado para expor esse conteúdo; se ficar caro, apenas renderizar `AiAnalysisCard` dentro do card + adicionar Copiar/Título/Descrição em cima.
 
-## 3. Reformular página ACM (anexo)
+### 5. "Prova de mercado"
+- Gráfico "Distribuição de preços" (mantém).
+- Tabela enxuta (ver abaixo).
+- Concorrentes diretos (mantém 3 cards).
+- Dentro de `<details><summary>Ver mais dados</summary>`: gráfico "Preço por m²" + "Anunciantes mais ativos".
 
-Reduzir densidade da tabela técnica atual:
+### 6. Tabela enxuta
+Colunas visíveis: **Portal · Título (+bairro embaixo) · m² · Quartos · Preço · Semelhança**.
+- Preço em negrito; barra/badge de semelhança preservada.
+- No máximo 1 badge por linha, prioridade: `Mesmo prédio` > `Mesmo endereço` > `Match preferido`. Outras badges (Premium, Confiança, N anunciantes, Área não informada, Anúncio removido) só na linha de detalhe.
+- Clique na linha expande `expandedRow` (state `useState<string | null>`) mostrando Cond., IPTU, DOM, R$/m², Anunciante, WhatsApp, CRECI, link.
+- Mantém `Select` de ordenação e o aviso quando `comparaveis.length === 0`.
 
-- Renomear cabeçalho para **"Anexo — Como chegamos ao preço recomendado"**.
-- Adicionar bloco introdutório de 2–3 linhas em linguagem simples explicando o método ("comparamos seu imóvel com X anunciados hoje na região; aplicamos ajustes de localização, conservação, idade e padrão; consideramos custos de reforma").
-- Manter a tabela de comparáveis (é útil), mas:
-  - Substituir cabeçalhos em CAIXA ALTA técnica por rótulos amigáveis ("Área", "Dormitórios", "Suítes", "Vagas", "Condomínio", "Preço", "Preço por m²").
-  - Ocultar URLs longas; mostrar título + portal, com URL só quando não houver título.
-- Substituir bloco "Resumo — Avaliação para Venda" por versão simplificada:
-  - Uma coluna à esquerda com 3 caixas: **Preço para vender rápido**, **Preço recomendado**, **Preço máximo para anunciar** — cada uma com uma frase curta abaixo explicando quando usar.
-  - Coluna à direita mostrando a "conta" resumida: preço médio do m² × área × ajustes = preço recomendado (uma linha por passo, com valores).
-- Rodapé de fatores (Localização/Conservação/Idade/Padrão) ganha legenda de 1 linha explicando o que cada % significa.
+### 7. Accordion "Ajustar estudo (avançado)"
+`Accordion type="single" collapsible` (shadcn), sem `defaultValue`. Um `AccordionItem` com `AcmPanel`, `CriteriosEditor`, `ComparaveisManager` empilhados. `print-hide-on-print` no wrapper.
 
-## 4. Melhorias visuais (tipografia, espaçamento, hierarquia)
+### 8. Régua de percentis (AcmPanel)
+No próprio `AcmPanel` (mudança pequena, autorizada porque é UI, não cálculo): esconder rótulos P10/P25/Mediana/P75/P90 dentro de `<Tooltip>` e deixar visíveis só "mais barato · meio · mais caro".
 
-Em `src/styles.css`, dentro dos blocos `@media print` e `.print-slides`:
+### 9. Linguagem (só rótulos da tela)
+- "Comparáveis" → "Imóveis parecidos".
+- "R$/m² pretendido" → "Preço por m² do seu imóvel".
+- "valorPretendido" exibido como "Preço que o proprietário quer".
 
-- **Hierarquia tipográfica**: aumentar contraste entre título de página (`.acm-title`), títulos de bloco (`.owner-block-title`, `.owner-letter-box-title`) e corpo. Adicionar rastreio de letras (letter-spacing) em títulos, peso 700; corpo em 400/500 com leading generoso.
-- **Espaçamento**: aumentar margens internas das páginas `.slide-page` (padding), aumentar gap entre blocos `.owner-grid`, `.owner-letter-cards`. Evitar que tudo pareça "colado".
-- **Cor**: manter identidade da marca (`--acm-brand`, `--acm-accent`), mas suavizar contornos de tabela (border cinza claro em vez de preto), reduzir uso de fundos amarelos fortes no resumo — usar cor da marca com opacidade baixa.
-- **Cards de preço**: destacar `Preço recomendado` como o card principal (maior, com borda de cor da marca), pretendido e diferença secundários.
-- **Callouts**: caixa de "toneLabel" da Carta ao Proprietário ganha ícone semântico (check / alerta) e cor mais suave.
-- **Rodapé**: padronizar `.acm-page-meta` com número de página coerente após a reordenação.
+## Arquivos alterados
+- `src/routes/app.relatorio.$id.tsx` — reorganização, novos componentes locais `ResumoHero`, `ApresentacaoCard`, tabela enxuta com `expandedRow`.
+- `src/components/acm-panel.tsx` — só a régua de percentis (tooltip nas siglas).
 
-## 5. Fora do escopo
+## Fora do escopo
+Cálculos, engine, store, PDF (`PrintOnePager`/`PrintSlides`/`PrintOwnerPages`), runner, tipos.
 
-- Nada de novos dados de contato do corretor (usuário optou por manter só o nome da marca).
-- Não alterar `study-engine`, `study-types` ou lógica de cálculo.
-- Não mexer no modo Slides 16:9 (`.print-slides-screen` / `print-mode-slides`) — só nas páginas que entram no PDF padrão (`PrintOwnerPages`).
-- Não mexer no `PrintOnePager`.
-
-## Arquivos afetados
-
-- `src/components/print-slides.tsx` — reordenação, novos textos, remontagem da página ACM.
-- `src/styles.css` — ajustes de tipografia, espaçamento, cores de impressão.
+## Verificação
+- `tsgo` limpo.
+- Abrir um relatório existente na preview: hero visível, tabela com 6 colunas, accordion fechado, `print-hide-on-print` ainda impede que os blocos de edição vazem para o PDF.
+- Exportar PDF de teste: 4 páginas iguais às de hoje.
