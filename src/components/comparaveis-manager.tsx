@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import type { StudyResult, ComparableProperty } from "@/lib/study-types";
 import { recomputeStudy, computeSimilarity, formatBRL } from "@/lib/study-engine";
 import { fetchPropertyByUrl } from "@/lib/study-runner";
+import { studyStore } from "@/lib/study-store";
 
 interface Props {
   study: StudyResult;
