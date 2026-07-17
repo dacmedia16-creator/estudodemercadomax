@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine, Cell } from "recharts";
 import {
   Download, Share2, Save, Plus, Copy, ExternalLink,
-  TrendingUp, TrendingDown, Minus, Home, MapPin, Bed, Car, Maximize2,
-  CheckCircle2, AlertTriangle, Sparkles, Presentation,
+  TrendingUp, TrendingDown, Minus, ChevronDown,
+  CheckCircle2, AlertTriangle, Sparkles, Presentation, MessageSquareQuote, Settings2,
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
 import { formatBRL, computeAcm, getValorIdeal } from "@/lib/study-engine";
