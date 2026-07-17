@@ -268,31 +268,6 @@ export const gestorListTeam = createServerFn({ method: "GET" })
     };
   });
 
-export const gestorCreateMember = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: { email: string; password: string }) =>
-    z.object({
-      email: z.string().email().max(255),
-      password: z.string().min(8).max(72),
-    }).parse(input),
-  )
-  .handler(async ({ context, data }) => {
-    await assertGestorOrAdmin(context.supabase, context.userId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-      email: data.email,
-      password: data.password,
-      email_confirm: true,
-    });
-    if (error) throw new Error(error.message);
-    if (!created.user) throw new Error("Falha ao criar usuário.");
-    const { error: linkErr } = await supabaseAdmin
-      .from("team_members")
-      .insert({ manager_id: context.userId, user_id: created.user.id });
-    if (linkErr) throw new Error(linkErr.message);
-    return { id: created.user.id, email: created.user.email };
-  });
-
 export const gestorRemoveMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { userId: string; deleteAccount: boolean }) =>
