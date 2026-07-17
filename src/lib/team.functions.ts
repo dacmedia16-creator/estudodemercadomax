@@ -108,10 +108,11 @@ export const adminGetTeam = createServerFn({ method: "POST" })
 
 export const adminCreateTeam = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { name: string; managerEmail: string; managerPassword?: string }) =>
+  .inputValidator((input: { name: string; managerId?: string; managerEmail?: string; managerPassword?: string }) =>
     z.object({
       name: z.string().trim().min(2).max(80),
-      managerEmail: z.string().email().max(255),
+      managerId: z.string().uuid().optional(),
+      managerEmail: z.string().email().max(255).optional(),
       managerPassword: z.string().min(8).max(72).optional(),
     }).parse(input),
   )
@@ -119,18 +120,21 @@ export const adminCreateTeam = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // find or create manager user
-    const email = data.managerEmail.trim().toLowerCase();
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    let managerId = (usersData?.users ?? []).find((u) => (u.email ?? "").toLowerCase() === email)?.id;
+    let managerId = data.managerId;
     if (!managerId) {
-      if (!data.managerPassword) throw new Error("Informe uma senha para criar o novo gestor.");
-      const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-        email, password: data.managerPassword, email_confirm: true,
-      });
-      if (error) throw new Error(error.message);
-      if (!created.user) throw new Error("Falha ao criar gestor.");
-      managerId = created.user.id;
+      if (!data.managerEmail) throw new Error("Selecione um gestor ou informe um e-mail.");
+      const email = data.managerEmail.trim().toLowerCase();
+      const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      managerId = (usersData?.users ?? []).find((u) => (u.email ?? "").toLowerCase() === email)?.id;
+      if (!managerId) {
+        if (!data.managerPassword) throw new Error("Informe uma senha para criar o novo gestor.");
+        const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+          email, password: data.managerPassword, email_confirm: true,
+        });
+        if (error) throw new Error(error.message);
+        if (!created.user) throw new Error("Falha ao criar gestor.");
+        managerId = created.user.id;
+      }
     }
 
     // ensure gestor role
@@ -144,6 +148,33 @@ export const adminCreateTeam = createServerFn({ method: "POST" })
       .select("id").single();
     if (teamErr) throw new Error(teamErr.message);
     return { id: (team as any).id as string };
+  });
+
+export const adminListAvailableUsers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: usersData, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (error) throw new Error(error.message);
+    const users = (usersData?.users ?? []).filter((u) => !!u.email);
+    const ids = users.map((u) => u.id);
+    const { data: roles } = ids.length
+      ? await supabaseAdmin.from("user_roles").select("user_id, role").in("user_id", ids)
+      : { data: [] as any[] };
+    const rolesByUser = new Map<string, string[]>();
+    (roles ?? []).forEach((r: any) => {
+      const arr = rolesByUser.get(r.user_id) ?? [];
+      arr.push(r.role);
+      rolesByUser.set(r.user_id, arr);
+    });
+    return {
+      users: users.map((u) => {
+        const rs = rolesByUser.get(u.id) ?? [];
+        const role = rs.includes("admin") ? "admin" : rs.includes("gestor") ? "gestor" : "user";
+        return { id: u.id, email: u.email ?? "", role };
+      }).sort((a, b) => a.email.localeCompare(b.email)),
+    };
   });
 
 export const adminUpdateTeam = createServerFn({ method: "POST" })
