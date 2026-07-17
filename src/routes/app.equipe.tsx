@@ -3,23 +3,19 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ExternalLink, FileText, Loader2, Trash2, UserPlus, Users } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useIsGestor } from "@/hooks/use-is-gestor";
 import {
-  gestorCreateMember, gestorListTeam, gestorListTeamStudies, gestorRemoveMember,
+  gestorListTeam, gestorListTeamStudies, gestorRemoveMember,
 } from "@/lib/team.functions";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 export const Route = createFileRoute("/app/equipe")({
   component: TeamPage,
@@ -29,13 +25,18 @@ function TeamPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isGestor, isLoading: roleLoading } = useIsGestor();
+  const { isAdmin } = useIsAdmin();
 
   useEffect(() => {
+    if (isAdmin) {
+      navigate({ to: "/app/equipes", replace: true });
+      return;
+    }
     if (!roleLoading && !isGestor) {
       toast.error("Acesso restrito a gestores.");
       navigate({ to: "/app", replace: true });
     }
-  }, [roleLoading, isGestor, navigate]);
+  }, [roleLoading, isGestor, isAdmin, navigate]);
 
   const teamQ = useQuery({
     queryKey: ["gestor-team"],
@@ -49,33 +50,10 @@ function TeamPage() {
     enabled: isGestor,
   });
 
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [creating, setCreating] = useState(false);
-
-  const handleCreate = async () => {
-    if (!email || password.length < 8) {
-      toast.error("Informe email válido e senha com 8+ caracteres.");
-      return;
-    }
-    setCreating(true);
+  const handleRemove = async (userId: string) => {
     try {
-      await gestorCreateMember({ data: { email, password } });
-      toast.success("Corretor adicionado à equipe.");
-      setEmail(""); setPassword(""); setOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["gestor-team"] });
-    } catch (e: any) {
-      toast.error(e?.message ?? "Falha ao criar usuário.");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleRemove = async (userId: string, deleteAccount: boolean) => {
-    try {
-      await gestorRemoveMember({ data: { userId, deleteAccount } });
-      toast.success(deleteAccount ? "Usuário excluído." : "Usuário removido da equipe.");
+      await gestorRemoveMember({ data: { userId, deleteAccount: false } });
+      toast.success("Corretor removido da equipe.");
       await queryClient.invalidateQueries({ queryKey: ["gestor-team"] });
       await queryClient.invalidateQueries({ queryKey: ["gestor-team-studies"] });
     } catch (e: any) {
@@ -102,40 +80,9 @@ function TeamPage() {
             <Users className="h-6 w-6 text-primary" /> Equipe
           </h1>
           <p className="text-sm text-muted-foreground">
-            Gerencie os corretores da sua equipe e acompanhe os estudos.
+            Acompanhe os corretores e estudos da sua equipe. Novos corretores são adicionados pelo administrador.
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><UserPlus className="h-4 w-4" /> Adicionar corretor</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Novo corretor</DialogTitle>
-              <DialogDescription>
-                Crie o acesso do corretor. Ele fará login com o e-mail e senha definidos aqui.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="team-email">E-mail</Label>
-                <Input id="team-email" type="email" value={email}
-                  onChange={(e) => setEmail(e.target.value)} placeholder="corretor@exemplo.com" />
-              </div>
-              <div>
-                <Label htmlFor="team-pass">Senha inicial (mín. 8)</Label>
-                <Input id="team-pass" type="text" value={password}
-                  onChange={(e) => setPassword(e.target.value)} placeholder="senha1234" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Criar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -185,18 +132,18 @@ function TeamPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Remover {m.email}?</AlertDialogTitle>
+                            <AlertDialogTitle>Remover {m.email} da equipe?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Isto irá excluir a conta do corretor. Os estudos criados por ele serão removidos.
+                              O corretor sai da sua equipe mas mantém a conta e os estudos. Somente o administrador pode excluir a conta.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
                             <AlertDialogAction
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              onClick={() => handleRemove(m.userId, true)}
+                              onClick={() => handleRemove(m.userId)}
                             >
-                              Excluir conta
+                              Remover
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
