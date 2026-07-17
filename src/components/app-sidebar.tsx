@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { FilePlus2, FolderOpen, BarChart3, FileText, Settings, ShieldCheck, LayoutDashboard } from "lucide-react";
+import { FilePlus2, FolderOpen, BarChart3, FileText, Settings, ShieldCheck, LayoutDashboard, Users } from "lucide-react";
 import remaxIcon from "@/assets/remax-icon-transparent.png.asset.json";
 import {
   Sidebar,
@@ -13,6 +13,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { useIsGestor } from "@/hooks/use-is-gestor";
 
 const items = [
   { title: "Início", url: "/app", icon: LayoutDashboard },
@@ -26,6 +27,7 @@ const items = [
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { isAdmin } = useIsAdmin();
+  const { isGestor } = useIsGestor();
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
@@ -52,6 +54,16 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isGestor && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/app/equipe"}>
+                    <Link to="/app/equipe" className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      <span>Equipe</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/app/admin"}>
