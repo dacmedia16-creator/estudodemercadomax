@@ -17,6 +17,7 @@ import { Route as AppRelatoriosRouteImport } from './routes/app.relatorios'
 import { Route as AppNovoEstudoRouteImport } from './routes/app.novo-estudo'
 import { Route as AppExemploRouteImport } from './routes/app.exemplo'
 import { Route as AppEstudosRouteImport } from './routes/app.estudos'
+import { Route as AppEquipeRouteImport } from './routes/app.equipe'
 import { Route as AppConfiguracoesRouteImport } from './routes/app.configuracoes'
 import { Route as AppComparativosRouteImport } from './routes/app.comparativos'
 import { Route as AppCarregandoRouteImport } from './routes/app.carregando'
@@ -63,6 +64,11 @@ const AppEstudosRoute = AppEstudosRouteImport.update({
   path: '/estudos',
   getParentRoute: () => AppRoute,
 } as any)
+const AppEquipeRoute = AppEquipeRouteImport.update({
+  id: '/equipe',
+  path: '/equipe',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppConfiguracoesRoute = AppConfiguracoesRouteImport.update({
   id: '/configuracoes',
   path: '/configuracoes',
@@ -97,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/app/carregando': typeof AppCarregandoRoute
   '/app/comparativos': typeof AppComparativosRoute
   '/app/configuracoes': typeof AppConfiguracoesRoute
+  '/app/equipe': typeof AppEquipeRoute
   '/app/estudos': typeof AppEstudosRoute
   '/app/exemplo': typeof AppExemploRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByTo {
   '/app/carregando': typeof AppCarregandoRoute
   '/app/comparativos': typeof AppComparativosRoute
   '/app/configuracoes': typeof AppConfiguracoesRoute
+  '/app/equipe': typeof AppEquipeRoute
   '/app/estudos': typeof AppEstudosRoute
   '/app/exemplo': typeof AppExemploRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
@@ -127,6 +135,7 @@ export interface FileRoutesById {
   '/app/carregando': typeof AppCarregandoRoute
   '/app/comparativos': typeof AppComparativosRoute
   '/app/configuracoes': typeof AppConfiguracoesRoute
+  '/app/equipe': typeof AppEquipeRoute
   '/app/estudos': typeof AppEstudosRoute
   '/app/exemplo': typeof AppExemploRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
@@ -144,6 +153,7 @@ export interface FileRouteTypes {
     | '/app/carregando'
     | '/app/comparativos'
     | '/app/configuracoes'
+    | '/app/equipe'
     | '/app/estudos'
     | '/app/exemplo'
     | '/app/novo-estudo'
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/app/carregando'
     | '/app/comparativos'
     | '/app/configuracoes'
+    | '/app/equipe'
     | '/app/estudos'
     | '/app/exemplo'
     | '/app/novo-estudo'
@@ -173,6 +184,7 @@ export interface FileRouteTypes {
     | '/app/carregando'
     | '/app/comparativos'
     | '/app/configuracoes'
+    | '/app/equipe'
     | '/app/estudos'
     | '/app/exemplo'
     | '/app/novo-estudo'
@@ -245,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEstudosRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/equipe': {
+      id: '/app/equipe'
+      path: '/equipe'
+      fullPath: '/app/equipe'
+      preLoaderRoute: typeof AppEquipeRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/configuracoes': {
       id: '/app/configuracoes'
       path: '/configuracoes'
@@ -288,6 +307,7 @@ interface AppRouteChildren {
   AppCarregandoRoute: typeof AppCarregandoRoute
   AppComparativosRoute: typeof AppComparativosRoute
   AppConfiguracoesRoute: typeof AppConfiguracoesRoute
+  AppEquipeRoute: typeof AppEquipeRoute
   AppEstudosRoute: typeof AppEstudosRoute
   AppExemploRoute: typeof AppExemploRoute
   AppNovoEstudoRoute: typeof AppNovoEstudoRoute
@@ -301,6 +321,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCarregandoRoute: AppCarregandoRoute,
   AppComparativosRoute: AppComparativosRoute,
   AppConfiguracoesRoute: AppConfiguracoesRoute,
+  AppEquipeRoute: AppEquipeRoute,
   AppEstudosRoute: AppEstudosRoute,
   AppExemploRoute: AppExemploRoute,
   AppNovoEstudoRoute: AppNovoEstudoRoute,
