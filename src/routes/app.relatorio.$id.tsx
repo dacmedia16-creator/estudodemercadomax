@@ -216,6 +216,17 @@ function ReportPage() {
     isYours: false,
   }));
 
+  const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
+  const valorIdeal = getValorIdeal(study, acm);
+  const ratioMin = acm.valorSugerido > 0 ? acm.valorMinimoFechamento / acm.valorSugerido : 0.95;
+  const ratioMax = acm.valorSugerido > 0 ? acm.valorMaximoPublicacao / acm.valorSugerido : 1.05;
+  const idealMin = Math.round(valorIdeal * ratioMin);
+  const idealMax = Math.round(valorIdeal * ratioMax);
+  const statusToneClass =
+    study.status === "Abaixo da média" ? "text-success"
+    : study.status === "Acima da média" ? "text-warning-foreground"
+    : "text-primary";
+
   const copyAnalise = () => {
     const text = `${study.diagnostico}\n\nTítulo sugerido: ${study.tituloSugerido}\n\n${study.descricaoSugerida}\n\n${study.argumentoProprietario}`;
     navigator.clipboard.writeText(text);
@@ -271,308 +282,335 @@ function ReportPage() {
         </div>
       </div>
 
-      {/* Block 1: resumo */}
-      <Card className="border-border/60 p-6 print-section">
-        <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Imóvel analisado</div>
-        <div className="grid gap-6 md:grid-cols-4">
-          <Info icon={Home} label="Tipo / Finalidade" value={`${input.tipo} · ${input.finalidade}`} />
-          <Info icon={MapPin} label="Localização" value={`${input.bairro}, ${input.cidade}/${input.estado}`} />
-          <Info icon={Maximize2} label="Área útil" value={`${input.areaUtil} m²`} />
-          <Info icon={Bed} label="Quartos / Suítes" value={`${input.quartos} / ${input.suites}`} />
-          <Info icon={Car} label="Vagas" value={`${input.vagas}`} />
-          <Info icon={TrendingUp} label="Valor pretendido" value={formatBRL(input.valorPretendido)} highlight />
-          <Info label="Preço por m²" value={formatBRL(study.precoM2Pretendido)} />
-          <Info label="Condomínio" value={formatBRL(input.condominio)} />
-        </div>
-      </Card>
+      {/* HERO — valor recomendado */}
+      <ResumoHero
+        study={study}
+        valorIdeal={valorIdeal}
+        idealMin={idealMin}
+        idealMax={idealMax}
+        statusToneClass={statusToneClass}
+        StatusIcon={StatusIcon}
+      />
 
-      {/* Block 2: indicadores */}
-      <div className="mt-6 grid gap-4 md:grid-cols-3 lg:grid-cols-4">
-        <Indicator label="Comparáveis encontrados" value={String(study.comparaveis.length)} />
-        <Indicator label="Preço médio de mercado" value={formatBRL(study.precoMedio)} />
-        <Indicator label="Preço médio por m²" value={formatBRL(study.precoM2Medio)} />
-        <Indicator label="Faixa recomendada" value={`${formatBRL(study.faixaMin)} – ${formatBRL(study.faixaMax)}`} />
-        <Indicator label="Menor preço" value={formatBRL(study.menorPreco)} />
-        <Indicator label="Maior preço" value={formatBRL(study.maiorPreco)} />
-        <Card className={cn("border p-5 md:col-span-2", statusColor)}>
-          <div className="text-xs font-semibold uppercase tracking-wider opacity-80">Status do imóvel</div>
-          <div className="mt-3 flex items-center gap-3">
-            <StatusIcon className="h-7 w-7" />
-            <div>
-              <div className="text-2xl font-bold">{study.status}</div>
-              <div className="text-xs opacity-80">em relação ao mercado de {input.bairro}</div>
-            </div>
+      {/* Faixa fina de indicadores */}
+      <p className="mt-3 text-xs text-muted-foreground">
+        Preço médio: <span className="font-medium text-foreground">{formatBRL(study.precoMedio)}</span>
+        {" · "}Menor: <span className="font-medium text-foreground">{formatBRL(study.menorPreco)}</span>
+        {" · "}Maior: <span className="font-medium text-foreground">{formatBRL(study.maiorPreco)}</span>
+        {" · "}Faixa recomendada: <span className="font-medium text-foreground">{formatBRL(study.faixaMin)} – {formatBRL(study.faixaMax)}</span>
+      </p>
+
+      {/* Card "Como apresentar ao proprietário" */}
+      <Card className="mt-6 border-border/60 p-6 print:hidden">
+        <div className="mb-4 flex items-start gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <MessageSquareQuote className="h-4 w-4" />
           </div>
-        </Card>
-      </div>
-
-      {/* Block 3: diagnostico */}
-      <Card className="mt-6 border-border/60 p-6">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Sparkles className="h-4 w-4" /></div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-primary">Diagnóstico estratégico</div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-primary">Como apresentar ao proprietário</div>
+            <div className="text-sm text-muted-foreground">Resumo, discurso e anúncio prontos para levar à reunião.</div>
+          </div>
         </div>
-        <p className="text-base leading-relaxed text-foreground">{study.diagnostico}</p>
+
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm leading-relaxed">
+          <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
+            <Sparkles className="h-3 w-3" /> Resumo do estudo
+          </div>
+          <p>{study.diagnostico}</p>
+          {study.aiAnalysis?.resumo && (
+            <p className="mt-2 border-t border-primary/20 pt-2 text-muted-foreground">{study.aiAnalysis.resumo}</p>
+          )}
+        </div>
+
+        {study.comparaveis.length > 0 && (
+          <div className="mt-5">
+            <AiAnalysisCard study={study} onChange={setStudy} />
+          </div>
+        )}
+
+        <div className="mt-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Anúncio pronto</div>
+            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={copyAnalise}>
+              <Copy className="h-3 w-3" /> Copiar tudo
+            </Button>
+          </div>
+          <Suggestion title="Título sugerido do anúncio" text={study.tituloSugerido} />
+          <Suggestion title="Descrição sugerida" text={study.descricaoSugerida} />
+          <Suggestion title="Argumento para o proprietário" text={study.argumentoProprietario} />
+        </div>
       </Card>
 
-      {/* Block 3.2: ACM */}
-      {study.comparaveis.length > 0 && (
-        <div className="mt-6 print-break-before">
-          <AcmPanel study={study} onChange={setStudy} />
-        </div>
-      )}
-
-      {/* Block 3.3: Análise por IA */}
-      {study.comparaveis.length > 0 && (
-        <div className="mt-6 print:hidden">
-          <AiAnalysisCard study={study} onChange={setStudy} />
-        </div>
-      )}
-
-      {/* Block 3.5: critérios da busca */}
-      <div className="mt-6 print:hidden">
-        <CriteriosEditor
-          study={study}
-          input={input}
-          onRerun={handleRerun}
-          loading={rerunning}
-          warning={rerunWarning}
-        />
-      </div>
-
-      {/* Block 3.6: gerenciar comparáveis manualmente (excluir / incluir por link) */}
-      <div className="mt-6 print:hidden">
-        <ComparaveisManager
-          study={study}
-          originals={originalsRef.current}
-          onChange={setStudy}
-        />
-      </div>
-
-      {/* Block 5: graficos */}
+      {/* Card "Prova de mercado" */}
       {study.comparaveis.length === 0 ? (
         <Card className="mt-6 border-warning/30 bg-warning/5 p-8 text-center">
           <AlertTriangle className="mx-auto h-8 w-8 text-warning-foreground" />
-          <div className="mt-3 text-base font-semibold">Nenhum comparável encontrado</div>
+          <div className="mt-3 text-base font-semibold">Nenhum imóvel parecido encontrado</div>
           <p className="mt-2 text-sm text-muted-foreground">
-            A busca não retornou imóveis compatíveis. Use o painel <strong>Ajustar critérios</strong> acima
+            A busca não retornou imóveis compatíveis. Abra <strong>Ajustar estudo (avançado)</strong> abaixo
             para ampliar área, preço ou bairros e reexecute a busca.
           </p>
         </Card>
       ) : (
-      <>
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/60 p-6">
-          <div className="mb-4">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Distribuição de preços</div>
-            <div className="text-sm text-muted-foreground">Comparáveis × valor pretendido</div>
+        <Card className="mt-6 border-border/60 p-6 print-section print-break-before">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-primary">Prova de mercado</div>
+              <div className="text-sm text-muted-foreground">{study.comparaveis.length} imóveis parecidos anunciados agora.</div>
+            </div>
+            <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+              <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="maior-similaridade">Maior semelhança</SelectItem>
+                <SelectItem value="menor-preco">Menor preço</SelectItem>
+                <SelectItem value="maior-area">Maior área</SelectItem>
+                <SelectItem value="menor-precom2">Menor preço por m²</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={(v: number) => formatBRL(v)} />
-              <ReferenceLine y={input.valorPretendido} stroke="oklch(0.78 0.16 75)" strokeDasharray="4 4" label={{ value: "Seu imóvel", fontSize: 10, fill: "oklch(0.4 0.1 75)" }} />
-              <Bar dataKey="preco" radius={[6, 6, 0, 0]}>
-                {chartData.map((_, i) => <Cell key={i} fill="oklch(0.58 0.16 152)" />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-        <Card className="border-border/60 p-6">
-          <div className="mb-4">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Preço por m² dos comparáveis</div>
-            <div className="text-sm text-muted-foreground">Média: {formatBRL(study.precoM2Medio)}</div>
-          </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v: number) => formatBRL(v)} />
-              <ReferenceLine y={study.precoM2Pretendido} stroke="oklch(0.78 0.16 75)" strokeDasharray="4 4" label={{ value: "Seu R$/m²", fontSize: 10, fill: "oklch(0.4 0.1 75)" }} />
-              <Bar dataKey="precoM2" radius={[6, 6, 0, 0]} fill="oklch(0.7 0.18 152)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      </div>
 
-      {/* Block 4: tabela */}
-      <Card className="mt-6 border-border/60 p-6 print-break-before print-section">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tabela comparativa</div>
-            <div className="text-sm text-muted-foreground">{study.comparaveis.length} imóveis encontrados</div>
+          {/* Gráfico principal */}
+          <div className="rounded-lg border border-border/60 p-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Distribuição de preços</div>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip formatter={(v: number) => formatBRL(v)} />
+                <ReferenceLine y={input.valorPretendido} stroke="oklch(0.78 0.16 75)" strokeDasharray="4 4" label={{ value: "Seu imóvel", fontSize: 10, fill: "oklch(0.4 0.1 75)" }} />
+                <Bar dataKey="preco" radius={[6, 6, 0, 0]}>
+                  {chartData.map((_, i) => <Cell key={i} fill="oklch(0.58 0.16 152)" />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-            <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="maior-similaridade">Maior similaridade</SelectItem>
-              <SelectItem value="menor-preco">Menor preço</SelectItem>
-              <SelectItem value="maior-area">Maior área</SelectItem>
-              <SelectItem value="menor-precom2">Menor preço por m²</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Portal</TableHead>
-                <TableHead>Título</TableHead>
-                <TableHead>Bairro</TableHead>
-                <TableHead className="text-right">Área</TableHead>
-                <TableHead className="text-right">Qtos</TableHead>
-                <TableHead className="text-right">Vagas</TableHead>
-                <TableHead className="text-right">Preço</TableHead>
-                <TableHead className="text-right">R$/m²</TableHead>
-                <TableHead className="text-right">Cond.</TableHead>
-                <TableHead className="text-right">IPTU</TableHead>
-                <TableHead className="text-right">DOM</TableHead>
-                <TableHead>Anunciante</TableHead>
-                <TableHead className="text-right">Similar.</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sorted.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell><Badge variant="secondary" className="text-[10px]">{c.portal}</Badge></TableCell>
-                  <TableCell className="max-w-[260px] font-medium">
-                    <div className="truncate">{c.titulo}</div>
-                    {c.mesmoCondominio && (
-                      <Badge className="mt-1 bg-primary text-primary-foreground text-[9px]">Mesmo prédio</Badge>
-                    )}
-                    {!c.mesmoCondominio && c.mesmoEndereco && (
-                      <Badge variant="outline" className="mt-1 text-[9px] border-primary/60 text-primary">Mesmo endereço</Badge>
-                    )}
-                    {c.preferenciaAtendida && (
-                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-success/60 text-success">Match preferido</Badge>
-                    )}
-                    {c.removido && (
-                      <Badge variant="outline" className="mt-1 text-[9px] border-destructive/60 text-destructive">Anúncio removido</Badge>
-                    )}
-                    {c.publicationType === "PREMIUM" && (
-                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-amber-500/60 text-amber-600">Premium</Badge>
-                    )}
-                    {(c.aproximado || c.incomplete) && (!c.areaUtil || c.areaUtil <= 0) && (
-                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-muted-foreground/40 text-muted-foreground">Área não informada</Badge>
-                    )}
-                    {typeof c.confidenceScore === "number" && c.confidenceScore < 50 && (
-                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-warning/60 text-warning-foreground" title={c.confidenceFactors?.join(" · ")}>
-                        Confiança {c.confidenceScore}
-                      </Badge>
-                    )}
-                    {typeof c.dedupCount === "number" && c.dedupCount > 1 && (
-                      <Badge variant="outline" className="ml-1 mt-1 text-[9px] border-primary/60 text-primary" title={c.dedupAnunciantes?.join(", ")}>
-                        {c.dedupCount} anunciantes
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{c.bairro}</TableCell>
-                  <TableCell className="text-right">{c.areaUtil > 0 ? `${c.areaUtil}m²` : "—"}</TableCell>
-                  <TableCell className="text-right">{c.quartos > 0 ? c.quartos : "—"}</TableCell>
-                  <TableCell className="text-right">{c.vagas}</TableCell>
-                  <TableCell className="text-right font-semibold">{formatBRL(c.preco)}</TableCell>
-                  <TableCell className="text-right">{c.precoM2 > 0 ? formatBRL(c.precoM2) : "—"}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{c.condominio ? formatBRL(c.condominio) : "—"}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{c.iptu ? formatBRL(c.iptu) : "—"}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{typeof c.diasMercado === "number" ? `${c.diasMercado}d` : "—"}</TableCell>
-                  <TableCell className="max-w-[180px] text-xs">
-                    <div className="truncate">{c.anunciante || "—"}</div>
-                    {c.advertiserWhatsapp && (
-                      <a
-                        href={`https://wa.me/${c.advertiserWhatsapp.replace(/\D/g, "")}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[10px] text-emerald-600 hover:underline"
-                      >
-                        WhatsApp
-                      </a>
-                    )}
-                    {c.advertiserCreci && (
-                      <span className="ml-2 text-[10px] text-muted-foreground">CRECI {c.advertiserCreci}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Badge className={cn("text-[10px]", c.similaridade > 75 ? "bg-success text-success-foreground" : c.similaridade > 55 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                      {c.similaridade}%
-                    </Badge>
-                  </TableCell>
-                  <TableCell><a href={c.url} target="_blank" rel="noreferrer" className="text-primary hover:underline"><ExternalLink className="h-4 w-4" /></a></TableCell>
+
+          {/* Tabela enxuta com expansão */}
+          <div className="mt-6 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Portal</TableHead>
+                  <TableHead>Imóvel</TableHead>
+                  <TableHead className="text-right">Área</TableHead>
+                  <TableHead className="text-right">Qtos</TableHead>
+                  <TableHead className="text-right">Preço</TableHead>
+                  <TableHead className="text-right">Semelhança</TableHead>
+                  <TableHead className="w-8"></TableHead>
                 </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sorted.map((c) => {
+                  const badge = c.mesmoCondominio ? { label: "Mesmo prédio", cls: "bg-primary text-primary-foreground" }
+                    : c.mesmoEndereco ? { label: "Mesmo endereço", cls: "border border-primary/60 text-primary bg-transparent" }
+                    : c.preferenciaAtendida ? { label: "Match preferido", cls: "border border-success/60 text-success bg-transparent" }
+                    : null;
+                  const isOpen = expandedRow === c.id;
+                  return (
+                    <>
+                      <TableRow key={c.id} className="cursor-pointer" onClick={() => setExpandedRow(isOpen ? null : c.id)}>
+                        <TableCell><Badge variant="secondary" className="text-[10px]">{c.portal}</Badge></TableCell>
+                        <TableCell className="max-w-[360px]">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate font-medium">{c.titulo}</span>
+                            {badge && <Badge className={cn("shrink-0 text-[9px]", badge.cls)}>{badge.label}</Badge>}
+                          </div>
+                          <div className="truncate text-xs text-muted-foreground">{c.bairro}</div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{c.areaUtil > 0 ? `${c.areaUtil}m²` : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{c.quartos > 0 ? c.quartos : "—"}</TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">{formatBRL(c.preco)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+                              <div className="h-full bg-primary" style={{ width: `${Math.max(2, Math.min(100, c.similaridade))}%` }} />
+                            </div>
+                            <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{c.similaridade}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground"><ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} /></TableCell>
+                      </TableRow>
+                      {isOpen && (
+                        <TableRow key={c.id + "-detail"} className="bg-muted/30 hover:bg-muted/30">
+                          <TableCell colSpan={7}>
+                            <div className="grid gap-3 py-2 text-xs md:grid-cols-4">
+                              <DetailKV label="Vagas" value={String(c.vagas)} />
+                              <DetailKV label="R$/m²" value={c.precoM2 > 0 ? formatBRL(c.precoM2) : "—"} />
+                              <DetailKV label="Condomínio" value={c.condominio ? formatBRL(c.condominio) : "—"} />
+                              <DetailKV label="IPTU" value={c.iptu ? formatBRL(c.iptu) : "—"} />
+                              <DetailKV label="Dias no mercado" value={typeof c.diasMercado === "number" ? `${c.diasMercado} dias` : "—"} />
+                              <DetailKV label="Anunciante" value={c.anunciante || "—"} />
+                              {c.advertiserCreci && <DetailKV label="CRECI" value={c.advertiserCreci} />}
+                              {c.advertiserWhatsapp && (
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">WhatsApp</div>
+                                  <a
+                                    href={`https://wa.me/${c.advertiserWhatsapp.replace(/\D/g, "")}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs text-emerald-600 hover:underline"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {c.advertiserWhatsapp}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 pt-2 text-[10px]">
+                              {c.publicationType === "PREMIUM" && (
+                                <Badge variant="outline" className="border-amber-500/60 text-amber-600">Premium</Badge>
+                              )}
+                              {typeof c.confidenceScore === "number" && c.confidenceScore < 50 && (
+                                <Badge variant="outline" className="border-warning/60 text-warning-foreground" title={c.confidenceFactors?.join(" · ")}>
+                                  Confiança {c.confidenceScore}
+                                </Badge>
+                              )}
+                              {typeof c.dedupCount === "number" && c.dedupCount > 1 && (
+                                <Badge variant="outline" className="border-primary/60 text-primary" title={c.dedupAnunciantes?.join(", ")}>
+                                  {c.dedupCount} anunciantes
+                                </Badge>
+                              )}
+                              {(c.aproximado || c.incomplete) && (!c.areaUtil || c.areaUtil <= 0) && (
+                                <Badge variant="outline" className="border-muted-foreground/40 text-muted-foreground">Área não informada</Badge>
+                              )}
+                              {c.removido && (
+                                <Badge variant="outline" className="border-destructive/60 text-destructive">Anúncio removido</Badge>
+                              )}
+                              {c.url && (
+                                <a
+                                  href={c.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="ml-auto inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  Abrir anúncio <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Concorrentes diretos */}
+          <div className="mt-6">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Concorrentes diretos</div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {sorted.slice(0, 3).map((c) => (
+                <Card key={c.id} className="group overflow-hidden border-border/60">
+                  <div className="aspect-video w-full overflow-hidden bg-muted">
+                    <PropertyPhotosCarousel
+                      images={c.imagens && c.imagens.length ? c.imagens : (c.imagem ? [c.imagem] : [])}
+                      alt={c.titulo}
+                    />
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="secondary" className="text-[10px]">{c.portal}</Badge>
+                      <Badge className="bg-success text-success-foreground text-[10px]">{c.similaridade}% similar</Badge>
+                    </div>
+                    <h4 className="mt-2 line-clamp-2 font-semibold">{c.titulo}</h4>
+                    <div className="mt-2 text-2xl font-bold text-primary">{formatBRL(c.preco)}</div>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <span>{c.bairro}</span>
+                      <span>· {c.areaUtil}m²</span>
+                      <span>· {c.quartos} qtos</span>
+                      <span>· {c.vagas} vagas</span>
+                    </div>
+                  </div>
+                </Card>
               ))}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
-
-      {/* Top anunciantes da região */}
-      {(() => {
-        const counts = new Map<string, number>();
-        sorted.forEach((c) => {
-          const name = (c.anunciante || "").trim();
-          if (!name || name === "—") return;
-          counts.set(name, (counts.get(name) ?? 0) + 1);
-        });
-        const top = Array.from(counts.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5);
-        if (top.length === 0) return null;
-        return (
-          <Card className="mt-6 border-border/60 p-6">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Anunciantes mais ativos nos comparáveis
             </div>
-            <div className="flex flex-wrap gap-2">
-              {top.map(([name, n]) => (
-                <Badge key={name} variant="secondary" className="text-xs">
-                  {name} <span className="ml-1 opacity-70">· {n}</span>
-                </Badge>
-              ))}
+          </div>
+
+          {/* Mais dados (colapsado) */}
+          <details className="mt-6 rounded-lg border border-border/60 p-4 open:pb-5">
+            <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Ver mais dados
+            </summary>
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Preço por m² dos parecidos · média {formatBRL(study.precoM2Medio)}
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.01 240)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: number) => formatBRL(v)} />
+                  <ReferenceLine y={study.precoM2Pretendido} stroke="oklch(0.78 0.16 75)" strokeDasharray="4 4" label={{ value: "Seu R$/m²", fontSize: 10, fill: "oklch(0.4 0.1 75)" }} />
+                  <Bar dataKey="precoM2" radius={[6, 6, 0, 0]} fill="oklch(0.7 0.18 152)" />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          </Card>
-        );
-      })()}
-
-      {/* Block 6: concorrentes diretos */}
-      <div className="mt-6">
-        <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Concorrentes diretos</div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {sorted.slice(0, 3).map((c) => (
-            <Card key={c.id} className="group overflow-hidden border-border/60">
-              <div className="aspect-video w-full overflow-hidden bg-muted">
-                <PropertyPhotosCarousel
-                  images={c.imagens && c.imagens.length ? c.imagens : (c.imagem ? [c.imagem] : [])}
-                  alt={c.titulo}
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex items-center justify-between">
-                  <Badge variant="secondary" className="text-[10px]">{c.portal}</Badge>
-                  <Badge className="bg-success text-success-foreground text-[10px]">{c.similaridade}% similar</Badge>
+            {(() => {
+              const counts = new Map<string, number>();
+              sorted.forEach((c) => {
+                const name = (c.anunciante || "").trim();
+                if (!name || name === "—") return;
+                counts.set(name, (counts.get(name) ?? 0) + 1);
+              });
+              const top = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+              if (top.length === 0) return null;
+              return (
+                <div className="mt-6">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Anunciantes mais ativos
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {top.map(([name, n]) => (
+                      <Badge key={name} variant="secondary" className="text-xs">
+                        {name} <span className="ml-1 opacity-70">· {n}</span>
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-                <h4 className="mt-2 line-clamp-2 font-semibold">{c.titulo}</h4>
-                <div className="mt-2 text-2xl font-bold text-primary">{formatBRL(c.preco)}</div>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  <span>{c.bairro}</span>
-                  <span>· {c.areaUtil}m²</span>
-                  <span>· {c.quartos} qtos</span>
-                  <span>· {c.vagas} vagas</span>
-                </div>
-                <div className="mt-3 rounded-lg bg-muted/50 p-2 text-xs text-muted-foreground">
-                  Concorrente direto pela proximidade de metragem, bairro e diferenciais semelhantes.
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      {/* Block 7: pontos fortes e fracos */}
-      </>
+              );
+            })()}
+          </details>
+        </Card>
       )}
+
+      {/* Accordion — Ajustar estudo (avançado) */}
+      <Accordion type="single" collapsible className="mt-6 print:hidden">
+        <AccordionItem value="ajustes" className="rounded-lg border border-border/60 bg-card px-4">
+          <AccordionTrigger className="py-4 hover:no-underline">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <Settings2 className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-semibold">Ajustar estudo (avançado)</div>
+                <div className="text-xs text-muted-foreground">ACM, critérios de busca e lista de comparáveis.</div>
+              </div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-6 pb-6 pt-2">
+            {study.comparaveis.length > 0 && <AcmPanel study={study} onChange={setStudy} />}
+            <CriteriosEditor
+              study={study}
+              input={input}
+              onRerun={handleRerun}
+              loading={rerunning}
+              warning={rerunWarning}
+            />
+            <ComparaveisManager
+              study={study}
+              originals={originalsRef.current}
+              onChange={setStudy}
+            />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      {/* Pontos fortes e pontos de atenção */}
       <div className="mt-6 grid gap-4 md:grid-cols-2 print-break-before">
         <Card className="border-success/30 bg-success/5 p-6">
           <div className="mb-3 flex items-center gap-2">
@@ -597,24 +635,6 @@ function ReportPage() {
           </ul>
         </Card>
       </div>
-
-      {/* Block 8: sugestao comercial */}
-      <Card className="mt-6 border-border/60 p-6 print-section">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wider text-primary">Sugestão comercial</div>
-            <div className="text-sm text-muted-foreground">Pronto para usar com o cliente</div>
-          </div>
-          <Button variant="outline" size="sm" className="gap-2 print:hidden" onClick={copyAnalise}>
-            <Copy className="h-4 w-4" /> Copiar análise
-          </Button>
-        </div>
-        <div className="space-y-4">
-          <Suggestion title="Título sugerido do anúncio" text={study.tituloSugerido} />
-          <Suggestion title="Descrição sugerida" text={study.descricaoSugerida} />
-          <Suggestion title="Argumento para o proprietário" text={study.argumentoProprietario} />
-        </div>
-      </Card>
 
       {/* Slide ACM — pré-visualização do material exportado, ao final do relatório */}
       <Card className="mt-6 border-border/60 p-6 print-section">
