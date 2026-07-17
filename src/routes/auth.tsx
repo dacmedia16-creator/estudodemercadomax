@@ -43,7 +43,7 @@ function AuthPage() {
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser();
-      if (data.user) navigate({ to: "/app/novo-estudo", replace: true });
+      if (data.user) navigate({ to: "/app", replace: true });
     })();
   }, [navigate]);
 
@@ -61,7 +61,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email: parsed.data.email,
           password: parsed.data.password,
-          options: { emailRedirectTo: `${window.location.origin}/app/novo-estudo` },
+          options: { emailRedirectTo: `${window.location.origin}/app` },
         });
         if (error) {
           console.error("[auth] signup error", error);
@@ -84,7 +84,7 @@ function AuthPage() {
           return;
         }
       }
-      navigate({ to: "/app/novo-estudo", replace: true });
+      navigate({ to: "/app", replace: true });
     } finally {
       setLoading(false);
     }
