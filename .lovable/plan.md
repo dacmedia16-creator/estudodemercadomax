@@ -1,29 +1,24 @@
-# Por que o painel "Valor recomendado" não recalcula
+# Remover páginas 2 e 5 do PDF
 
-Ao adicionar/remover imóveis, o estudo é recalculado (`recomputeStudy`) — mas o número grande do hero vem de `getValorIdeal`, que **prioriza `study.aiAnalysis.faixaRecomendada.ideal`**. Esse campo é preenchido uma única vez pela IA e nunca é atualizado quando os comparáveis mudam. Só se a IA divergir >25% da mediana×área o motor cai no cálculo determinístico — dentro dessa faixa, o valor exibido continua o antigo.
+O PDF exportado hoje tem 5 páginas em ordem:
 
-Legenda ("N imóveis · média R$X/m²") atualiza, mas o valor recomendado, "Vender rápido" e "Anunciar até" (todos derivados dele) ficam parados.
+1. **One-Pager A4** (`PrintOnePager` — capa executiva com valor recomendado)
+2. **Capa/Cover** (`CoverPage`) ← remover
+3. **Carta ao Proprietário** (`OwnerLetterPage`)
+4. **Argumentos para o Proprietário** (`OwnerPersuasionPage`)
+5. **Contracapa/BackCover** (`BackCoverPage`) ← remover
 
-# Correção
+## Alteração
 
-Fazer `recomputeStudy` reprojetar a `faixaRecomendada` da IA sobre o novo `stats`, mantendo o tom/texto da análise da IA mas com os números atuais.
+Em `src/components/print-slides.tsx`, dentro de `PrintOwnerPages`, remover as linhas que renderizam `<CoverPage .../>` e `<BackCoverPage .../>`. Manter apenas a Carta e a página de Argumentos.
 
-## Passos
-
-1. **`src/lib/study-engine.ts` — `recomputeStudy`**
-   - Depois de calcular o novo `stats` e `valorIdealDetCalc`/`valorIdealRange`, reconstruir `aiAnalysis.faixaRecomendada` quando ela existir:
-     - `ideal` = `valorIdealDetCalc` (mediana × área nova)
-     - `min` = `valorIdealRange.min` (ou `faixaMin` como fallback)
-     - `max` = `valorIdealRange.max` (ou `faixaMax`)
-   - Preservar demais campos de `aiAnalysis` (resumo, argumentos, pontos etc.).
-   - Se `aiAnalysis` não existir, não criar — mantém compatibilidade com estudos sem IA (getValorIdeal já cai no determinístico).
-
-2. **Verificação rápida no preview**
-   - Abrir um relatório, remover 1 imóvel via `ComparaveisManager` e confirmar que "Valor recomendado", "Vender rápido" e "Anunciar até" mudam junto com a legenda.
-   - Adicionar um link manual e confirmar que o hero se move na direção esperada.
+Após a mudança, o PDF fica com 3 páginas: One-Pager → Carta → Argumentos.
 
 ## Fora de escopo
 
-- Não alterar a IA em si (nem re-chamar o gateway) — apenas reprojetar os números sobre os novos `stats`.
-- PDF (`PrintOnePager`) já usa o mesmo `getValorIdeal`, então herda o fix automaticamente.
-- Sliders de ACM já reagem — não são afetados por essa mudança.
+- Não apagar os componentes `CoverPage`/`BackCoverPage` do arquivo (ficam disponíveis caso queira reativar no futuro; se preferir remoção completa dos componentes também, avise).
+- `PrintSlides` (apresentação 16:9) não é usado no PDF padrão — não é afetado.
+
+## Verificação
+
+Abrir o relatório e usar "Exportar PDF" → confirmar que agora sai com One-Pager, Carta e Argumentos apenas (sem capa nem contracapa).
