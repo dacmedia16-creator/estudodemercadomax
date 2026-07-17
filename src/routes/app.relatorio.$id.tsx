@@ -47,6 +47,7 @@ function ReportPage() {
   const { id } = Route.useParams();
   const [study, setStudy] = useState<StudyResult | null>(null);
   const [sort, setSort] = useState<SortKey>("maior-similaridade");
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState(false);
   const [rerunWarning, setRerunWarning] = useState<string | null>(null);
   // Snapshot dos comparáveis que vieram da última busca — usado para
