@@ -305,12 +305,12 @@ function PercentilRuler({
   const pos = (v: number) => Math.max(0, Math.min(100, ((v - min) / range) * 100));
   const sugerido = pos(sugeridoM2);
 
-  const marks: { v: number; label: string; tone: "muted" | "strong" }[] = [
-    { v: stats.p10, label: "P10", tone: "muted" },
-    { v: stats.p25, label: "P25", tone: "strong" },
-    { v: stats.median, label: "Mediana", tone: "strong" },
-    { v: stats.p75, label: "P75", tone: "strong" },
-    { v: stats.p90, label: "P90", tone: "muted" },
+  const marks: { v: number; label: string; title: string; tone: "muted" | "strong" }[] = [
+    { v: stats.p10, label: "mais barato", title: "P10 · 10% dos comparáveis abaixo", tone: "muted" },
+    { v: stats.p25, label: "", title: "P25", tone: "strong" },
+    { v: stats.median, label: "meio", title: "Mediana · 50% acima, 50% abaixo", tone: "strong" },
+    { v: stats.p75, label: "", title: "P75", tone: "strong" },
+    { v: stats.p90, label: "mais caro", title: "P90 · 10% dos comparáveis acima", tone: "muted" },
   ];
 
   return (
@@ -331,12 +331,14 @@ function PercentilRuler({
           style={{ left: `${pos(stats.p25)}%`, width: `${pos(stats.p75) - pos(stats.p25)}%` }}
         />
         {/* Marcas */}
-        {marks.map((m) => (
-          <div key={m.label} className="absolute top-4 -translate-x-1/2" style={{ left: `${pos(m.v)}%` }}>
+        {marks.map((m, i) => (
+          <div key={i} className="absolute top-4 -translate-x-1/2" style={{ left: `${pos(m.v)}%` }} title={m.title}>
             <div className={cn("h-4 w-px", m.tone === "strong" ? "bg-foreground/70" : "bg-muted-foreground/40")} />
-            <div className={cn("mt-0.5 text-[9px] tabular-nums", m.tone === "strong" ? "text-foreground" : "text-muted-foreground")}>
-              {m.label}
-            </div>
+            {m.label && (
+              <div className="mt-0.5 whitespace-nowrap text-[9px] uppercase tracking-wider text-muted-foreground">
+                {m.label}
+              </div>
+            )}
           </div>
         ))}
         {/* Indicador do sugerido */}
