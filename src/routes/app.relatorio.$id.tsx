@@ -658,103 +658,90 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
   const acm = computeAcm(study, study.acm ?? DEFAULT_ACM);
   const { input } = study;
   const valorIdeal = getValorIdeal(study, acm);
-  // Mínimo/máximo de publicação derivados do Valor Ideal para coerência com o discurso.
   const ratioMin = acm.valorSugerido > 0 ? acm.valorMinimoFechamento / acm.valorSugerido : 0.95;
   const ratioMax = acm.valorSugerido > 0 ? acm.valorMaximoPublicacao / acm.valorSugerido : 1.05;
   const idealMin = Math.round(valorIdeal * ratioMin);
   const idealMax = Math.round(valorIdeal * ratioMax);
-  const top = sorted.slice(0, 6);
-  const fortes = study.pontosFortes.slice(0, 4);
-  const atencao = study.pontosAtencao.slice(0, 4);
+  const top = sorted.slice(0, 4);
+  const fortes = study.pontosFortes.slice(0, 3);
+  const dataStr = new Date(study.createdAt).toLocaleDateString("pt-BR");
+  const posicaoTexto =
+    study.status === "Acima da média"
+      ? "O preço desejado está acima do que imóveis parecidos estão pedindo hoje."
+      : study.status === "Abaixo da média"
+        ? "O preço desejado está abaixo do que imóveis parecidos estão pedindo — há espaço para valorizar."
+        : "O preço desejado está alinhado com imóveis parecidos anunciados hoje.";
   return (
     <section className="print-onepager hidden print:block">
-      {/* Faixa de marca */}
       <div className="op-brandbar">
-        <div className="op-brandbar-left">ESTUDO DE MERCADO PRO</div>
-        <div className="op-brandbar-right">
-          #{study.id.slice(0, 8).toUpperCase()} · {new Date(study.createdAt).toLocaleDateString("pt-BR")}
-          {typeof study.revisao === "number" && study.revisao > 0 ? ` · rev. ${study.revisao}` : ""}
-        </div>
+        <div className="op-brandbar-left">ESTUDO DE MERCADO</div>
+        <div className="op-brandbar-right">{dataStr}</div>
       </div>
 
-      {/* Título do imóvel */}
       <div className="op-titleblock">
-        <div className="op-title">{input.tipo} · {input.bairro}, {input.cidade}/{input.estado}</div>
-        <div className="op-sub">
-          {input.areaUtil} m² · {input.quartos} dorm{input.suites > 0 ? ` (${input.suites} suíte${input.suites > 1 ? "s" : ""})` : ""} · {input.vagas} vaga{input.vagas !== 1 ? "s" : ""} · {input.finalidade}
-        </div>
+        <div className="op-title">{input.tipo} em {input.bairro}</div>
+        <div className="op-sub">{input.cidade}/{input.estado}</div>
       </div>
 
-      {/* HERO azul cheio — valor recomendado */}
       <div className="op-hero">
         <div className="op-hero-label">Valor recomendado para venda</div>
         <div className="op-hero-value">{formatBRL(valorIdeal)}</div>
-        {study.valorIdealRange && (
-          <div className="op-hero-meta" style={{ fontStyle: "italic", color: "#cfe0ff", marginBottom: 4 }}>
-            Margem de segurança da estimativa ({study.valorIdealRange.confianca}): {formatBRL(study.valorIdealRange.min)} – {formatBRL(study.valorIdealRange.max)}
-          </div>
-        )}
-        {study.iaSobrescrita && (
-          <div className="op-hero-meta" style={{ color: "#fde68a", fontWeight: 700 }}>
-            ⚠ Estimativa ajustada para o preço médio de mercado (divergência &gt; 15%).
-          </div>
-        )}
         <div className="op-hero-pills">
           <div className="op-hpill">
-            <div className="lbl">Preço para vender rápido</div>
+            <div className="lbl">Para vender mais rápido</div>
             <div className="val">{formatBRL(idealMin)}</div>
           </div>
           <div className="op-hpill op-hpill-strong">
-            <div className="lbl">Preço recomendado</div>
+            <div className="lbl">Valor recomendado</div>
             <div className="val">{formatBRL(valorIdeal)}</div>
           </div>
           <div className="op-hpill">
-            <div className="lbl">Preço máximo para anunciar</div>
+            <div className="lbl">Anunciar no máximo por</div>
             <div className="val">{formatBRL(idealMax)}</div>
           </div>
         </div>
-        <div className="op-hero-meta">
-          {study.comparaveis.length} imóveis parecidos analisados · preço médio de mercado {formatBRL(study.precoM2Medio)}/m² · situação: <b>{study.status}</b>
-        </div>
       </div>
 
-      {/* KPIs 3 colunas */}
-      <div className="op-kpis">
-        <div className="op-kpi">
-          <div className="lbl">Preço pretendido pelo proprietário</div>
-          <div className="val">{formatBRL(input.valorPretendido)}</div>
-          <div className="meta">{formatBRL(study.precoM2Pretendido)}/m² · cond. {formatBRL(input.condominio)}</div>
+      <div className="op-section-title">Seu imóvel</div>
+      <div className="op-facts">
+        <div className="op-fact"><div className="lbl">Tipo</div><div className="val">{input.tipo}</div></div>
+        <div className="op-fact"><div className="lbl">Área</div><div className="val">{input.areaUtil} m²</div></div>
+        <div className="op-fact">
+          <div className="lbl">Dormitórios</div>
+          <div className="val">{input.quartos}{input.suites > 0 ? ` (${input.suites} suíte${input.suites > 1 ? "s" : ""})` : ""}</div>
         </div>
-        <div className="op-kpi">
-          <div className="lbl">Preço médio dos imóveis parecidos</div>
-          <div className="val">{formatBRL(study.precoMedio)}</div>
-          <div className="meta">faixa {formatBRL(study.faixaMin)} – {formatBRL(study.faixaMax)}</div>
-        </div>
-        <div className="op-kpi">
-          <div className="lbl">O que o estudo mostra</div>
-          <div className="val op-kpi-status">{study.status}</div>
-          <div className="meta">{study.diagnostico}</div>
-        </div>
+        <div className="op-fact"><div className="lbl">Vagas</div><div className="val">{input.vagas}</div></div>
+        {input.condominio > 0 && (
+          <div className="op-fact"><div className="lbl">Condomínio</div><div className="val">{formatBRL(input.condominio)}</div></div>
+        )}
+        <div className="op-fact"><div className="lbl">Bairro</div><div className="val">{input.bairro}</div></div>
       </div>
 
-      {/* Comparáveis */}
-      <div className="op-section-title">Imóveis parecidos anunciados hoje</div>
+      <div className="op-section-title">Por que esse valor</div>
+      <div className="op-why">
+        <p className="op-why-lead">
+          Analisamos {study.comparaveis.length} imóveis parecidos anunciados na região. {posicaoTexto}
+        </p>
+        {fortes.length > 0 && (
+          <ul className="op-why-list">
+            {fortes.map((p) => <li key={p}>{p}</li>)}
+          </ul>
+        )}
+      </div>
+
+      <div className="op-section-title">Alguns imóveis parecidos à venda hoje</div>
       <table className="op-table">
         <thead>
           <tr>
-            <th style={{ width: "10%" }}>Portal</th>
-            <th>Endereço / título</th>
-            <th className="num" style={{ width: "7%" }}>m²</th>
-            <th className="num" style={{ width: "7%" }}>Qtos</th>
-            <th className="num" style={{ width: "13%" }}>Preço</th>
-            <th className="num" style={{ width: "11%" }}>R$/m²</th>
-            <th style={{ width: "16%" }}>Semelhança</th>
+            <th>Imóvel</th>
+            <th className="num" style={{ width: "14%" }}>Área (m²)</th>
+            <th className="num" style={{ width: "12%" }}>Dorm.</th>
+            <th className="num" style={{ width: "22%" }}>Preço pedido</th>
           </tr>
         </thead>
         <tbody>
           {top.map((c) => (
             <tr key={c.id}>
-              <td>{c.portal}</td>
               <td>
                 <div className="op-cmp-title">{c.titulo}</div>
                 <div className="op-cmp-sub">
@@ -766,45 +753,18 @@ function PrintOnePager({ study, sorted }: { study: StudyResult; sorted: StudyRes
               <td className="num">{c.areaUtil > 0 ? c.areaUtil : "—"}</td>
               <td className="num">{c.quartos > 0 ? c.quartos : "—"}</td>
               <td className="num"><b>{formatBRL(c.preco)}</b></td>
-              <td className="num">{c.precoM2 > 0 ? formatBRL(c.precoM2) : "—"}</td>
-              <td>
-                <div className="op-simwrap">
-                  <div className="op-simbar"><span style={{ width: `${Math.max(2, Math.min(100, c.similaridade))}%` }} /></div>
-                  <span className="op-simval">{c.similaridade}%</span>
-                </div>
-              </td>
             </tr>
           ))}
           {top.length === 0 && (
-            <tr><td colSpan={7} style={{ textAlign: "center", color: "#888" }}>Nenhum comparável encontrado.</td></tr>
+            <tr><td colSpan={4} style={{ textAlign: "center", color: "#888" }}>Nenhum imóvel parecido encontrado.</td></tr>
           )}
         </tbody>
       </table>
-
-      {/* Pontos fortes / atenção */}
-      <div className="op-points">
-        <div className="op-point op-point-good">
-          <div className="op-point-head">✓ Pontos fortes</div>
-          <ul>{fortes.map((p) => <li key={p}>{p}</li>)}</ul>
-        </div>
-        <div className="op-point op-point-warn">
-          <div className="op-point-head">! Pontos de atenção</div>
-          <ul>{atencao.map((p) => <li key={p}>{p}</li>)}</ul>
-        </div>
-      </div>
-
-      {/* Sugestão comercial */}
-      <div className="op-suggest">
-        <div className="op-suggest-head">Sugestão comercial</div>
-        <div className="op-suggest-body">
-          <div><span className="lbl">Título:</span> {study.tituloSugerido}</div>
-          <div style={{ marginTop: "2pt" }}><span className="lbl">Argumento:</span> {study.argumentoProprietario}</div>
-        </div>
-      </div>
+      <div className="op-table-note">Valores anunciados nos portais na data deste estudo. Servem de referência de mercado.</div>
 
       <div className="op-footer">
-        <span>Estudo de Mercado Pro</span>
-        <span>Gerado em {new Date(study.createdAt).toLocaleString("pt-BR")}</span>
+        <span>Estudo de mercado imobiliário</span>
+        <span>Gerado em {dataStr}</span>
       </div>
     </section>
   );

@@ -1,93 +1,48 @@
-# Refatorar `/app/relatorio/$id` — foco no corretor
+## Simplificar PDF do relatório para o proprietário
 
-Escopo: só a organização visual da tela (`print-hide-on-print`) em `src/routes/app.relatorio.$id.tsx`. **Nada** de mudar `computeAcm`, `runStudy`, `studyStore`, `PrintOnePager`, `PrintSlides` ou `PrintOwnerPages`. Header, `max-w-7xl`, `print-section` e `print-break-before` ficam intactos.
+Escopo estrito: apenas o componente `PrintOnePager` em `src/routes/app.relatorio.$id.tsx` e as classes `.op-*` dentro de `@media print` em `src/styles.css`. Zero mudança em `computeAcm`, `runStudy`, `studyStore`, `PrintSlides`, `PrintOwnerPages` ou cálculos.
 
-## Nova ordem da tela
+## Arquivo 1 — `src/routes/app.relatorio.$id.tsx` (função `PrintOnePager`)
 
-1. **Header** — inalterado.
-2. **`ResumoHero`** (novo, só na tela) — hero de valor.
-3. **Faixa fina de indicadores** — 1 linha em `text-muted-foreground`.
-4. **Card "Como apresentar ao proprietário"** — funde `diagnostico` + `AiAnalysisCard` + sugestão comercial.
-5. **Card "Prova de mercado"** — gráfico principal + tabela enxuta + concorrentes diretos; gráfico secundário e "Anunciantes mais ativos" dentro de `<details> Ver mais dados`.
-6. **Accordion "Ajustar estudo (avançado)"** — colapsado por padrão, contém `AcmPanel`, `CriteriosEditor`, `ComparaveisManager`.
-7. **Pontos fortes / Pontos de atenção** — inalterados.
-8. **Slide ACM (preview)** — mantido no fim.
+Reescrever o JSX mantendo o cálculo do topo (`acm`, `valorIdeal`, `ratioMin/Max`, `idealMin/Max`) e trocando o resto:
 
-```text
-┌───────────── Header (Exportar PDF · ACM · Compartilhar) ─────────────┐
-│                                                                      │
-│  HERO: Valor recomendado para venda                                  │
-│  ┌──────────────────────────────────────────────────────────────┐    │
-│  │ R$ 1.150.000                              (margem ±X: A–B)   │    │
-│  │ [Vender rápido]  [Recomendado ★]  [Anunciar até]             │    │
-│  │ 12 imóveis parecidos · R$ 9.200/m² · situação: Dentro média  │    │
-│  └──────────────────────────────────────────────────────────────┘    │
-│  Preço médio X · Menor Y · Maior Z · Faixa A–B                       │
-│                                                                      │
-│  [ Como apresentar ao proprietário ]                                 │
-│  [ Prova de mercado ]                                                │
-│  ▸ Ajustar estudo (avançado)                                         │
-│  Pontos fortes | Pontos de atenção                                   │
-│  Slide ACM (preview)                                                 │
-└──────────────────────────────────────────────────────────────────────┘
-```
+1. **Faixa de marca** — `op-brandbar` com "ESTUDO DE MERCADO" à esquerda e `dataStr` (createdAt em `dd/mm/aaaa`) à direita. Sem #id, sem revisão, sem "PRO".
+2. **Título** — `op-title`: `{tipo} em {bairro}`; `op-sub`: `{cidade}/{estado}`.
+3. **Hero** (`op-hero`, primary, texto branco):
+   - `op-hero-label`: "Valor recomendado para venda"
+   - `op-hero-value`: `formatBRL(valorIdeal)`
+   - `op-hero-pills` com 3 pills: "Para vender mais rápido" (idealMin) · "Valor recomendado" (valorIdeal, `op-hpill-strong`) · "Anunciar no máximo por" (idealMax).
+   - Remover `op-hero-meta` (margem de segurança, IA sobrescrita, contagem/status).
+4. **Seção "Seu imóvel"** — `op-section-title` + `op-facts` (grid 3 col) com `op-fact` (lbl+val): Tipo, Área (`{areaUtil} m²`), Dormitórios (`{quartos}` + suítes entre parênteses se >0), Vagas, Condomínio (só se `> 0`), Bairro.
+5. **Seção "Por que esse valor"** — `op-why` com `op-why-lead` ("Analisamos {n} imóveis parecidos anunciados na região. {posicaoTexto}") e `op-why-list` com `pontosFortes.slice(0,3)`. `posicaoTexto` conforme `study.status` (Acima/Abaixo/alinhado).
+6. **Seção "Alguns imóveis parecidos à venda hoje"** — tabela com 4 colunas: Imóvel (título + `op-cmp-sub` com bairro e tag "mesmo prédio"/"mesmo endereço") · Área (m²) · Dorm. · Preço pedido (negrito). `sorted.slice(0, 4)`. Nota final em `op-table-note`: "Valores anunciados nos portais na data deste estudo. Servem de referência de mercado."
+7. **Rodapé** — "Estudo de mercado imobiliário" à esquerda, "Gerado em {dataStr}" à direita.
 
-## Detalhes por bloco
+Remover: coluna Portal, coluna R$/m², coluna Semelhança + bloco `op-simwrap`, blocos `op-kpis`, `op-points` (fortes/atenção lado a lado), `op-suggest` (título/argumento), meta de IA/margem no hero, #id/revisão na brandbar.
 
-### 2. `ResumoHero` (novo componente no mesmo arquivo)
-- Rótulo "Valor recomendado para venda" + valor grande usando `getValorIdeal(study, acm)`.
-- Se `study.valorIdealRange`: linha pequena "margem de segurança ({confianca}): {min} – {max}".
-- 3 pills lado a lado, **Recomendado** destacado:
-  - `idealMin = valorIdeal * (acm.valorMinimoFechamento / acm.valorSugerido)`
-  - `idealMax = valorIdeal * (acm.valorMaximoPublicacao / acm.valorSugerido)`
-- Rodapé: "{n} imóveis parecidos analisados · R$ {precoM2Medio}/m² de média · situação: {status}", palavra do status colorida (verde/âmbar/azul) via tokens `text-success | text-warning | text-primary`.
-- Estilo: `bg-primary/5 border border-primary/40`, valor em `text-primary`. Sem gradiente/sombra pesada.
+## Arquivo 2 — `src/styles.css` (bloco `@media print`)
 
-### 3. Faixa fina
-Substitui os 6 `Indicator`. Uma `<p>` em `text-xs text-muted-foreground`: "Preço médio: X · Menor: Y · Maior: Z · Faixa recomendada: A–B".
+Manter intactos: `.print-onepager` container (`210mm/297mm/padding 8mm 9mm`), `.op-brandbar*`, `.op-titleblock`, `.op-title`, `.op-sub`, `.op-hero`, `.op-hero-label`, `.op-hero-value`, `.op-hero-pills`, `.op-hpill*`, `.op-section-title`, `.op-table`, `.op-cmp-title`, `.op-cmp-sub`, `.op-tag`, `.op-footer`, e regras `-webkit-print-color-adjust: exact` já existentes.
 
-### 4. "Como apresentar ao proprietário"
-Um único `Card` com subseções:
-- **Resumo** — `study.diagnostico` + `aiAnalysis.resumo` se houver.
-- **Discurso pro proprietário** — `aiAnalysis.discursoProprietario` + botão Copiar.
-- **Anúncio pronto** — `study.tituloSugerido` e `study.descricaoSugerida`, cada um com botão Copiar.
-- Botão "Gerar novamente" da IA no header do card (reaproveita a função de `AiAnalysisCard`).
-- Riscos e Recomendações da IA como duas colunas no fim do card.
+Ajustes:
+- `.op-title` → `font-size: 17pt` (era 13pt).
+- `.op-sub` → tamanho similar, ~10pt.
+- `.op-hero` → padding mais respirado (~16pt); `.op-hero-value` → `font-size: 40pt`.
+- `.op-section-title` → `font-size: 10pt`, uppercase, cor `var(--primary)`.
+- `.op-tag` → pill primary com fundo `color-mix(in srgb, var(--primary) 12%, #fff)` e texto `var(--primary)`.
 
-Implementação: extrair um `ApresentacaoCard` que recebe `study`/`onChange` e chama internamente a mesma server fn (`analisarMercadoIa`) que o `AiAnalysisCard` usa hoje — para não duplicar lógica, `AiAnalysisCard` pode ser reaproveitado internamente ou refatorado para expor esse conteúdo; se ficar caro, apenas renderizar `AiAnalysisCard` dentro do card + adicionar Copiar/Título/Descrição em cima.
+Adicionar novas classes:
+- `.op-facts` — `display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8pt 16pt; margin-bottom: 8pt`.
+- `.op-fact` — coluna com borda inferior fininha; `.lbl` 7.5pt cinza uppercase, `.val` 11pt negrito.
+- `.op-why` — bloco com padding leve; `.op-why-lead` 9.5pt cinza escuro; `.op-why-list` 9pt.
+- `.op-table-note` — 7.5pt itálico cinza logo abaixo da tabela.
 
-### 5. "Prova de mercado"
-- Gráfico "Distribuição de preços" (mantém).
-- Tabela enxuta (ver abaixo).
-- Concorrentes diretos (mantém 3 cards).
-- Dentro de `<details><summary>Ver mais dados</summary>`: gráfico "Preço por m²" + "Anunciantes mais ativos".
-
-### 6. Tabela enxuta
-Colunas visíveis: **Portal · Título (+bairro embaixo) · m² · Quartos · Preço · Semelhança**.
-- Preço em negrito; barra/badge de semelhança preservada.
-- No máximo 1 badge por linha, prioridade: `Mesmo prédio` > `Mesmo endereço` > `Match preferido`. Outras badges (Premium, Confiança, N anunciantes, Área não informada, Anúncio removido) só na linha de detalhe.
-- Clique na linha expande `expandedRow` (state `useState<string | null>`) mostrando Cond., IPTU, DOM, R$/m², Anunciante, WhatsApp, CRECI, link.
-- Mantém `Select` de ordenação e o aviso quando `comparaveis.length === 0`.
-
-### 7. Accordion "Ajustar estudo (avançado)"
-`Accordion type="single" collapsible` (shadcn), sem `defaultValue`. Um `AccordionItem` com `AcmPanel`, `CriteriosEditor`, `ComparaveisManager` empilhados. `print-hide-on-print` no wrapper.
-
-### 8. Régua de percentis (AcmPanel)
-No próprio `AcmPanel` (mudança pequena, autorizada porque é UI, não cálculo): esconder rótulos P10/P25/Mediana/P75/P90 dentro de `<Tooltip>` e deixar visíveis só "mais barato · meio · mais caro".
-
-### 9. Linguagem (só rótulos da tela)
-- "Comparáveis" → "Imóveis parecidos".
-- "R$/m² pretendido" → "Preço por m² do seu imóvel".
-- "valorPretendido" exibido como "Preço que o proprietário quer".
-
-## Arquivos alterados
-- `src/routes/app.relatorio.$id.tsx` — reorganização, novos componentes locais `ResumoHero`, `ApresentacaoCard`, tabela enxuta com `expandedRow`.
-- `src/components/acm-panel.tsx` — só a régua de percentis (tooltip nas siglas).
-
-## Fora do escopo
-Cálculos, engine, store, PDF (`PrintOnePager`/`PrintSlides`/`PrintOwnerPages`), runner, tipos.
+Remover (não existem mais): `.op-kpis`, `.op-kpi`, `.op-kpi-status`, `.op-points`, `.op-point`, `.op-point-good`, `.op-point-warn`, `.op-point-head`, `.op-suggest*`, `.op-simwrap`, `.op-simbar`, `.op-simval`, `.op-hero-meta`.
 
 ## Verificação
-- `tsgo` limpo.
-- Abrir um relatório existente na preview: hero visível, tabela com 6 colunas, accordion fechado, `print-hide-on-print` ainda impede que os blocos de edição vazem para o PDF.
-- Exportar PDF de teste: 4 páginas iguais às de hoje.
+- `tsgo` limpo (harness).
+- Preview: layout de tela inalterado.
+- Print preview: uma única folha A4 com Faixa → Título → Hero → Seu imóvel → Por que esse valor → Tabela (4 col) → Rodapé, sem KPIs/pontos atenção/sugestão.
+
+## Fora do escopo
+Qualquer mudança em cálculos, engine, store, slides de dono (`PrintOwnerPages`), `PrintSlides`, layout de tela, terminologia da UI web.
