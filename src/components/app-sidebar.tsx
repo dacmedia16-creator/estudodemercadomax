@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { FilePlus2, FolderOpen, BarChart3, FileText, Settings, ShieldCheck } from "lucide-react";
+import { FilePlus2, FolderOpen, BarChart3, FileText, Settings, ShieldCheck, LayoutDashboard } from "lucide-react";
 import remaxIcon from "@/assets/remax-icon-transparent.png.asset.json";
 import {
   Sidebar,
@@ -15,6 +15,7 @@ import {
 import { useIsAdmin } from "@/hooks/use-is-admin";
 
 const items = [
+  { title: "Início", url: "/app", icon: LayoutDashboard },
   { title: "Novo estudo", url: "/app/novo-estudo", icon: FilePlus2 },
   { title: "Estudos salvos", url: "/app/estudos", icon: FolderOpen },
   { title: "Comparativos", url: "/app/comparativos", icon: BarChart3 },
