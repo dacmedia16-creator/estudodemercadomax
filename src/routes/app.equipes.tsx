@@ -13,12 +13,17 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Pencil, Plus, Trash2, UserPlus, Users } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, Pencil, Plus, Trash2, UserPlus, Users } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
-  adminAddMemberToTeam, adminCreateTeam, adminDeleteTeam, adminGetTeam, adminListTeams,
-  adminRemoveMemberFromTeam, adminUpdateTeam,
+  adminAddMemberToTeam, adminCreateTeam, adminDeleteTeam, adminGetTeam, adminListAvailableUsers,
+  adminListTeams, adminRemoveMemberFromTeam, adminUpdateTeam,
 } from "@/lib/team.functions";
 
 export const Route = createFileRoute("/app/equipes")({
@@ -45,9 +50,20 @@ function TeamsAdminPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
+  const [managerId, setManagerId] = useState<string | null>(null);
+  const [creatingNew, setCreatingNew] = useState(false);
   const [managerEmail, setManagerEmail] = useState("");
   const [managerPassword, setManagerPassword] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  const usersQ = useQuery({
+    queryKey: ["admin-users"],
+    queryFn: () => adminListAvailableUsers(),
+    enabled: isAdmin && createOpen,
+  });
+  const users = usersQ.data?.users ?? [];
+  const selectedUser = users.find((u) => u.id === managerId);
 
   const [detailId, setDetailId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
@@ -58,8 +74,16 @@ function TeamsAdminPage() {
   };
 
   const handleCreate = async () => {
-    if (!name.trim() || !managerEmail.trim()) {
-      toast.error("Preencha nome da equipe e e-mail do gestor.");
+    if (!name.trim()) {
+      toast.error("Informe o nome da equipe.");
+      return;
+    }
+    if (!creatingNew && !managerId) {
+      toast.error("Selecione um gestor.");
+      return;
+    }
+    if (creatingNew && (!managerEmail.trim() || managerPassword.length < 8)) {
+      toast.error("Informe e-mail e senha (mín. 8) para o novo gestor.");
       return;
     }
     setCreating(true);
@@ -67,12 +91,14 @@ function TeamsAdminPage() {
       await adminCreateTeam({
         data: {
           name: name.trim(),
-          managerEmail: managerEmail.trim(),
-          managerPassword: managerPassword ? managerPassword : undefined,
+          managerId: creatingNew ? undefined : managerId ?? undefined,
+          managerEmail: creatingNew ? managerEmail.trim() : undefined,
+          managerPassword: creatingNew ? managerPassword : undefined,
         },
       });
       toast.success("Equipe criada.");
-      setCreateOpen(false); setName(""); setManagerEmail(""); setManagerPassword("");
+      setCreateOpen(false); setName(""); setManagerId(null);
+      setCreatingNew(false); setManagerEmail(""); setManagerPassword("");
       await refresh();
     } catch (e: any) {
       toast.error(e?.message ?? "Falha ao criar equipe.");
@@ -132,8 +158,8 @@ function TeamsAdminPage() {
             <DialogHeader>
               <DialogTitle>Nova equipe</DialogTitle>
               <DialogDescription>
-                Informe um nome e o gestor responsável. Se o e-mail já existir, ele será promovido a gestor.
-                Se for novo, informe também uma senha inicial.
+                Informe um nome e escolha o gestor entre os usuários cadastrados.
+                Se preferir, crie um novo gestor informando e-mail e senha.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -142,16 +168,76 @@ function TeamsAdminPage() {
                 <Input id="t-name" value={name} onChange={(e) => setName(e.target.value)}
                   placeholder="Equipe Centro" />
               </div>
-              <div>
-                <Label htmlFor="t-mgr">E-mail do gestor</Label>
-                <Input id="t-mgr" type="email" value={managerEmail}
-                  onChange={(e) => setManagerEmail(e.target.value)} placeholder="gestor@exemplo.com" />
-              </div>
-              <div>
-                <Label htmlFor="t-pass">Senha inicial (se novo usuário, mín. 8)</Label>
-                <Input id="t-pass" type="text" value={managerPassword}
-                  onChange={(e) => setManagerPassword(e.target.value)} placeholder="deixe em branco se já existir" />
-              </div>
+              {!creatingNew ? (
+                <div>
+                  <Label>Gestor</Label>
+                  <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between font-normal"
+                      >
+                        <span className="truncate">
+                          {selectedUser ? selectedUser.email : (usersQ.isLoading ? "Carregando..." : "Selecionar usuário")}
+                        </span>
+                        <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar por e-mail..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum usuário encontrado.</CommandEmpty>
+                          <CommandGroup>
+                            {users.map((u) => (
+                              <CommandItem
+                                key={u.id}
+                                value={u.email}
+                                onSelect={() => { setManagerId(u.id); setPickerOpen(false); }}
+                              >
+                                <Check className={cn("mr-2 h-4 w-4", managerId === u.id ? "opacity-100" : "opacity-0")} />
+                                <span className="flex-1 truncate">{u.email}</span>
+                                <Badge variant="outline" className="ml-2 text-[10px]">{u.role}</Badge>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <button
+                    type="button"
+                    className="mt-2 text-xs text-primary hover:underline"
+                    onClick={() => { setCreatingNew(true); setManagerId(null); }}
+                  >
+                    + Criar novo gestor
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3 rounded-md border p-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Novo gestor</Label>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:underline"
+                      onClick={() => { setCreatingNew(false); setManagerEmail(""); setManagerPassword(""); }}
+                    >
+                      Escolher existente
+                    </button>
+                  </div>
+                  <div>
+                    <Label htmlFor="t-mgr">E-mail</Label>
+                    <Input id="t-mgr" type="email" value={managerEmail}
+                      onChange={(e) => setManagerEmail(e.target.value)} placeholder="gestor@exemplo.com" />
+                  </div>
+                  <div>
+                    <Label htmlFor="t-pass">Senha inicial (mín. 8)</Label>
+                    <Input id="t-pass" type="text" value={managerPassword}
+                      onChange={(e) => setManagerPassword(e.target.value)} />
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
