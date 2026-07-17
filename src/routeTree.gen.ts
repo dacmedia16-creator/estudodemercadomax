@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppRelatoriosRouteImport } from './routes/app.relatorios'
 import { Route as AppNovoEstudoRouteImport } from './routes/app.novo-estudo'
 import { Route as AppExemploRouteImport } from './routes/app.exemplo'
@@ -36,6 +37,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppRelatoriosRoute = AppRelatoriosRouteImport.update({
   id: '/relatorios',
@@ -95,11 +101,11 @@ export interface FileRoutesByFullPath {
   '/app/exemplo': typeof AppExemploRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/relatorios': typeof AppRelatoriosRoute
+  '/app/': typeof AppIndexRoute
   '/app/relatorio/$id': typeof AppRelatorioIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/app/admin': typeof AppAdminRoute
   '/app/carregando': typeof AppCarregandoRoute
@@ -109,6 +115,7 @@ export interface FileRoutesByTo {
   '/app/exemplo': typeof AppExemploRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/relatorios': typeof AppRelatoriosRoute
+  '/app': typeof AppIndexRoute
   '/app/relatorio/$id': typeof AppRelatorioIdRoute
 }
 export interface FileRoutesById {
@@ -124,6 +131,7 @@ export interface FileRoutesById {
   '/app/exemplo': typeof AppExemploRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/relatorios': typeof AppRelatoriosRoute
+  '/app/': typeof AppIndexRoute
   '/app/relatorio/$id': typeof AppRelatorioIdRoute
 }
 export interface FileRouteTypes {
@@ -140,11 +148,11 @@ export interface FileRouteTypes {
     | '/app/exemplo'
     | '/app/novo-estudo'
     | '/app/relatorios'
+    | '/app/'
     | '/app/relatorio/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/app'
     | '/auth'
     | '/app/admin'
     | '/app/carregando'
@@ -154,6 +162,7 @@ export interface FileRouteTypes {
     | '/app/exemplo'
     | '/app/novo-estudo'
     | '/app/relatorios'
+    | '/app'
     | '/app/relatorio/$id'
   id:
     | '__root__'
@@ -168,6 +177,7 @@ export interface FileRouteTypes {
     | '/app/exemplo'
     | '/app/novo-estudo'
     | '/app/relatorios'
+    | '/app/'
     | '/app/relatorio/$id'
   fileRoutesById: FileRoutesById
 }
@@ -199,6 +209,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
     }
     '/app/relatorios': {
       id: '/app/relatorios'
@@ -275,6 +292,7 @@ interface AppRouteChildren {
   AppExemploRoute: typeof AppExemploRoute
   AppNovoEstudoRoute: typeof AppNovoEstudoRoute
   AppRelatoriosRoute: typeof AppRelatoriosRoute
+  AppIndexRoute: typeof AppIndexRoute
   AppRelatorioIdRoute: typeof AppRelatorioIdRoute
 }
 
@@ -287,6 +305,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppExemploRoute: AppExemploRoute,
   AppNovoEstudoRoute: AppNovoEstudoRoute,
   AppRelatoriosRoute: AppRelatoriosRoute,
+  AppIndexRoute: AppIndexRoute,
   AppRelatorioIdRoute: AppRelatorioIdRoute,
 }
 
