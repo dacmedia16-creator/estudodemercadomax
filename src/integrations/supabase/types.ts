@@ -85,19 +85,57 @@ export type Database = {
           created_at: string
           id: string
           manager_id: string
+          team_id: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           manager_id: string
+          team_id: string
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           manager_id?: string
+          team_id?: string
           user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          manager_id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          manager_id: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          manager_id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
