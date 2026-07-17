@@ -135,14 +135,3 @@ export const gestorListTeamStudies = createServerFn({ method: "GET" })
       })),
     };
   });
-
-export const getMyTeamRoles = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId);
-    if (error) throw new Error(error.message);
-    return { roles: (data ?? []).map((r: any) => r.role as string) };
-  });
