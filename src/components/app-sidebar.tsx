@@ -56,10 +56,16 @@ export function AppSidebar() {
               ))}
               {isGestor && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/app/equipe"}>
-                    <Link to="/app/equipe" className="flex items-center gap-2">
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === (isAdmin ? "/app/equipes" : "/app/equipe")}
+                  >
+                    <Link
+                      to={isAdmin ? "/app/equipes" : "/app/equipe"}
+                      className="flex items-center gap-2"
+                    >
                       <Users className="h-4 w-4" />
-                      <span>Equipe</span>
+                      <span>{isAdmin ? "Equipes" : "Equipe"}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
