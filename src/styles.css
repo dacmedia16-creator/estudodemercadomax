@@ -880,126 +880,105 @@
     border-bottom: 0.5pt solid #d8dde6;
     margin-bottom: 6pt;
   }
-  .print-onepager .op-title { font-size: 13pt; font-weight: 800; letter-spacing: -0.01em; color: #0f172a; }
-  .print-onepager .op-sub { font-size: 8.5pt; color: #4a5568; margin-top: 1pt; }
+  .print-onepager .op-title { font-size: 17pt; font-weight: 800; letter-spacing: -0.01em; color: #0f172a; }
+  .print-onepager .op-sub { font-size: 10pt; color: #4a5568; margin-top: 2pt; }
 
   /* HERO azul cheio */
   .print-onepager .op-hero {
     background: var(--primary); color: #fff;
-    padding: 9pt 12pt 8pt; border-radius: 4pt;
-    margin-bottom: 7pt;
+    padding: 16pt 18pt 14pt; border-radius: 4pt;
+    margin-bottom: 10pt; text-align: center;
   }
   .print-onepager .op-hero-label {
     font-size: 7.5pt; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
     color: #cfe0ff;
   }
   .print-onepager .op-hero-value {
-    font-size: 30pt; line-height: 1.02; font-weight: 800;
-    letter-spacing: -0.02em; margin: 1pt 0 6pt;
+    font-size: 40pt; line-height: 1.02; font-weight: 800;
+    letter-spacing: -0.02em; margin: 3pt 0 10pt;
     font-variant-numeric: tabular-nums;
   }
   .print-onepager .op-hero-pills {
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5pt;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6pt;
   }
   .print-onepager .op-hpill {
     background: rgba(255,255,255,0.10);
     border: 0.5pt solid rgba(255,255,255,0.35);
-    border-radius: 3pt; padding: 4pt 6pt;
+    border-radius: 3pt; padding: 5pt 6pt; text-align: center;
   }
   .print-onepager .op-hpill.op-hpill-strong { background: #fff; color: var(--primary); border-color: #fff; }
   .print-onepager .op-hpill .lbl { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85; }
   .print-onepager .op-hpill .val { font-size: 11.5pt; font-weight: 800; margin-top: 1pt; font-variant-numeric: tabular-nums; }
   .print-onepager .op-hpill.op-hpill-strong .lbl { opacity: 1; }
-  .print-onepager .op-hero-meta { font-size: 7.5pt; margin-top: 5pt; color: #e6efff; }
-  .print-onepager .op-hero-meta b { color: #fff; }
-
-  /* KPIs sem boxes — divisores verticais */
-  .print-onepager .op-kpis {
-    display: grid; grid-template-columns: 1fr 1fr 1fr;
-    border-top: 0.5pt solid #d8dde6;
-    border-bottom: 0.5pt solid #d8dde6;
-    margin-bottom: 7pt;
-  }
-  .print-onepager .op-kpi {
-    padding: 5pt 8pt;
-    border-left: 0.5pt solid #d8dde6;
-  }
-  .print-onepager .op-kpi:first-child { border-left: 0; padding-left: 0; }
-  .print-onepager .op-kpi .lbl { font-size: 6.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #6b7280; }
-  .print-onepager .op-kpi .val { font-size: 11pt; font-weight: 800; color: #0f172a; margin-top: 1pt; font-variant-numeric: tabular-nums; }
-  .print-onepager .op-kpi .meta { font-size: 7.5pt; color: #4a5568; margin-top: 1pt; line-height: 1.3; }
-  .print-onepager .op-kpi-status { color: var(--primary) !important; text-transform: capitalize; }
 
   /* Section titles */
   .print-onepager .op-section-title {
-    font-size: 7.5pt; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--primary); margin: 4pt 0 3pt;
+    font-size: 10pt; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--primary); margin: 10pt 0 5pt;
     padding-bottom: 2pt; border-bottom: 1pt solid var(--primary);
   }
 
+  /* Seu imóvel — grade de fatos */
+  .print-onepager .op-facts {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8pt 16pt;
+    margin-bottom: 4pt;
+  }
+  .print-onepager .op-facts .op-fact {
+    padding: 3pt 0 4pt;
+    border-bottom: 0.5pt solid #e6e9ef;
+  }
+  .print-onepager .op-facts .op-fact .lbl {
+    font-size: 7.5pt; color: #6b7280; letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .print-onepager .op-facts .op-fact .val {
+    font-size: 11pt; font-weight: 700; color: #0f172a; margin-top: 1pt;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Por que esse valor */
+  .print-onepager .op-why { margin-bottom: 4pt; }
+  .print-onepager .op-why-lead {
+    font-size: 9.5pt; color: #1f2937; line-height: 1.4; margin: 0 0 4pt;
+  }
+  .print-onepager .op-why-list {
+    margin: 0; padding-left: 14pt;
+  }
+  .print-onepager .op-why-list li {
+    font-size: 9pt; color: #1f2937; margin-bottom: 1.5pt; line-height: 1.35;
+  }
+
   /* Comparáveis */
-  .print-onepager .op-table { width: 100%; border-collapse: collapse; font-size: 8pt; }
+  .print-onepager .op-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
   .print-onepager .op-table th {
     background: #f3f5f9;
-    font-size: 7pt; text-transform: uppercase; letter-spacing: 0.08em;
+    font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.1em;
     color: #4a5568; font-weight: 700;
-    padding: 3pt 5pt; text-align: left;
+    padding: 4pt 6pt; text-align: left;
     border-bottom: 0.75pt solid #d8dde6;
   }
   .print-onepager .op-table td {
-    padding: 3pt 5pt; vertical-align: middle;
-    border-bottom: 0.25pt solid #e6e9ef;
+    padding: 5pt 6pt; vertical-align: middle;
+    border-bottom: 0.5pt solid #e6e9ef;
   }
-  .print-onepager .op-table tbody tr:nth-child(even) td { background: #fafbfc; }
   .print-onepager .op-table td.num, .print-onepager .op-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .print-onepager .op-table td.num:last-child { font-weight: 700; color: #0f172a; }
   .print-onepager .op-cmp-title {
     font-weight: 600; color: #0f172a;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220pt;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260pt;
   }
-  .print-onepager .op-cmp-sub { font-size: 7pt; color: #6b7280; margin-top: 1pt; display: flex; gap: 4pt; align-items: center; }
+  .print-onepager .op-cmp-sub { font-size: 8pt; color: #6b7280; margin-top: 1pt; display: flex; gap: 4pt; align-items: center; }
   .print-onepager .op-tag {
-    display: inline-block; background: var(--primary); color: #fff;
-    font-size: 6pt; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-    padding: 1pt 4pt; border-radius: 2pt;
+    display: inline-block;
+    background: color-mix(in srgb, var(--primary) 12%, #fff);
+    color: var(--primary);
+    font-size: 6.5pt; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 1pt 5pt; border-radius: 2pt;
   }
-  .print-onepager .op-simwrap { display: flex; align-items: center; gap: 4pt; }
-  .print-onepager .op-simbar {
-    flex: 1; height: 4pt; background: #e6e9ef; border-radius: 2pt; overflow: hidden;
-  }
-  .print-onepager .op-simbar span { display: block; height: 100%; background: var(--primary); }
-  .print-onepager .op-simval { font-size: 7.5pt; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; min-width: 22pt; text-align: right; }
 
-  /* Pontos fortes / atenção */
-  .print-onepager .op-points {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 8pt; margin-top: 6pt;
+  .print-onepager .op-table-note {
+    margin-top: 4pt;
+    font-size: 7.5pt; font-style: italic; color: #6b7280;
   }
-  .print-onepager .op-point {
-    border-left: 2pt solid #d8dde6;
-    padding: 2pt 0 2pt 8pt;
-  }
-  .print-onepager .op-point-good { border-left-color: #15803d; }
-  .print-onepager .op-point-warn { border-left-color: #b45309; }
-  .print-onepager .op-point-head {
-    font-size: 8pt; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
-    margin-bottom: 2pt;
-  }
-  .print-onepager .op-point-good .op-point-head { color: #15803d; }
-  .print-onepager .op-point-warn .op-point-head { color: #b45309; }
-  .print-onepager .op-point ul { margin: 0; padding-left: 12pt; }
-  .print-onepager .op-point li { font-size: 8pt; margin-bottom: 1.5pt; color: #1f2937; }
-
-  /* Sugestão comercial */
-  .print-onepager .op-suggest {
-    margin-top: 6pt;
-    border-left: 3pt solid var(--primary);
-    padding: 3pt 0 3pt 9pt;
-  }
-  .print-onepager .op-suggest-head {
-    font-size: 7.5pt; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--primary); margin-bottom: 2pt;
-  }
-  .print-onepager .op-suggest-body { font-size: 8.5pt; color: #1f2937; line-height: 1.35; }
-  .print-onepager .op-suggest-body .lbl { font-weight: 700; color: #0f172a; }
 
   .print-onepager .op-footer {
     margin-top: 8pt;
