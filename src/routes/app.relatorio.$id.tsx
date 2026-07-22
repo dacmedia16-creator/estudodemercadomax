@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
 import { formatBRL, computeAcm, getValorIdeal } from "@/lib/study-engine";
-import type { StudyResult, SearchOverrides, ComparableProperty } from "@/lib/study-types";
+import type { StudyResult, SearchOverrides } from "@/lib/study-types";
 import { DEFAULT_ACM } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
 import { CriteriosEditor } from "@/components/criterios-editor";
@@ -50,9 +50,6 @@ function ReportPage() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState(false);
   const [rerunWarning, setRerunWarning] = useState<string | null>(null);
-  // Snapshot dos comparáveis que vieram da última busca — usado para
-  // restaurar a lista quando o usuário desfaz exclusões/inclusões manuais.
-  const originalsRef = useRef<ComparableProperty[]>([]);
   const aiAutoTriedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -62,7 +59,6 @@ function ReportPage() {
         const s = (await studyStore.get(id)) ?? null;
         if (cancelled) return;
         setStudy(s);
-        originalsRef.current = s ? [...s.comparaveis] : [];
       } catch (err) {
         if (!cancelled) toast.error((err as Error).message);
       }
@@ -170,7 +166,6 @@ function ReportPage() {
       result.revisao = (study.revisao ?? 0) + 1;
       await studyStore.save(result);
       setStudy(result);
-      originalsRef.current = [...result.comparaveis];
       setRerunWarning(warning);
       if (fellBack) toast.error(warning ?? "Falha ao buscar — exibindo dados de demonstração.");
       else toast.success(`Busca reexecutada · ${result.comparaveis.length} comparáveis`);
@@ -604,7 +599,7 @@ function ReportPage() {
             />
             <ComparaveisManager
               study={study}
-              originals={originalsRef.current}
+              originals={study.comparaveisOriginais ?? study.comparaveis}
               onChange={setStudy}
             />
           </AccordionContent>

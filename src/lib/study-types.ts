@@ -96,6 +96,8 @@ export interface StudyResult {
   createdAt: string;
   input: StudyInput;
   comparaveis: ComparableProperty[];
+  /** Snapshot imutável dos comparáveis vindos da última busca, para "Restaurar originais". */
+  comparaveisOriginais?: ComparableProperty[];
   precoMedio: number;
   precoM2Medio: number;
   menorPreco: number;
