@@ -198,6 +198,20 @@ function ReportPage() {
   }
 
   const { input } = study;
+
+  const handleRemoveComparavel = async (comp: (typeof study.comparaveis)[number]) => {
+    const next = study.comparaveis.filter((c) => c !== comp);
+    const recalculado = recomputeStudy(study, next);
+    setStudy(recalculado);
+    if (expandedRow === comp.id) setExpandedRow(null);
+    try {
+      await studyStore.save(recalculado);
+      toast.success("Imóvel removido. Recalculado e salvo.");
+    } catch (err) {
+      toast.error(`Recalculado, mas não foi possível salvar: ${(err as Error).message}`);
+    }
+  };
+
   const statusColor =
     study.status === "Abaixo da média" ? "text-success bg-success/10 border-success/30"
     : study.status === "Acima da média" ? "text-warning-foreground bg-warning/15 border-warning/30"
