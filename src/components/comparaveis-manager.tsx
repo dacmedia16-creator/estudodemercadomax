@@ -37,12 +37,16 @@ export function ComparaveisManager({ study, onChange, originals }: Props) {
     setLoading(true);
     try {
       const p = await fetchPropertyByUrl(trimmed);
-      if (study.comparaveis.some((c) => c.id === p.id)) {
-        toast.error("Este imóvel já está no estudo.");
-        return;
+      // Se o id colidir com algum já presente, sufixa para manter unicidade.
+      let uniqueId = p.id;
+      if (study.comparaveis.some((c) => c.id === uniqueId)) {
+        let n = 2;
+        while (study.comparaveis.some((c) => c.id === `${p.id}#${n}`)) n++;
+        uniqueId = `${p.id}#${n}`;
       }
       const comp: ComparableProperty = {
         ...p,
+        id: uniqueId,
         precoM2: p.areaUtil > 0 ? Math.round(p.preco / p.areaUtil) : 0,
         similaridade: computeSimilarity(study.input, p, study.overridesAplicados?.fieldModes),
         origem: "manual",

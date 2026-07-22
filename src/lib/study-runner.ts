@@ -1307,6 +1307,20 @@ export async function runStudy(
       c.confidenceFactors = conf.factors;
     });
   }
+  // Garante ids únicos por linha — vários portais reusam o mesmo listingId
+  // entre unidades do mesmo empreendimento, o que fazia "excluir 1" apagar
+  // todos os irmãos que compartilhavam o id.
+  {
+    const seen = new Map<string, number>();
+    result.comparaveis = result.comparaveis.map((c) => {
+      const base = c.id ?? "";
+      const n = seen.get(base) ?? 0;
+      seen.set(base, n + 1);
+      return n === 0 ? c : { ...c, id: `${base}#${n + 1}` };
+    });
+  }
+  // Snapshot dos originais, usado por "Restaurar originais".
+  result.comparaveisOriginais = result.comparaveis.map((c) => ({ ...c }));
   if (!fellBack) {
     criteriosAplicados.push(`Requisições: ${plpCalls} PLP + ${pdpCalls} PDP = ${plpCalls + pdpCalls}`);
     funilBusca.push({ etapa: `Requisições GeckoAPI (PLP+PDP)`, total: plpCalls + pdpCalls });
