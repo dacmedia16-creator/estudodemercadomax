@@ -599,7 +599,7 @@ function ReportPage() {
             />
             <ComparaveisManager
               study={study}
-              originals={originalsRef.current}
+              originals={study.comparaveisOriginais ?? study.comparaveis}
               onChange={setStudy}
             />
           </AccordionContent>
