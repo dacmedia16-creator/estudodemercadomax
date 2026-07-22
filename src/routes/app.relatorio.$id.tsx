@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine, Cell } from "recharts";
 import {
   Download, Share2, Save, Plus, Copy, ExternalLink,
@@ -601,37 +600,33 @@ function ReportPage() {
         </Card>
       )}
 
-      {/* Accordion — Ajustar estudo (avançado) */}
-      <Accordion type="single" collapsible className="mt-6 print:hidden">
-        <AccordionItem value="ajustes" className="rounded-lg border border-border/60 bg-card px-4">
-          <AccordionTrigger className="py-4 hover:no-underline">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                <Settings2 className="h-4 w-4" />
-              </div>
-              <div className="text-left">
-                <div className="text-sm font-semibold">Ajustar estudo (avançado)</div>
-                <div className="text-xs text-muted-foreground">ACM, critérios de busca e lista de comparáveis.</div>
-              </div>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-6 pb-6 pt-2">
-            {study.comparaveis.length > 0 && <AcmPanel study={study} onChange={setStudy} />}
-            <CriteriosEditor
-              study={study}
-              input={input}
-              onRerun={handleRerun}
-              loading={rerunning}
-              warning={rerunWarning}
-            />
-            <ComparaveisManager
-              study={study}
-              originals={study.comparaveisOriginais ?? study.comparaveis}
-              onChange={setStudy}
-            />
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+      {/* Ajustar estudo (avançado) — sempre visível */}
+      <div className="mt-6 rounded-lg border border-border/60 bg-card px-4 py-4 print:hidden">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <Settings2 className="h-4 w-4" />
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-semibold">Ajustar estudo (avançado)</div>
+            <div className="text-xs text-muted-foreground">ACM, critérios de busca e lista de comparáveis.</div>
+          </div>
+        </div>
+        <div className="mt-4 space-y-6">
+          {study.comparaveis.length > 0 && <AcmPanel study={study} onChange={setStudy} />}
+          <CriteriosEditor
+            study={study}
+            input={input}
+            onRerun={handleRerun}
+            loading={rerunning}
+            warning={rerunWarning}
+          />
+          <ComparaveisManager
+            study={study}
+            originals={study.comparaveisOriginais ?? study.comparaveis}
+            onChange={setStudy}
+          />
+        </div>
+      </div>
 
       {/* Pontos fortes e pontos de atenção */}
       <div className="mt-6 grid gap-4 md:grid-cols-2 print-break-before">
