@@ -1,24 +1,20 @@
-## Diagnóstico
+## Objetivo
 
-O estudo que você abriu foi **salvo antes** da correção de deduplicação de IDs entrar em vigor. Ou seja: o `payload` guardado no banco ainda tem várias linhas com o **mesmo `id`** (o Viva Real reutiliza o `listingId` do empreendimento em unidades diferentes).
+Permitir excluir um comparável direto da tabela de evidências do relatório (hoje só dá para excluir pelo painel "Ajustar comparáveis").
 
-Como o `handleRemove` em `src/components/comparaveis-manager.tsx` remove com `filter(c => c.id !== id)`, todo mundo que compartilha aquele id vai embora junto — foi exatamente o que você viu de novo.
+## Mudanças
 
-A dedupe do runner só age quando o estudo é gerado/rerunado. Estudos antigos permanecem com ids duplicados no JSON persistido até rodar "Refazer busca". Precisamos consertar sem exigir isso do usuário.
+**Arquivo:** `src/routes/app.relatorio.$id.tsx`
 
-## Correção
+1. Adicionar botão de lixeira (ícone `Trash2`) na última coluna de cada linha da tabela, ao lado do chevron de expandir.
+2. Ao clicar:
+   - `e.stopPropagation()` para não abrir/fechar o detalhe da linha.
+   - Remover por **índice** (mesma abordagem do `ComparaveisManager`, evitando problemas de IDs duplicados).
+   - Rodar `recomputeStudy` com a nova lista, atualizar estado local via o mesmo setter que já persiste, e salvar via `studyStore.save` com toast de sucesso/erro.
+3. Reaproveitar o handler que o `ComparaveisManager` já usa (extrair para função local `handleRemoveComparavel(index)` no componente do relatório, ou passar via callback). Como o `ComparaveisManager` já vive na mesma página e opera sobre o mesmo `study`, a função pode ser declarada uma vez no componente pai e usada nos dois lugares.
+4. Se a linha estiver expandida no momento da remoção, fechar (`setExpandedRow(null)`).
 
-Duas camadas, ambas pequenas:
+## Fora de escopo
 
-### 1. Deduplicar ids ao carregar do banco (`src/lib/study-store.ts`)
-Em `toResult`, aplicar o mesmo passo de unicidade que o runner faz, tanto em `payload.comparaveis` quanto em `payload.comparaveisOriginais` (quando existir). Assim, qualquer estudo antigo passa a ter ids únicos assim que é lido — sem migração de banco.
-
-### 2. Remover por referência, não por id (`src/components/comparaveis-manager.tsx`)
-Trocar `handleRemove(id)` por `handleRemove(index)` e usar `study.comparaveis.filter((_, i) => i !== index)`. Isso blinda contra qualquer duplicata futura (ex.: adaptador novo, item colado manualmente com colisão que escape do sufixo, etc.). A key do `<li>` também passa a ser `${c.id}-${index}` para não repetir warning do React.
-
-Nenhuma mudança no runner, nas estatísticas, no PDF ou no schema Supabase. `comparaveisOriginais` continua sendo o snapshot preenchido pelo runner; quando ausente (estudo muito antigo), o fallback para `study.comparaveis` (agora com ids únicos após load) mantém "Restaurar originais" funcionando.
-
-## Arquivos afetados
-
-- `src/lib/study-store.ts` — dedupe defensivo em `toResult`.
-- `src/components/comparaveis-manager.tsx` — remoção por índice + key composta.
+- Nenhuma mudança no motor, no PDF, no schema ou no painel "Ajustar comparáveis".
+- Sem confirmação modal (mesma UX do painel — clique único remove, undo via "Restaurar originais").

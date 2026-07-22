@@ -10,10 +10,10 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import {
   Download, Share2, Save, Plus, Copy, ExternalLink,
   TrendingUp, TrendingDown, Minus, ChevronDown,
-  CheckCircle2, AlertTriangle, Sparkles, Presentation, MessageSquareQuote, Settings2,
+  CheckCircle2, AlertTriangle, Sparkles, Presentation, MessageSquareQuote, Settings2, Trash2,
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
-import { formatBRL, computeAcm, getValorIdeal } from "@/lib/study-engine";
+import { formatBRL, computeAcm, getValorIdeal, recomputeStudy } from "@/lib/study-engine";
 import type { StudyResult, SearchOverrides } from "@/lib/study-types";
 import { DEFAULT_ACM } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
@@ -198,6 +198,20 @@ function ReportPage() {
   }
 
   const { input } = study;
+
+  const handleRemoveComparavel = async (comp: (typeof study.comparaveis)[number]) => {
+    const next = study.comparaveis.filter((c) => c !== comp);
+    const recalculado = recomputeStudy(study, next);
+    setStudy(recalculado);
+    if (expandedRow === comp.id) setExpandedRow(null);
+    try {
+      await studyStore.save(recalculado);
+      toast.success("Imóvel removido. Recalculado e salvo.");
+    } catch (err) {
+      toast.error(`Recalculado, mas não foi possível salvar: ${(err as Error).message}`);
+    }
+  };
+
   const statusColor =
     study.status === "Abaixo da média" ? "text-success bg-success/10 border-success/30"
     : study.status === "Acima da média" ? "text-warning-foreground bg-warning/15 border-warning/30"
@@ -393,7 +407,7 @@ function ReportPage() {
                   <TableHead className="text-right">Qtos</TableHead>
                   <TableHead className="text-right">Preço</TableHead>
                   <TableHead className="text-right">Semelhança</TableHead>
-                  <TableHead className="w-8"></TableHead>
+                  <TableHead className="w-16"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -425,7 +439,20 @@ function ReportPage() {
                             <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{c.similaridade}%</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground"><ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} /></TableCell>
+                        <TableCell className="text-muted-foreground">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                              title="Remover do estudo"
+                              onClick={(e) => { e.stopPropagation(); void handleRemoveComparavel(c); }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                          </div>
+                        </TableCell>
                       </TableRow>
                       {isOpen && (
                         <TableRow key={c.id + "-detail"} className="bg-muted/30 hover:bg-muted/30">
