@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
 import { formatBRL, computeAcm, getValorIdeal } from "@/lib/study-engine";
-import type { StudyResult, SearchOverrides, ComparableProperty } from "@/lib/study-types";
+import type { StudyResult, SearchOverrides } from "@/lib/study-types";
 import { DEFAULT_ACM } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
 import { CriteriosEditor } from "@/components/criterios-editor";
