@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { StudyResult } from "./study-types";
+import type { StudyResult, ComparableProperty } from "./study-types";
 
 // Persistence is backed by the `public.studies` table on Lovable Cloud, with
 // Row-Level Security restricting every row to its owning user (auth.uid()).
@@ -14,10 +14,29 @@ type Row = {
   updated_at: string;
 };
 
+function ensureUniqueIds(list: ComparableProperty[] | undefined): ComparableProperty[] | undefined {
+  if (!Array.isArray(list)) return list;
+  const seen = new Map<string, number>();
+  return list.map((c) => {
+    const base = c.id ?? "";
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return n === 0 ? c : { ...c, id: `${base}#${n + 1}` };
+  });
+}
+
 function toResult(row: Row): StudyResult {
   // Keep the canonical id in sync with the row id (defensive).
   const payload = row.payload as StudyResult;
-  return { ...payload, id: row.id, createdAt: payload.createdAt ?? row.created_at };
+  const comparaveis = ensureUniqueIds(payload.comparaveis) ?? payload.comparaveis;
+  const comparaveisOriginais = ensureUniqueIds(payload.comparaveisOriginais);
+  return {
+    ...payload,
+    id: row.id,
+    createdAt: payload.createdAt ?? row.created_at,
+    comparaveis,
+    ...(comparaveisOriginais ? { comparaveisOriginais } : {}),
+  };
 }
 
 export const studyStore = {

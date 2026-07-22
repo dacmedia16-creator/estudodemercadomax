@@ -20,8 +20,8 @@ export function ComparaveisManager({ study, onChange, originals }: Props) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleRemove = (id: string) => {
-    const next = study.comparaveis.filter((c) => c.id !== id);
+  const handleRemove = (index: number) => {
+    const next = study.comparaveis.filter((_, i) => i !== index);
     const recalculado = recomputeStudy(study, next);
     onChange(recalculado);
     void persist(recalculado, "Imóvel removido. Recalculado e salvo.");
@@ -126,8 +126,8 @@ export function ComparaveisManager({ study, onChange, originals }: Props) {
       {study.comparaveis.length > 0 && (
         <div className="mt-5 max-h-72 overflow-y-auto rounded-lg border border-border">
           <ul className="divide-y divide-border">
-            {study.comparaveis.map((c) => (
-              <li key={c.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+            {study.comparaveis.map((c, index) => (
+              <li key={`${c.id}-${index}`} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <Badge variant="secondary" className="shrink-0 text-[10px]">{c.portal}</Badge>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -149,7 +149,7 @@ export function ComparaveisManager({ study, onChange, originals }: Props) {
                   size="icon"
                   variant="ghost"
                   className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/10"
-                  onClick={() => handleRemove(c.id)}
+                  onClick={() => handleRemove(index)}
                   title="Remover do estudo"
                 >
                   <Trash2 className="h-4 w-4" />
