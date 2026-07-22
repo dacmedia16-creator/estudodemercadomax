@@ -407,7 +407,7 @@ function ReportPage() {
                   <TableHead className="text-right">Qtos</TableHead>
                   <TableHead className="text-right">Preço</TableHead>
                   <TableHead className="text-right">Semelhança</TableHead>
-                  <TableHead className="w-8"></TableHead>
+                  <TableHead className="w-16"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -439,7 +439,20 @@ function ReportPage() {
                             <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{c.similaridade}%</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground"><ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} /></TableCell>
+                        <TableCell className="text-muted-foreground">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                              title="Remover do estudo"
+                              onClick={(e) => { e.stopPropagation(); void handleRemoveComparavel(c); }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                          </div>
+                        </TableCell>
                       </TableRow>
                       {isOpen && (
                         <TableRow key={c.id + "-detail"} className="bg-muted/30 hover:bg-muted/30">
