@@ -10,10 +10,10 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import {
   Download, Share2, Save, Plus, Copy, ExternalLink,
   TrendingUp, TrendingDown, Minus, ChevronDown,
-  CheckCircle2, AlertTriangle, Sparkles, Presentation, MessageSquareQuote, Settings2,
+  CheckCircle2, AlertTriangle, Sparkles, Presentation, MessageSquareQuote, Settings2, Trash2,
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
-import { formatBRL, computeAcm, getValorIdeal } from "@/lib/study-engine";
+import { formatBRL, computeAcm, getValorIdeal, recomputeStudy } from "@/lib/study-engine";
 import type { StudyResult, SearchOverrides } from "@/lib/study-types";
 import { DEFAULT_ACM } from "@/lib/study-types";
 import { runStudy } from "@/lib/study-runner";
