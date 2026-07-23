@@ -168,13 +168,13 @@ export const analisarMercadoIa = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => inputSchema.parse(d))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) return { ok: false as const, error: "AI Gateway não configurado." };
+    const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!key) return { ok: false as const, error: "IA não configurada." };
 
     try {
-      const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
+      const { createGeminiProvider } = await import("./ai-gateway.server");
       const { generateText } = await import("ai");
-      const gateway = createLovableAiGatewayProvider(key);
+      const google = createGeminiProvider(key);
 
       const prompt = `Imóvel analisado:
 ${JSON.stringify(data.imovel, null, 2)}
@@ -202,7 +202,7 @@ do teto, seja firme mas empático; se está alinhado, reforce a estratégia.
 Responda SOMENTE com o JSON pedido.`;
 
       const result = await generateText({
-        model: gateway("google/gemini-3-flash-preview"),
+        model: google("gemini-3-flash-preview"),
         system: SYSTEM,
         prompt,
       });
@@ -260,8 +260,8 @@ Responda SOMENTE com o JSON pedido.`;
       console.error("[ai-analysis] error:", msg);
       const m = /status\s+(\d{3})/i.exec(msg);
       const status = m ? Number(m[1]) : undefined;
-      if (status === 402) return { ok: false as const, error: "Créditos de IA esgotados. Adicione créditos no workspace." };
-      if (status === 429) return { ok: false as const, error: "Limite de requisições da IA atingido. Tente novamente em instantes." };
+      if (status === 429) return { ok: false as const, error: "Limite de requisições da IA (Google) atingido. Tente novamente em instantes." };
+      if (status === 403) return { ok: false as const, error: "Chave de API do Google inválida ou sem permissão para este modelo." };
       return { ok: false as const, error: msg };
     }
   });

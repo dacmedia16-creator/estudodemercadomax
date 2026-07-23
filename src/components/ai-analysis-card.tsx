@@ -37,7 +37,6 @@ export function AiAnalysisCard({ study, onChange }: Props) {
   const discursoAjustado = ai?.discursoProprietario ? rewriteCurrencyInText(ai.discursoProprietario, pairs) : "";
   const argumentosAjustados = ai?.argumentosChave?.map((a) => rewriteCurrencyInText(a, pairs)) ?? [];
   const idealMudou = ai ? Math.abs(idealAdj - ai.faixaRecomendada.ideal) / Math.max(1, ai.faixaRecomendada.ideal) > 0.005 : false;
-  const hint = idealMudou ? "alinhado ao ACM" : undefined;
 
   const run = async () => {
     setLoading(true);
@@ -159,11 +158,11 @@ export function AiAnalysisCard({ study, onChange }: Props) {
               Valor ajustado para respeitar o piso competitivo do mercado ({formatBRL(acm.valorPiso)}).
             </div>
           )}
-          <div className="grid gap-3 sm:grid-cols-3">
-            <FaixaCell label="Entrada (rápido)" value={entradaAdj} tone="muted" hint={hint} />
-            <FaixaCell label="Ideal" value={idealAdj} tone="primary" hint={hint} />
-            <FaixaCell label="Teto de publicação" value={tetoAdj} tone="success" hint={hint} />
-          </div>
+          {idealMudou && (
+            <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning-foreground">
+              Valor ideal ajustado no painel ACM acima — o discurso e os argumentos abaixo já refletem o novo número.
+            </div>
+          )}
 
           <div className="rounded-lg border border-border bg-muted/20 p-4">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Posicionamento</div>
@@ -243,19 +242,5 @@ export function AiAnalysisCard({ study, onChange }: Props) {
         </div>
       )}
     </Card>
-  );
-}
-
-function FaixaCell({ label, value, tone, hint }: { label: string; value: number; tone: "muted" | "primary" | "success"; hint?: string }) {
-  const cls =
-    tone === "primary" ? "border-primary/40 bg-primary/5 text-primary"
-    : tone === "success" ? "border-success/40 bg-success/5 text-success"
-    : "border-border bg-background text-foreground";
-  return (
-    <div className={`rounded-lg border p-3 ${cls}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{label}</div>
-      <div className="mt-1 text-lg font-bold tabular-nums">{formatBRL(value)}</div>
-      {hint && <div className="mt-0.5 text-[10px] opacity-70">{hint}</div>}
-    </div>
   );
 }

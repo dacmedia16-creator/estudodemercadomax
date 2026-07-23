@@ -1,4 +1,4 @@
-import remaxFullAsset from "@/assets/remax-full.png.asset.json";
+import remaxFullAsset from "@/assets/remax-full.png";
 
 /**
  * Configurações de marca usadas no relatório ACM (logo, nome, cores).
@@ -15,7 +15,7 @@ export interface BrandingSettings {
 }
 
 export const DEFAULT_BRANDING: BrandingSettings = {
-  logoUrl: remaxFullAsset.url,
+  logoUrl: remaxFullAsset,
   brandName: "ESTUDO DE MERCADO",
   brandColor: "#003DA5",
   accentColor: "#DC1C2E",

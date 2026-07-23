@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { StudyResult, ComparableProperty } from "./study-types";
 
-// Persistence is backed by the `public.studies` table on Lovable Cloud, with
+// Persistence is backed by the `public.studies` table on Supabase, with
 // Row-Level Security restricting every row to its owning user (auth.uid()).
 // The browser client uses the publishable key + the user session, so RLS
 // transparently scopes reads and writes to the signed-in user.

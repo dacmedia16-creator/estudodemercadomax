@@ -12,16 +12,16 @@ Finalidade: "Venda" ou "Aluguel". Estado: UF de 2 letras maiúsculas.`;
 export const parseQueryAi = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => inputSchema.parse(d))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) return { ok: false as const, error: "AI Gateway não configurado" };
+    const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!key) return { ok: false as const, error: "IA não configurada" };
 
     try {
-      const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
+      const { createGeminiProvider } = await import("./ai-gateway.server");
       const { generateText, Output } = await import("ai");
 
-      const gateway = createLovableAiGatewayProvider(key);
+      const google = createGeminiProvider(key);
       const { experimental_output: output } = await generateText({
-        model: gateway("google/gemini-3-flash-preview"),
+        model: google("gemini-3-flash-preview"),
         system: SYSTEM,
         prompt: data.query,
         experimental_output: Output.object({

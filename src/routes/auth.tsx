@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
-import remaxFull from "@/assets/remax-full.png.asset.json";
+import remaxFull from "@/assets/remax-full.png";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -94,7 +94,7 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
         <Link to="/" className="mb-6 flex items-center justify-center">
-          <img src={remaxFull.url} alt="ESTUDO DE MERCADO" className="h-24 w-auto rounded-lg" />
+          <img src={remaxFull} alt="ESTUDO DE MERCADO" className="h-24 w-auto rounded-lg" />
         </Link>
 
         <Card className="border-border/60 p-6 shadow-[var(--shadow-elegant)]">

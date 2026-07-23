@@ -4,8 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Check, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { runStudy } from "@/lib/study-runner";
-import { studyStore } from "@/lib/study-store";
+import { gerarEstudoCompleto } from "@/lib/study-orchestrator.functions";
 import type { StudyInput } from "@/lib/study-types";
 import { toast } from "sonner";
 
@@ -51,26 +50,39 @@ function Loading() {
       const preStudyId = (typeof crypto !== "undefined" && "randomUUID" in crypto)
         ? crypto.randomUUID()
         : undefined;
-      const { result, warning, fellBack } = await runStudy(input, overrides, (s) => setStep(s), preStudyId);
-      if (preStudyId) result.id = preStudyId;
+
+      // A busca + IA agora rodam inteiras no servidor numa única chamada —
+      // não temos mais callbacks de progresso reais, então simulamos os
+      // mesmos passos por tempo estimado (com base nas execuções reais:
+      // ~15-20s no total, a análise por IA sendo a etapa mais demorada).
+      const scheduleMs = [400, 5000, 9000, 11000];
+      const timers = scheduleMs.map((ms, i) => window.setTimeout(() => setStep(i + 1), ms));
+
+      let outcome: Awaited<ReturnType<typeof gerarEstudoCompleto>>;
+      try {
+        outcome = await gerarEstudoCompleto({ data: { input, overrides, studyId: preStudyId } });
+      } catch (err) {
+        timers.forEach(clearTimeout);
+        toast.error(`Não foi possível gerar o estudo: ${(err as Error).message}`);
+        return;
+      }
+      timers.forEach(clearTimeout);
+
+      const { result, warning, fellBack } = outcome;
       if (warning) setWarning(warning);
       if (fellBack && warning?.includes("inválido")) toast.error("Token GeckoAPI inválido. Verifique em Configurações.");
       if (fellBack && warning?.includes("créditos")) toast.error("Sem créditos na GeckoAPI.");
       if (fellBack && warning?.includes("indisponível")) {
         toast.error("GeckoAPI indisponível no momento. Tente novamente em alguns minutos.");
       }
-      try {
-        await studyStore.save(result);
-      } catch (err) {
-        toast.error(`Não foi possível salvar o estudo: ${(err as Error).message}`);
-        return;
-      }
+
       sessionStorage.removeItem("rip:pending");
       sessionStorage.removeItem("rip:pending-keyword");
       sessionStorage.removeItem("rip:pending-radius");
       sessionStorage.removeItem("rip:pending-fieldmodes");
 
       // brief pause so the user sees the final step
+      setStep(4);
       await new Promise((r) => setTimeout(r, 400));
       setStep(5);
       await new Promise((r) => setTimeout(r, 300));

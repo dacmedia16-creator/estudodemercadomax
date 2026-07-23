@@ -10,6 +10,7 @@ import {
   Download, Share2, Save, Plus, Copy, ExternalLink,
   TrendingUp, TrendingDown, Minus, ChevronDown,
   CheckCircle2, AlertTriangle, Sparkles, Presentation, MessageSquareQuote, Settings2, Trash2,
+  Eye, EyeOff,
 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
 import { formatBRL, computeAcm, getValorIdeal, recomputeStudy } from "@/lib/study-engine";
@@ -49,6 +50,7 @@ function ReportPage() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState(false);
   const [rerunWarning, setRerunWarning] = useState<string | null>(null);
+  const [modoCliente, setModoCliente] = useState(false);
   const aiAutoTriedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -262,6 +264,16 @@ function ReportPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant={modoCliente ? "default" : "outline"}
+            size="sm"
+            className="gap-2"
+            onClick={() => setModoCliente((v) => !v)}
+            title="Esconde os ajustes técnicos (ACM, critérios, comparáveis) — pra mostrar a tela direto pro proprietário."
+          >
+            {modoCliente ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {modoCliente ? "Sair do modo cliente" : "Modo cliente"}
+          </Button>
           <Button variant="outline" size="sm" className="gap-2" onClick={() => { window.print(); toast.info("Use 'Salvar como PDF' na impressão."); }}>
             <Download className="h-4 w-4" /> Exportar PDF
           </Button>
@@ -308,47 +320,6 @@ function ReportPage() {
         {" · "}Maior: <span className="font-medium text-foreground">{formatBRL(study.maiorPreco)}</span>
         {" · "}Faixa recomendada: <span className="font-medium text-foreground">{formatBRL(study.faixaMin)} – {formatBRL(study.faixaMax)}</span>
       </p>
-
-      {/* Card "Como apresentar ao proprietário" */}
-      <Card className="mt-6 border-border/60 p-6 print:hidden">
-        <div className="mb-4 flex items-start gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <MessageSquareQuote className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wider text-primary">Como apresentar ao proprietário</div>
-            <div className="text-sm text-muted-foreground">Resumo, discurso e anúncio prontos para levar à reunião.</div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm leading-relaxed">
-          <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
-            <Sparkles className="h-3 w-3" /> Resumo do estudo
-          </div>
-          <p>{study.diagnostico}</p>
-          {study.aiAnalysis?.resumo && (
-            <p className="mt-2 border-t border-primary/20 pt-2 text-muted-foreground">{study.aiAnalysis.resumo}</p>
-          )}
-        </div>
-
-        {study.comparaveis.length > 0 && (
-          <div className="mt-5">
-            <AiAnalysisCard study={study} onChange={setStudy} />
-          </div>
-        )}
-
-        <div className="mt-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Anúncio pronto</div>
-            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={copyAnalise}>
-              <Copy className="h-3 w-3" /> Copiar tudo
-            </Button>
-          </div>
-          <Suggestion title="Título sugerido do anúncio" text={study.tituloSugerido} />
-          <Suggestion title="Descrição sugerida" text={study.descricaoSugerida} />
-          <Suggestion title="Argumento para o proprietário" text={study.argumentoProprietario} />
-        </div>
-      </Card>
 
       {/* Card "Prova de mercado" */}
       {study.comparaveis.length === 0 ? (
@@ -600,33 +571,76 @@ function ReportPage() {
         </Card>
       )}
 
-      {/* Ajustar estudo (avançado) — sempre visível */}
-      <div className="mt-6 rounded-lg border border-border/60 bg-card px-4 py-4 print:hidden">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-            <Settings2 className="h-4 w-4" />
+      {/* Card "Como apresentar ao proprietário" */}
+      <Card className="mt-6 border-border/60 p-6 print:hidden">
+        <div className="mb-4 flex items-start gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <MessageSquareQuote className="h-4 w-4" />
           </div>
-          <div className="text-left">
-            <div className="text-sm font-semibold">Ajustar estudo (avançado)</div>
-            <div className="text-xs text-muted-foreground">ACM, critérios de busca e lista de comparáveis.</div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-primary">Como apresentar ao proprietário</div>
+            <div className="text-sm text-muted-foreground">Resumo, discurso e anúncio prontos para levar à reunião.</div>
           </div>
         </div>
-        <div className="mt-4 space-y-6">
-          {study.comparaveis.length > 0 && <AcmPanel study={study} onChange={setStudy} />}
-          <CriteriosEditor
-            study={study}
-            input={input}
-            onRerun={handleRerun}
-            loading={rerunning}
-            warning={rerunWarning}
-          />
-          <ComparaveisManager
-            study={study}
-            originals={study.comparaveisOriginais ?? study.comparaveis}
-            onChange={setStudy}
-          />
+
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm leading-relaxed">
+          <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
+            <Sparkles className="h-3 w-3" /> Resumo do estudo
+          </div>
+          <p>{study.diagnostico}</p>
+          {study.aiAnalysis?.resumo && (
+            <p className="mt-2 border-t border-primary/20 pt-2 text-muted-foreground">{study.aiAnalysis.resumo}</p>
+          )}
         </div>
-      </div>
+
+        {study.comparaveis.length > 0 && (
+          <div className="mt-5">
+            <AiAnalysisCard study={study} onChange={setStudy} />
+          </div>
+        )}
+
+        <div className="mt-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Anúncio pronto</div>
+            <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={copyAnalise}>
+              <Copy className="h-3 w-3" /> Copiar tudo
+            </Button>
+          </div>
+          <Suggestion title="Título sugerido do anúncio" text={study.tituloSugerido} />
+          <Suggestion title="Descrição sugerida" text={study.descricaoSugerida} />
+          <Suggestion title="Argumento para o proprietário" text={study.argumentoProprietario} />
+        </div>
+      </Card>
+
+      {/* Ajustar estudo (avançado) — escondido em "modo cliente" */}
+      {!modoCliente && (
+        <div className="mt-6 rounded-lg border border-border/60 bg-card px-4 py-4 print:hidden">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <Settings2 className="h-4 w-4" />
+            </div>
+            <div className="text-left">
+              <div className="text-sm font-semibold">Ajustar estudo (avançado)</div>
+              <div className="text-xs text-muted-foreground">ACM, critérios de busca e lista de comparáveis.</div>
+            </div>
+          </div>
+          <div className="mt-4 space-y-6">
+            {study.comparaveis.length > 0 && <AcmPanel study={study} onChange={setStudy} />}
+            <CriteriosEditor
+              study={study}
+              input={input}
+              onRerun={handleRerun}
+              loading={rerunning}
+              warning={rerunWarning}
+            />
+            <ComparaveisManager
+              study={study}
+              originals={study.comparaveisOriginais ?? study.comparaveis}
+              onChange={setStudy}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Pontos fortes e pontos de atenção */}
       <div className="mt-6 grid gap-4 md:grid-cols-2 print-break-before">
@@ -829,21 +843,9 @@ function ResumoHero({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-border bg-background p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Vender rápido</div>
-          <div className="mt-1 text-lg font-bold tabular-nums">{formatBRL(idealMin)}</div>
-        </div>
-        <div className="rounded-lg border-2 border-primary bg-primary/10 p-3">
-          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
-            <Sparkles className="h-3 w-3" /> Recomendado
-          </div>
-          <div className="mt-1 text-lg font-bold tabular-nums text-primary">{formatBRL(valorIdeal)}</div>
-        </div>
-        <div className="rounded-lg border border-border bg-background p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Anunciar até</div>
-          <div className="mt-1 text-lg font-bold tabular-nums">{formatBRL(idealMax)}</div>
-        </div>
+      <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-4 text-sm text-muted-foreground">
+        <span>Quer vender mais rápido → <strong className="tabular-nums text-foreground">{formatBRL(idealMin)}</strong></span>
+        <span>Topo pra anunciar → <strong className="tabular-nums text-foreground">{formatBRL(idealMax)}</strong></span>
       </div>
 
       <div className="mt-4 text-xs text-muted-foreground">

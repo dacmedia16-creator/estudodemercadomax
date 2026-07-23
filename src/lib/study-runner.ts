@@ -153,8 +153,12 @@ export async function runStudy(
   const quartosMax = overrides.quartosMax ?? input.quartos;
   const areaMin = overrides.areaMin ?? Math.round(input.areaUtil * 0.75);
   const areaMax = overrides.areaMax ?? Math.round(input.areaUtil * 1.25);
-  const priceMin = overrides.priceMin ?? Math.round(input.valorPretendido * 0.7);
-  const priceMax = overrides.priceMax ?? Math.round(input.valorPretendido * 1.3);
+  // Sem valor pretendido (0 ou vazio), não há faixa de preço pra ancorar —
+  // busca só por bairro/tipo/área/quartos (0 a 0 travaria o filtro local e
+  // derrubaria qualquer comparável real).
+  const temValorPretendido = input.valorPretendido > 0;
+  const priceMin = overrides.priceMin ?? (temValorPretendido ? Math.round(input.valorPretendido * 0.7) : 0);
+  const priceMax = overrides.priceMax ?? (temValorPretendido ? Math.round(input.valorPretendido * 1.3) : Number.POSITIVE_INFINITY);
   const keyword = (overrides.keyword ?? `${tipo.toLowerCase()} ${bairro}`).trim();
   const autoExpand = overrides.autoExpand ?? true;
   const edificio = (overrides.edificio ?? input.edificio ?? "").trim();
@@ -1195,7 +1199,9 @@ export async function runStudy(
       bairrosAlvo.length ? `Bairro: ${bairro}${bairrosProximos.length ? " + adjacentes" : ""}` : `Cidade: ${cidade}`,
       `Quartos: ${quartosLabel}`,
       `Área: ${areaMin}–${areaMax} m²`,
-      `Preço: ${priceMin.toLocaleString("pt-BR")}–${priceMax.toLocaleString("pt-BR")}`,
+      temValorPretendido
+        ? `Preço: ${priceMin.toLocaleString("pt-BR")}–${priceMax.toLocaleString("pt-BR")}`
+        : "Preço: sem faixa (valor pretendido não informado)",
     ];
     if (priorizarEdificio) {
       criteriosAplicados.unshift(`Edifício: ${edificio} (prioridade)`);

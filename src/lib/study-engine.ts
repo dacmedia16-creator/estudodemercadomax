@@ -249,7 +249,11 @@ function similarity(
       input.diferenciais.length
     : 0.5;
   wf("diferenciais", 15, diffMatch);
-  w(10, 1 - Math.min(Math.abs(p.preco - input.valorPretendido) / Math.max(input.valorPretendido, 1), 1));
+  // Só entra na pontuação quando há valor pretendido — sem ele, "preço"
+  // não é um critério de similaridade (mesmo padrão de condomínio/IPTU acima).
+  if (input.valorPretendido > 0) {
+    w(10, 1 - Math.min(Math.abs(p.preco - input.valorPretendido) / input.valorPretendido, 1));
+  }
   return {
     score: Math.round((score / total) * 100),
     preferenciaAtendida: preferTotal > 0 && preferMet === preferTotal,
@@ -333,9 +337,11 @@ export function generateStudy(
   const faixaMax = Math.round(precoMedio * 1.07);
   const precoM2Pretendido = input.areaUtil > 0 ? Math.round(input.valorPretendido / input.areaUtil) : 0;
 
-  const diff = precoMedio > 0 ? (input.valorPretendido - precoMedio) / precoMedio : 0;
-  const status: StudyResult["status"] =
-    diff < -0.08 ? "Abaixo da média" : diff > 0.08 ? "Acima da média" : "Dentro da média";
+  const temValorPretendido = input.valorPretendido > 0;
+  const diff = temValorPretendido && precoMedio > 0 ? (input.valorPretendido - precoMedio) / precoMedio : 0;
+  const status: StudyResult["status"] = !temValorPretendido
+    ? "Dentro da média"
+    : diff < -0.08 ? "Abaixo da média" : diff > 0.08 ? "Acima da média" : "Dentro da média";
 
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
@@ -346,7 +352,9 @@ export function generateStudy(
 
   const diagnostico = top10.length === 0
     ? `Nenhum imóvel compatível foi encontrado nesta busca. Tente ampliar os critérios (área, preço, bairros próximos) no painel "Ajustar critérios" abaixo.`
-    : status === "Acima da média"
+    : !temValorPretendido
+      ? `Você não informou um valor pretendido. Com base nos ${top10.length} imóveis concorrentes em ${input.bairro} e região, o valor sugerido de mercado é ${fmt(valorIdealDet)} — a faixa competitiva vai de ${fmt(faixaMin)} a ${fmt(faixaMax)}.`
+      : status === "Acima da média"
       ? `Com base nos ${top10.length} imóveis concorrentes em ${input.bairro} e região, o valor pretendido está acima da faixa praticada no mercado. Anúncios nessa faixa tendem a ficar mais tempo no portal, perder visibilidade e receber pouquíssimas visitas qualificadas. O valor ideal de mercado é ${fmt(valorIdealDet)} — para se manter competitivo e acelerar a venda, recomenda-se posicionar entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`
       : status === "Abaixo da média"
       ? `O valor pretendido está alinhado e competitivo frente ao mercado de ${input.bairro}. A faixa de referência da concorrência vai de ${fmt(faixaMin)} a ${fmt(faixaMax)} — manter o anúncio nesse patamar tende a gerar mais visitas qualificadas e encurtar o tempo de venda.`
@@ -609,14 +617,18 @@ export function recomputeStudy(prev: StudyResult, comparaveis: ComparablePropert
   const faixaMin = Math.round(precoMedio * 0.93);
   const faixaMax = Math.round(precoMedio * 1.07);
   const precoM2Pretendido = input.areaUtil > 0 ? Math.round(input.valorPretendido / input.areaUtil) : 0;
-  const diff = precoMedio > 0 ? (input.valorPretendido - precoMedio) / precoMedio : 0;
-  const status: StudyResult["status"] =
-    diff < -0.08 ? "Abaixo da média" : diff > 0.08 ? "Acima da média" : "Dentro da média";
+  const temValorPretendido = input.valorPretendido > 0;
+  const diff = temValorPretendido && precoMedio > 0 ? (input.valorPretendido - precoMedio) / precoMedio : 0;
+  const status: StudyResult["status"] = !temValorPretendido
+    ? "Dentro da média"
+    : diff < -0.08 ? "Abaixo da média" : diff > 0.08 ? "Acima da média" : "Dentro da média";
 
   const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
   const diagnostico = list.length === 0
     ? `Nenhum imóvel compatível foi encontrado nesta busca. Tente ampliar os critérios (área, preço, bairros próximos) no painel "Ajustar critérios" abaixo.`
-    : status === "Acima da média"
+    : !temValorPretendido
+      ? `Você não informou um valor pretendido. Com base nos ${list.length} imóveis concorrentes em ${input.bairro} e região, a faixa competitiva vai de ${fmt(faixaMin)} a ${fmt(faixaMax)}.`
+      : status === "Acima da média"
       ? `Com base nos ${list.length} imóveis concorrentes em ${input.bairro} e região, o valor pretendido está acima da faixa praticada no mercado. Anúncios nessa faixa tendem a ficar mais tempo no portal, perder visibilidade e receber pouquíssimas visitas qualificadas. Para se manter competitivo e acelerar a venda, recomenda-se posicionar entre ${fmt(faixaMin)} e ${fmt(faixaMax)}.`
       : status === "Abaixo da média"
         ? `O valor pretendido está alinhado e competitivo frente ao mercado de ${input.bairro}. A faixa de referência da concorrência vai de ${fmt(faixaMin)} a ${fmt(faixaMax)} — manter o anúncio nesse patamar tende a gerar mais visitas qualificadas e encurtar o tempo de venda.`

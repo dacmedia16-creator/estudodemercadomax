@@ -15,7 +15,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppRelatoriosRouteImport } from './routes/app.relatorios'
 import { Route as AppNovoEstudoRouteImport } from './routes/app.novo-estudo'
-import { Route as AppMigrationHelperRouteImport } from './routes/app.migration-helper'
 import { Route as AppExemploRouteImport } from './routes/app.exemplo'
 import { Route as AppEstudosRouteImport } from './routes/app.estudos'
 import { Route as AppEquipesRouteImport } from './routes/app.equipes'
@@ -54,11 +53,6 @@ const AppRelatoriosRoute = AppRelatoriosRouteImport.update({
 const AppNovoEstudoRoute = AppNovoEstudoRouteImport.update({
   id: '/novo-estudo',
   path: '/novo-estudo',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppMigrationHelperRoute = AppMigrationHelperRouteImport.update({
-  id: '/migration-helper',
-  path: '/migration-helper',
   getParentRoute: () => AppRoute,
 } as any)
 const AppExemploRoute = AppExemploRouteImport.update({
@@ -119,7 +113,6 @@ export interface FileRoutesByFullPath {
   '/app/equipes': typeof AppEquipesRoute
   '/app/estudos': typeof AppEstudosRoute
   '/app/exemplo': typeof AppExemploRoute
-  '/app/migration-helper': typeof AppMigrationHelperRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/relatorios': typeof AppRelatoriosRoute
   '/app/': typeof AppIndexRoute
@@ -136,7 +129,6 @@ export interface FileRoutesByTo {
   '/app/equipes': typeof AppEquipesRoute
   '/app/estudos': typeof AppEstudosRoute
   '/app/exemplo': typeof AppExemploRoute
-  '/app/migration-helper': typeof AppMigrationHelperRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/relatorios': typeof AppRelatoriosRoute
   '/app': typeof AppIndexRoute
@@ -155,7 +147,6 @@ export interface FileRoutesById {
   '/app/equipes': typeof AppEquipesRoute
   '/app/estudos': typeof AppEstudosRoute
   '/app/exemplo': typeof AppExemploRoute
-  '/app/migration-helper': typeof AppMigrationHelperRoute
   '/app/novo-estudo': typeof AppNovoEstudoRoute
   '/app/relatorios': typeof AppRelatoriosRoute
   '/app/': typeof AppIndexRoute
@@ -175,7 +166,6 @@ export interface FileRouteTypes {
     | '/app/equipes'
     | '/app/estudos'
     | '/app/exemplo'
-    | '/app/migration-helper'
     | '/app/novo-estudo'
     | '/app/relatorios'
     | '/app/'
@@ -192,7 +182,6 @@ export interface FileRouteTypes {
     | '/app/equipes'
     | '/app/estudos'
     | '/app/exemplo'
-    | '/app/migration-helper'
     | '/app/novo-estudo'
     | '/app/relatorios'
     | '/app'
@@ -210,7 +199,6 @@ export interface FileRouteTypes {
     | '/app/equipes'
     | '/app/estudos'
     | '/app/exemplo'
-    | '/app/migration-helper'
     | '/app/novo-estudo'
     | '/app/relatorios'
     | '/app/'
@@ -265,13 +253,6 @@ declare module '@tanstack/react-router' {
       path: '/novo-estudo'
       fullPath: '/app/novo-estudo'
       preLoaderRoute: typeof AppNovoEstudoRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/migration-helper': {
-      id: '/app/migration-helper'
-      path: '/migration-helper'
-      fullPath: '/app/migration-helper'
-      preLoaderRoute: typeof AppMigrationHelperRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/exemplo': {
@@ -349,7 +330,6 @@ interface AppRouteChildren {
   AppEquipesRoute: typeof AppEquipesRoute
   AppEstudosRoute: typeof AppEstudosRoute
   AppExemploRoute: typeof AppExemploRoute
-  AppMigrationHelperRoute: typeof AppMigrationHelperRoute
   AppNovoEstudoRoute: typeof AppNovoEstudoRoute
   AppRelatoriosRoute: typeof AppRelatoriosRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -365,7 +345,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppEquipesRoute: AppEquipesRoute,
   AppEstudosRoute: AppEstudosRoute,
   AppExemploRoute: AppExemploRoute,
-  AppMigrationHelperRoute: AppMigrationHelperRoute,
   AppNovoEstudoRoute: AppNovoEstudoRoute,
   AppRelatoriosRoute: AppRelatoriosRoute,
   AppIndexRoute: AppIndexRoute,
@@ -382,3 +361,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
