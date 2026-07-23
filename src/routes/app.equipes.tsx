@@ -13,7 +13,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Check, ChevronsUpDown, Loader2, Pencil, Plus, Trash2, UserPlus, Users } from "lucide-react";
+import { Check, ChevronsUpDown, Crown, Loader2, Pencil, Plus, Search, Trash2, UserPlus, Users } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
@@ -29,6 +29,18 @@ import {
 export const Route = createFileRoute("/app/equipes")({
   component: TeamsAdminPage,
 });
+
+// Cor de destaque por equipe — determinística a partir do id, sem precisar
+// guardar cor nenhuma no banco.
+const TEAM_DOT_COLORS = [
+  "bg-emerald-500", "bg-teal-500", "bg-violet-500", "bg-blue-500",
+  "bg-amber-500", "bg-orange-500", "bg-pink-500", "bg-rose-500",
+];
+function teamDotColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return TEAM_DOT_COLORS[hash % TEAM_DOT_COLORS.length];
+}
 
 function TeamsAdminPage() {
   const navigate = useNavigate();
@@ -67,6 +79,7 @@ function TeamsAdminPage() {
 
   const [detailId, setDetailId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [search, setSearch] = useState("");
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ["admin-teams"] });
@@ -138,6 +151,7 @@ function TeamsAdminPage() {
   }
 
   const teams = listQ.data?.teams ?? [];
+  const filteredTeams = teams.filter((t) => t.name.toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 space-y-6">
@@ -249,62 +263,82 @@ function TeamsAdminPage() {
         </Dialog>
       </div>
 
-      <Card className="p-0 overflow-hidden">
-        {listQ.isLoading ? (
-          <div className="p-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
-        ) : teams.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            Nenhuma equipe ainda. Clique em "Nova equipe" para começar.
-          </div>
-        ) : (
-          <div className="divide-y">
-            {teams.map((t) => (
-              <div key={t.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{t.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    Gestor: {t.managerEmail} · criada em {new Date(t.createdAt).toLocaleDateString("pt-BR")}
-                  </div>
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar equipe..."
+          className="pl-9"
+        />
+      </div>
+
+      {listQ.isLoading ? (
+        <div className="p-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
+      ) : teams.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-muted-foreground">
+          Nenhuma equipe ainda. Clique em "Nova equipe" para começar.
+        </Card>
+      ) : filteredTeams.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-muted-foreground">
+          Nenhuma equipe encontrada para "{search}".
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredTeams.map((t) => (
+            <Card key={t.id} className="flex flex-col gap-3 p-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", teamDotColor(t.id))} />
+                <span className="font-semibold truncate">{t.name}</span>
+              </div>
+
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t.memberCount} {t.memberCount === 1 ? "membro" : "membros"}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{t.memberCount} corretor(es)</Badge>
-                  <Badge variant="outline">{t.studyCount} estudo(s)</Badge>
-                  <Button size="sm" variant="outline" onClick={() => setDetailId(t.id)}>
-                    Gerenciar
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setRenaming({ id: t.id, name: t.name })}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="ghost" className="text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir equipe "{t.name}"?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Os corretores serão desvinculados da equipe. As contas e os estudos são preservados.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          onClick={() => handleDelete(t.id)}
-                        >
-                          Excluir
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                <div className="flex items-center gap-1.5 truncate">
+                  <Crown className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate" title={t.managerEmail}>{t.managerEmail}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
+
+              <div className="mt-1 flex items-center gap-1.5 border-t border-border pt-3">
+                <Button size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => setDetailId(t.id)}>
+                  <Users className="h-3.5 w-3.5" /> Membros
+                </Button>
+                <Button size="icon" variant="ghost" title="Renomear" onClick={() => setRenaming({ id: t.id, name: t.name })}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="icon" variant="ghost" className="text-destructive" title="Excluir equipe">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir equipe "{t.name}"?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Os corretores serão desvinculados da equipe. As contas e os estudos são preservados.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => handleDelete(t.id)}
+                      >
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Rename dialog */}
       <Dialog open={!!renaming} onOpenChange={(v) => !v && setRenaming(null)}>

@@ -327,6 +327,46 @@ export const gestorRemoveMember = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const gestorAddMember = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { email: string; password: string }) =>
+    z.object({
+      email: z.string().email().max(255),
+      password: z.string().min(8).max(72),
+    }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await assertGestorOrAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: teams, error: teamErr } = await supabaseAdmin
+      .from("teams").select("id").eq("manager_id", context.userId).limit(1);
+    if (teamErr) throw new Error(teamErr.message);
+    const team = (teams ?? [])[0] as { id: string } | undefined;
+    if (!team) throw new Error("Você ainda não gerencia nenhuma equipe.");
+
+    // find or create user
+    const email = data.email.trim().toLowerCase();
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    let userId = (usersData?.users ?? []).find((u) => (u.email ?? "").toLowerCase() === email)?.id;
+    if (!userId) {
+      const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+        email, password: data.password, email_confirm: true,
+      });
+      if (error) throw new Error(error.message);
+      if (!created.user) throw new Error("Falha ao criar corretor.");
+      userId = created.user.id;
+    }
+
+    const { error: linkErr } = await supabaseAdmin.from("team_members").insert({
+      team_id: team.id,
+      manager_id: context.userId,
+      user_id: userId,
+    });
+    if (linkErr) throw new Error(linkErr.message);
+    return { userId };
+  });
+
 export const gestorListTeamStudies = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

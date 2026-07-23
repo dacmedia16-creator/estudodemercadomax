@@ -4,16 +4,21 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ExternalLink, FileText, Loader2, Trash2, Users } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useIsGestor } from "@/hooks/use-is-gestor";
 import {
-  gestorListTeam, gestorListTeamStudies, gestorRemoveMember,
+  gestorAddMember, gestorListTeam, gestorListTeamStudies, gestorRemoveMember,
 } from "@/lib/team.functions";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 
@@ -50,6 +55,29 @@ function TeamPage() {
     enabled: isGestor,
   });
 
+  const [addOpen, setAddOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const handleAdd = async () => {
+    if (!email || password.length < 8) {
+      toast.error("Informe e-mail válido e senha com 8+ caracteres.");
+      return;
+    }
+    setAdding(true);
+    try {
+      await gestorAddMember({ data: { email: email.trim(), password } });
+      toast.success("Corretor adicionado.");
+      setEmail(""); setPassword(""); setAddOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["gestor-team"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao adicionar.");
+    } finally {
+      setAdding(false);
+    }
+  };
+
   const handleRemove = async (userId: string) => {
     try {
       await gestorRemoveMember({ data: { userId, deleteAccount: false } });
@@ -80,9 +108,38 @@ function TeamPage() {
             <Users className="h-6 w-6 text-primary" /> Equipe
           </h1>
           <p className="text-sm text-muted-foreground">
-            Acompanhe os corretores e estudos da sua equipe. Novos corretores são adicionados pelo administrador.
+            Acompanhe os corretores e estudos da sua equipe.
           </p>
         </div>
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2"><UserPlus className="h-4 w-4" /> Adicionar corretor</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar corretor</DialogTitle>
+              <DialogDescription>
+                Se o e-mail não existir, uma conta será criada com a senha informada.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="gam-email">E-mail</Label>
+                <Input id="gam-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="gam-pass">Senha inicial (mín. 8)</Label>
+                <Input id="gam-pass" type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
+              <Button onClick={handleAdd} disabled={adding}>
+                {adding && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Adicionar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
