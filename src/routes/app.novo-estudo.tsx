@@ -43,6 +43,8 @@ const STEPS = [
 function NovoEstudo() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const currentStep = STEPS[step - 1];
+  const CurrentStepIcon = currentStep.icon;
   const [cep, setCep] = useState("");
   const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "ok" | "notfound" | "error">("idle");
   const [radiusKm] = useState<number>(5);
@@ -174,8 +176,8 @@ function NovoEstudo() {
       <h1 className="text-3xl font-bold tracking-tight">Vamos analisar seu imóvel</h1>
       <p className="mt-2 text-muted-foreground">Preencha o formulário detalhado para gerar o estudo.</p>
 
-      {/* Stepper */}
-      <div className="mt-8 flex items-center gap-2 overflow-x-auto pb-2">
+      {/* Stepper — desktop */}
+      <div className="mt-8 hidden items-center gap-2 overflow-x-auto pb-2 md:flex">
         {STEPS.map((s, i) => (
           <div key={s.n} className="flex flex-1 items-center gap-2">
             <button
@@ -195,6 +197,23 @@ function NovoEstudo() {
             {i < STEPS.length - 1 && <div className={cn("h-px flex-1", step > s.n ? "bg-primary/40" : "bg-border")} />}
           </div>
         ))}
+      </div>
+
+      {/* Stepper — mobile */}
+      <div className="mt-8 md:hidden">
+        <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+          <span className="flex items-center gap-1.5 text-foreground">
+            <CurrentStepIcon className="h-3.5 w-3.5 text-primary" />
+            Passo {step} de {STEPS.length} — {currentStep.label}
+          </span>
+          <span>{Math.round((step / STEPS.length) * 100)}%</span>
+        </div>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
+          <div
+            className="h-full rounded-full bg-primary transition-all"
+            style={{ width: `${(step / STEPS.length) * 100}%` }}
+          />
+        </div>
       </div>
 
       <Card className="mt-6 border-border/60 p-6 md:p-8 shadow-[var(--shadow-card)]">
