@@ -9,7 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, Check, MapPin, Home, Sparkles, Globe, Loader2, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, MapPin, Building2, Home, Wallet, Sparkles, Globe, Loader2, Search } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { StudyInput } from "@/lib/study-types";
 import type { FieldKey, FieldMode } from "@/lib/study-types";
@@ -34,10 +35,12 @@ const PORTAIS = [
 ];
 
 const STEPS = [
-  { n: 1, label: "Dados básicos", icon: MapPin },
-  { n: 2, label: "Características", icon: Home },
-  { n: 3, label: "Diferenciais", icon: Sparkles },
-  { n: 4, label: "Portais", icon: Globe },
+  { n: 1, label: "Localização", icon: MapPin },
+  { n: 2, label: "Endereço", icon: Building2 },
+  { n: 3, label: "Características", icon: Home },
+  { n: 4, label: "Valores", icon: Wallet },
+  { n: 5, label: "Diferenciais", icon: Sparkles },
+  { n: 6, label: "Portais", icon: Globe },
 ];
 
 function NovoEstudo() {
@@ -136,7 +139,14 @@ function NovoEstudo() {
     }
   };
 
+  const cepValid = cep.replace(/\D/g, "").length === 8;
+
   const handleSubmit = () => {
+    if (!cepValid) {
+      toast.error("Informe o CEP para gerar o estudo.");
+      setStep(1);
+      return;
+    }
     const input: StudyInput = {
       finalidade: data.finalidade ?? "Venda",
       tipo: data.tipo ?? "Apartamento",
@@ -311,6 +321,11 @@ function NovoEstudo() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="grid gap-5 md:grid-cols-2">
             <Field label="Endereço aproximado (opcional)" className="md:col-span-2">
               <Input value={data.endereco ?? ""} onChange={(e) => update("endereco", e.target.value)} placeholder="Ex: Rua Brasílio Itiberê, 1500" />
             </Field>
@@ -326,8 +341,7 @@ function NovoEstudo() {
           </div>
         )}
 
-        {step === 2 && (
-          <div className="space-y-6">
+        {step === 3 && (
           <div className="grid gap-5 md:grid-cols-3">
             <Field label="Área útil (m²)"><NumberInput v={data.areaUtil} onV={(v) => update("areaUtil", v)} /></Field>
             {data.tipo !== "Apartamento" && (
@@ -339,15 +353,18 @@ function NovoEstudo() {
             <Field label="Banheiros"><NumberInput v={data.banheiros} onV={(v) => update("banheiros", v)} /></Field>
             <Field label="Vagas"><NumberInput v={data.vagas} onV={(v) => update("vagas", v)} /></Field>
             <Field label="Andar"><NumberInput v={data.andar} onV={(v) => update("andar", v)} /></Field>
-            <div />
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="grid gap-5 md:grid-cols-3">
             <Field label="Condomínio"><CurrencyInput v={data.condominio} onV={(v) => update("condominio", v)} /></Field>
             <Field label="IPTU"><CurrencyInput v={data.iptu} onV={(v) => update("iptu", v)} /></Field>
             <Field label="Valor pretendido"><CurrencyInput v={data.valorPretendido} onV={(v) => update("valorPretendido", v)} /></Field>
           </div>
-          </div>
         )}
 
-        {step === 3 && (
+        {step === 5 && (
           <div>
             <Label className="mb-3 block text-sm font-medium">Diferenciais do imóvel</Label>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -383,13 +400,18 @@ function NovoEstudo() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 6 && (
           <div>
             <Card className="border-warning/30 bg-warning/5 p-4 text-sm">
               <p className="text-muted-foreground">
                 <span className="font-semibold text-foreground">Pronto para gerar?</span> Vamos buscar imóveis comparáveis e montar seu relatório completo em segundos.
               </p>
             </Card>
+            {!cepValid && (
+              <p className="mt-3 text-sm text-warning">
+                Informe o CEP no passo 1 (Localização) para gerar o estudo.
+              </p>
+            )}
           </div>
         )}
 
@@ -397,12 +419,18 @@ function NovoEstudo() {
           <Button variant="ghost" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1} className="gap-2">
             <ArrowLeft className="h-4 w-4" /> Voltar
           </Button>
-          {step < 4 ? (
+          {step < STEPS.length ? (
             <Button onClick={() => setStep((s) => s + 1)} className="gap-2">
               Próximo <ArrowRight className="h-4 w-4" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} size="lg" className="gap-2">
+            <Button
+              onClick={handleSubmit}
+              size="lg"
+              className="gap-2"
+              disabled={!cepValid}
+              title={!cepValid ? "Informe o CEP para gerar o estudo" : undefined}
+            >
               Gerar estudo de mercado <Sparkles className="h-4 w-4" />
             </Button>
           )}
