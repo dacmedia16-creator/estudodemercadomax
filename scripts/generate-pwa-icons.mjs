@@ -1,9 +1,11 @@
 import sharp from "sharp";
 import { mkdir } from "node:fs/promises";
 
-const SRC = "src/assets/remax-icon-transparent.png";
+const SRC = "src/assets/estudo-mercado-max-logo.png";
 const OUT_DIR = "public/icons";
-const THEME_COLOR = "#0b3aa6";
+// White, not the app's primary blue: the logo itself already uses blue for
+// half its ring/text, so a blue backdrop makes those parts disappear.
+const ICON_BG = "#ffffff";
 
 await mkdir(OUT_DIR, { recursive: true });
 
@@ -14,10 +16,10 @@ async function regularIcon(size, outPath) {
 
 // Maskable icon: opaque background + logo shrunk into the ~80% "safe zone" circle.
 async function maskableIcon(size, outPath) {
-  const logoSize = Math.round(size * 0.65);
+  const logoSize = Math.round(size * 0.74);
   const logo = await sharp(SRC).resize(logoSize, logoSize, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
   await sharp({
-    create: { width: size, height: size, channels: 4, background: THEME_COLOR },
+    create: { width: size, height: size, channels: 4, background: ICON_BG },
   })
     .composite([{ input: logo, gravity: "center" }])
     .png()
@@ -29,7 +31,7 @@ async function appleTouchIcon(size, outPath) {
   const logoSize = Math.round(size * 0.78);
   const logo = await sharp(SRC).resize(logoSize, logoSize, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
   await sharp({
-    create: { width: size, height: size, channels: 4, background: THEME_COLOR },
+    create: { width: size, height: size, channels: 4, background: ICON_BG },
   })
     .composite([{ input: logo, gravity: "center" }])
     .png()
