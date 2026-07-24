@@ -83,12 +83,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Estudo de Mercado Pro" },
       { name: "twitter:description", content: "Estudo de Mercado Pro automates real estate market studies for professionals." },
+      { name: "theme-color", content: "#0b3aa6" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "Estudo Merc." },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
+      { rel: "icon", type: "image/png", sizes: "16x16", href: "/favicon-16.png" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
   }),
   shellComponent: RootShell,
@@ -124,6 +132,15 @@ function RootComponent() {
     });
     return () => { data.subscription.unsubscribe(); };
   }, [queryClient]);
+
+  // sw.js is a static file served from public/ — only worth registering in
+  // production (the dev server doesn't serve a meaningful one) and only where
+  // the API exists at all (older browsers, some in-app webviews).
+  useEffect(() => {
+    if (!import.meta.env.PROD) return;
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js");
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
