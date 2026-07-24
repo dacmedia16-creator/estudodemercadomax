@@ -40,9 +40,11 @@ const credsSchema = z.object({
   password: z.string().min(8, "Mínimo 8 caracteres").max(72),
 });
 
+const NO_TEAM = "__none__";
+
 const signupSchema = credsSchema.extend({
   name: z.string().trim().min(2, "Informe seu nome completo").max(120),
-  teamId: z.string().uuid("Selecione uma equipe"),
+  teamId: z.string(),
 });
 
 function AuthPage() {
@@ -51,7 +53,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [teamId, setTeamId] = useState("");
+  const [teamId, setTeamId] = useState(NO_TEAM);
   const [loading, setLoading] = useState(false);
   const [errorInfo, setErrorInfo] = useState<{
     friendly: string;
@@ -101,7 +103,7 @@ function AuthPage() {
           toast.error(friendly);
           return;
         }
-        if (signUpData.session) {
+        if (signUpData.session && parsed.data.teamId !== NO_TEAM) {
           try {
             await selfJoinTeam({ data: { teamId: parsed.data.teamId } });
           } catch (joinErr) {
@@ -227,6 +229,7 @@ function AuthPage() {
                       />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={NO_TEAM}>Sem equipe</SelectItem>
                       {teams.map((t) => (
                         <SelectItem key={t.id} value={t.id}>
                           {t.name}
@@ -234,19 +237,12 @@ function AuthPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {!teamsLoading && teams.length === 0 && (
-                    <p className="text-[11px] text-destructive">
-                      Nenhuma equipe disponível no momento. Fale com o administrador antes de criar
-                      sua conta.
-                    </p>
-                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    Opcional. Se não souber, deixe "Sem equipe" — dá para vincular depois.
+                  </p>
                 </div>
               )}
-              <Button
-                type="submit"
-                className="w-full gap-2"
-                disabled={loading || (tab === "signup" && !teamsLoading && teams.length === 0)}
-              >
+              <Button type="submit" className="w-full gap-2" disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tab === "signup" ? "Criar conta" : "Entrar"}
               </Button>
