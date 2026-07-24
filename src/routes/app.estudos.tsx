@@ -1,11 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FilePlus2, FolderOpen, ArrowRight, Copy as CopyIcon, Trash2 } from "lucide-react";
 import { studyStore } from "@/lib/study-store";
-import { generateStudy, formatBRL } from "@/lib/study-engine";
+import { formatBRL } from "@/lib/study-engine";
 import type { StudyResult } from "@/lib/study-types";
 import { toast } from "sonner";
 
@@ -14,6 +14,7 @@ export const Route = createFileRoute("/app/estudos")({
 });
 
 function EstudosSalvos() {
+  const navigate = useNavigate();
   const [list, setList] = useState<StudyResult[]>([]);
   const [loading, setLoading] = useState(true);
   const refresh = async () => {
@@ -25,17 +26,25 @@ function EstudosSalvos() {
       setLoading(false);
     }
   };
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
       <div className="flex items-center justify-between">
         <div>
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">Histórico</div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+            Histórico
+          </div>
           <h1 className="text-3xl font-bold tracking-tight">Estudos salvos</h1>
           <p className="mt-1 text-muted-foreground">{list.length} estudo(s) no seu histórico</p>
         </div>
-        <Link to="/app/novo-estudo"><Button className="gap-2"><FilePlus2 className="h-4 w-4" /> Novo estudo</Button></Link>
+        <Link to="/app/novo-estudo">
+          <Button className="gap-2">
+            <FilePlus2 className="h-4 w-4" /> Novo estudo
+          </Button>
+        </Link>
       </div>
 
       {list.length === 0 ? (
@@ -45,23 +54,34 @@ function EstudosSalvos() {
           </div>
           <h2 className="mt-4 text-lg font-semibold">Nenhum estudo ainda</h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Crie seu primeiro estudo e ele aparecerá aqui, pronto para reabrir, duplicar ou exportar.
+            Crie seu primeiro estudo e ele aparecerá aqui, pronto para reabrir, duplicar ou
+            exportar.
           </p>
-          <Link to="/app/novo-estudo" className="mt-6"><Button className="gap-2">Criar estudo <ArrowRight className="h-4 w-4" /></Button></Link>
+          <Link to="/app/novo-estudo" className="mt-6">
+            <Button className="gap-2">
+              Criar estudo <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
         </Card>
       ) : (
         <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {list.map((s) => {
             const statusColor =
-              s.status === "Acima da média" ? "bg-warning/15 text-warning-foreground border-warning/30"
-              : s.status === "Abaixo da média" ? "bg-success/15 text-success border-success/30"
-              : "bg-primary/10 text-primary border-primary/30";
+              s.status === "Acima da média"
+                ? "bg-warning/15 text-warning-foreground border-warning/30"
+                : s.status === "Abaixo da média"
+                  ? "bg-success/15 text-success border-success/30"
+                  : "bg-primary/10 text-primary border-primary/30";
             return (
               <Card key={s.id} className="flex flex-col border-border/60 p-5">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-xs text-muted-foreground">{s.input.cidade} · {s.input.finalidade}</div>
-                    <h3 className="mt-1 font-semibold leading-tight">{s.input.tipo} · {s.input.bairro}</h3>
+                    <div className="text-xs text-muted-foreground">
+                      {s.input.cidade} · {s.input.finalidade}
+                    </div>
+                    <h3 className="mt-1 font-semibold leading-tight">
+                      {s.input.tipo} · {s.input.bairro}
+                    </h3>
                   </div>
                   <Badge className={`border ${statusColor} text-[10px]`}>{s.status}</Badge>
                 </div>
@@ -73,23 +93,34 @@ function EstudosSalvos() {
                 </div>
                 <div className="mt-5 flex gap-2 border-t border-border pt-4">
                   <Link to="/app/relatorio/$id" params={{ id: s.id }} className="flex-1">
-                    <Button variant="default" size="sm" className="w-full gap-1">Abrir <ArrowRight className="h-3.5 w-3.5" /></Button>
+                    <Button variant="default" size="sm" className="w-full gap-1">
+                      Abrir <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
                   </Link>
-                  <Button variant="outline" size="icon" onClick={async () => {
-                    try {
-                      const dup = generateStudy(s.input);
-                      await studyStore.save(dup);
-                      await refresh();
-                      toast.success("Estudo duplicado!");
-                    } catch (err) { toast.error((err as Error).message); }
-                  }}><CopyIcon className="h-4 w-4" /></Button>
-                  <Button variant="outline" size="icon" onClick={async () => {
-                    try {
-                      await studyStore.remove(s.id);
-                      await refresh();
-                      toast.success("Removido");
-                    } catch (err) { toast.error((err as Error).message); }
-                  }}>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title="Duplicar: reabre o formulário preenchido para gerar um estudo novo com dados atuais do mercado"
+                    onClick={() => {
+                      sessionStorage.setItem("rip:prefill", JSON.stringify(s.input));
+                      navigate({ to: "/app/novo-estudo" });
+                    }}
+                  >
+                    <CopyIcon className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      try {
+                        await studyStore.remove(s.id);
+                        await refresh();
+                        toast.success("Removido");
+                      } catch (err) {
+                        toast.error((err as Error).message);
+                      }
+                    }}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>

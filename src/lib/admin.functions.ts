@@ -26,8 +26,14 @@ export const adminListUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-    if (error) throw new Error(error.message);
+    const allUsers: Array<{ id: string; email?: string; created_at: string; last_sign_in_at?: string | null }> = [];
+    const perPage = 1000;
+    for (let page = 1; ; page++) {
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+      if (error) throw new Error(error.message);
+      allUsers.push(...data.users);
+      if (data.users.length < perPage) break;
+    }
 
     const { data: roleRows, error: rolesErr } = await supabaseAdmin
       .from("user_roles")
@@ -39,7 +45,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
     );
 
     return {
-      users: data.users.map((u) => ({
+      users: allUsers.map((u) => ({
         id: u.id,
         email: u.email ?? "",
         createdAt: u.created_at,
