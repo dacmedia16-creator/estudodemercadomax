@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { FilePlus2, FolderOpen, BarChart3, FileText, Settings, ShieldCheck, LayoutDashboard, Users } from "lucide-react";
-import remaxIcon from "@/assets/remax-icon-transparent.png";
+import logoIcon from "@/assets/estudo-mercado-max-logo.png";
 import {
   Sidebar,
   SidebarContent,
@@ -37,7 +37,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border">
         <Link to="/app/novo-estudo" className="flex items-center gap-2 px-2 py-3" onClick={closeOnMobile}>
-          <img src={remaxIcon} alt="RE/MAX Única Escolha" className="h-12 w-12 object-contain" />
+          <img src={logoIcon} alt="Estudo de Mercado MAX" className="h-12 w-12 object-contain" />
           <div className="flex flex-col leading-tight">
             <span className="text-sm font-bold text-sidebar-foreground">ESTUDO DE MERCADO</span>
             <span className="text-[10px] uppercase tracking-wider text-primary">{"\n"}</span>

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import logoMax from "@/assets/estudo-mercado-max-logo.png";
 import {
   Search,
   TrendingUp,
@@ -34,9 +35,7 @@ function Index() {
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-lg">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <Link to="/" className="flex items-center gap-2">
-            <div className="flex flex-col leading-tight">
-              <span className="text-lg font-bold uppercase tracking-wider text-primary">ESTUDO DE MERCADO</span>
-            </div>
+            <img src={logoMax} alt="Estudo de Mercado Max" className="h-12 w-auto" />
           </Link>
           <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
             <a href="#como-funciona" className="hover:text-foreground">Como funciona</a>
