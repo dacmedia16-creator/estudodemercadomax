@@ -241,95 +241,115 @@ function AdminPage() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando…
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Email</th>
-                      <th className="px-4 py-3 font-medium">Criado</th>
-                      <th className="px-4 py-3 font-medium">Último acesso</th>
-                      <th className="px-4 py-3 font-medium">Ativo</th>
-                      <th className="px-4 py-3 font-medium">Admin</th>
-                      <th className="px-4 py-3 text-right font-medium">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {users.map((u) => (
-                      <tr key={u.id} className="hover:bg-muted/30">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{u.email}</span>
-                            {u.isSuperAdmin && (
-                              <Badge className="border border-primary/30 bg-primary/10 text-[10px] text-primary">
-                                Super admin
-                              </Badge>
-                            )}
-                            {!u.isActive && (
-                              <Badge className="border border-warning/30 bg-warning/10 text-[10px] text-warning-foreground">
-                                Pendente
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {new Date(u.createdAt).toLocaleDateString("pt-BR")}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
+              <>
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Email</th>
+                        <th className="px-4 py-3 font-medium">Criado</th>
+                        <th className="px-4 py-3 font-medium">Último acesso</th>
+                        <th className="px-4 py-3 font-medium">Ativo</th>
+                        <th className="px-4 py-3 font-medium">Admin</th>
+                        <th className="px-4 py-3 text-right font-medium">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {users.map((u) => (
+                        <tr key={u.id} className="hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{u.email}</span>
+                              {u.isSuperAdmin && (
+                                <Badge className="border border-primary/30 bg-primary/10 text-[10px] text-primary">
+                                  Super admin
+                                </Badge>
+                              )}
+                              {!u.isActive && (
+                                <Badge className="border border-warning/30 bg-warning/10 text-[10px] text-warning-foreground">
+                                  Pendente
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {new Date(u.createdAt).toLocaleDateString("pt-BR")}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {u.lastSignInAt
+                              ? new Date(u.lastSignInAt).toLocaleString("pt-BR")
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Switch
+                              checked={u.isActive}
+                              disabled={u.isSuperAdmin}
+                              onCheckedChange={(v) => handleToggleActive(u.id, v)}
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <Switch
+                              checked={u.isAdmin}
+                              disabled={u.isSuperAdmin}
+                              onCheckedChange={(v) => handleToggleAdmin(u.id, v)}
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <DeleteUserButton user={u} onDelete={handleDelete} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="divide-y divide-border md:hidden">
+                  {users.map((u) => (
+                    <div key={u.id} className="space-y-3 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span className="truncate font-medium">{u.email}</span>
+                          {u.isSuperAdmin && (
+                            <Badge className="border border-primary/30 bg-primary/10 text-[10px] text-primary">
+                              Super admin
+                            </Badge>
+                          )}
+                          {!u.isActive && (
+                            <Badge className="border border-warning/30 bg-warning/10 text-[10px] text-warning-foreground">
+                              Pendente
+                            </Badge>
+                          )}
+                        </div>
+                        <DeleteUserButton user={u} onDelete={handleDelete} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <div>Criado: {new Date(u.createdAt).toLocaleDateString("pt-BR")}</div>
+                        <div>
+                          Último acesso:{" "}
                           {u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleString("pt-BR") : "—"}
-                        </td>
-                        <td className="px-4 py-3">
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4 text-sm">
+                        <label className="flex items-center gap-2">
                           <Switch
                             checked={u.isActive}
                             disabled={u.isSuperAdmin}
                             onCheckedChange={(v) => handleToggleActive(u.id, v)}
                           />
-                        </td>
-                        <td className="px-4 py-3">
+                          Ativo
+                        </label>
+                        <label className="flex items-center gap-2">
                           <Switch
                             checked={u.isAdmin}
                             disabled={u.isSuperAdmin}
                             onCheckedChange={(v) => handleToggleAdmin(u.id, v)}
                           />
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                disabled={u.isSuperAdmin}
-                                title={
-                                  u.isSuperAdmin ? "Super admin não pode ser excluído" : "Excluir"
-                                }
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta ação remove permanentemente <strong>{u.email}</strong> e
-                                  todos os estudos associados.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(u.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Excluir
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          Admin
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </Card>
         </TabsContent>
@@ -343,6 +363,47 @@ function AdminPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function DeleteUserButton({
+  user,
+  onDelete,
+}: {
+  user: { id: string; email: string; isSuperAdmin: boolean };
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          disabled={user.isSuperAdmin}
+          title={user.isSuperAdmin ? "Super admin não pode ser excluído" : "Excluir"}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Esta ação remove permanentemente <strong>{user.email}</strong> e todos os estudos
+            associados.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => onDelete(user.id)}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Excluir
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -426,91 +487,138 @@ function AdminStudiesTab({ currentUserId }: { currentUserId: string | null }) {
               : "Nenhum estudo encontrado com os filtros atuais."}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Data</th>
-                  <th className="px-4 py-3 font-medium">Usuário</th>
-                  <th className="px-4 py-3 font-medium">Localização</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 text-right font-medium">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.map((s) => (
-                  <tr key={s.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {new Date(s.createdAt).toLocaleString("pt-BR")}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{s.email}</span>
+          <>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Data</th>
+                    <th className="px-4 py-3 font-medium">Usuário</th>
+                    <th className="px-4 py-3 font-medium">Localização</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 text-right font-medium">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filtered.map((s) => (
+                    <tr key={s.id} className="hover:bg-muted/30">
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {new Date(s.createdAt).toLocaleString("pt-BR")}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{s.email}</span>
+                          {currentUserId && s.userId !== currentUserId && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              de outro usuário
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {[s.bairro, s.cidade].filter(Boolean).join(" • ") || "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {s.status ? (
+                          <Badge variant="outline" className="text-xs">
+                            {s.status}
+                          </Badge>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <StudyRowActions study={s} onDelete={handleDelete} navigate={navigate} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="divide-y divide-border md:hidden">
+              {filtered.map((s) => (
+                <div key={s.id} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-medium">{s.email}</span>
                         {currentUserId && s.userId !== currentUserId && (
                           <Badge variant="secondary" className="text-[10px]">
                             de outro usuário
                           </Badge>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {[s.bairro, s.cidade].filter(Boolean).join(" • ") || "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {s.status ? (
-                        <Badge variant="outline" className="text-xs">
-                          {s.status}
-                        </Badge>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1"
-                          onClick={() =>
-                            navigate({ to: "/app/relatorio/$id", params: { id: s.id } })
-                          }
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" /> Abrir
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="icon" title="Excluir estudo">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir este estudo?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                O estudo de <strong>{s.email}</strong> será removido
-                                permanentemente.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(s.id, s.email)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                      <div className="text-xs text-muted-foreground">
+                        {[s.bairro, s.cidade].filter(Boolean).join(" • ") || "—"}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                    {s.status ? (
+                      <Badge variant="outline" className="shrink-0 text-xs">
+                        {s.status}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(s.createdAt).toLocaleString("pt-BR")}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <StudyRowActions study={s} onDelete={handleDelete} navigate={navigate} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </Card>
+    </>
+  );
+}
+
+function StudyRowActions({
+  study,
+  onDelete,
+  navigate,
+}: {
+  study: { id: string; email: string };
+  onDelete: (id: string, email: string) => void;
+  navigate: ReturnType<typeof useNavigate>;
+}) {
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1"
+        onClick={() => navigate({ to: "/app/relatorio/$id", params: { id: study.id } })}
+      >
+        <ExternalLink className="h-3.5 w-3.5" /> Abrir
+      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="icon" title="Excluir estudo">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir este estudo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O estudo de <strong>{study.email}</strong> será removido permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => onDelete(study.id, study.email)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
