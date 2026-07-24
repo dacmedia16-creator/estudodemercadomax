@@ -26,7 +26,13 @@ export const adminListUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const allUsers: Array<{ id: string; email?: string; created_at: string; last_sign_in_at?: string | null }> = [];
+    const allUsers: Array<{
+      id: string;
+      email?: string;
+      created_at: string;
+      last_sign_in_at?: string | null;
+      app_metadata?: Record<string, unknown>;
+    }> = [];
     const perPage = 1000;
     for (let page = 1; ; page++) {
       const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
@@ -41,7 +47,9 @@ export const adminListUsers = createServerFn({ method: "GET" })
     if (rolesErr) throw new Error(rolesErr.message);
 
     const adminIds = new Set(
-      (roleRows ?? []).filter((r: { role: string }) => r.role === "admin").map((r: { user_id: string }) => r.user_id),
+      (roleRows ?? [])
+        .filter((r: { role: string }) => r.role === "admin")
+        .map((r: { user_id: string }) => r.user_id),
     );
 
     return {
@@ -52,18 +60,58 @@ export const adminListUsers = createServerFn({ method: "GET" })
         lastSignInAt: u.last_sign_in_at ?? null,
         isAdmin: adminIds.has(u.id),
         isSuperAdmin: (u.email ?? "").toLowerCase() === SUPER_ADMIN_EMAIL,
+        // Ausência da flag = ativo (contas criadas antes desse recurso, ou
+        // criadas por admin/gestor, continuam liberadas sem gesto extra).
+        isActive: u.app_metadata?.active !== false,
       })),
     };
+  });
+
+// Marca a própria conta (recém-criada no cadastro público) como pendente de
+// ativação. app_metadata não é editável pelo usuário via client — só aqui,
+// com service role — então isso não pode ser burlado pelo próprio usuário.
+export const selfMarkPending = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
+      context.userId,
+    );
+    if (getErr) throw new Error(getErr.message);
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+      app_metadata: { ...(existing.user?.app_metadata ?? {}), active: false },
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+export const adminSetActive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string; active: boolean }) =>
+    z.object({ id: z.string().uuid(), active: z.boolean() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(data.id);
+    if (getErr) throw new Error(getErr.message);
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
+      app_metadata: { ...(existing.user?.app_metadata ?? {}), active: data.active },
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
   });
 
 export const adminCreateUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { email: string; password: string; isAdmin: boolean }) =>
-    z.object({
-      email: z.string().email().max(255),
-      password: z.string().min(8).max(72),
-      isAdmin: z.boolean(),
-    }).parse(input),
+    z
+      .object({
+        email: z.string().email().max(255),
+        password: z.string().min(8).max(72),
+        isAdmin: z.boolean(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
@@ -139,7 +187,10 @@ export const adminListAllStudies = createServerFn({ method: "GET" })
     const rows = data ?? [];
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
     const emailById = new Map<string, string>();
     (usersData?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
 
@@ -170,12 +221,20 @@ export const adminDeleteStudy = createServerFn({ method: "POST" })
 export const adminUsageStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { month?: string } = {}) =>
-    z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }).parse(input ?? {}),
+    z
+      .object({
+        month: z
+          .string()
+          .regex(/^\d{4}-\d{2}$/)
+          .optional(),
+      })
+      .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const now = new Date();
-    const monthStr = data.month ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+    const monthStr =
+      data.month ?? `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
     const [y, m] = monthStr.split("-").map(Number);
     const start = new Date(Date.UTC(y, m - 1, 1));
     const end = new Date(Date.UTC(y, m, 1));
@@ -189,13 +248,19 @@ export const adminUsageStats = createServerFn({ method: "POST" })
       .lt("created_at", endIso);
     if (error) throw new Error(error.message);
     const usage = (rows ?? []) as Array<{
-      user_id: string; study_id: string | null; portal: string; endpoint: string; created_at: string;
+      user_id: string;
+      study_id: string | null;
+      portal: string;
+      endpoint: string;
+      created_at: string;
     }>;
 
     const totalCalls = usage.length;
 
     const userIds = Array.from(new Set(usage.map((r) => r.user_id)));
-    const studyIds = Array.from(new Set(usage.map((r) => r.study_id).filter((x): x is string => !!x)));
+    const studyIds = Array.from(
+      new Set(usage.map((r) => r.study_id).filter((x): x is string => !!x)),
+    );
 
     // Email + study metadata via service role (read-only).
     const emailById = new Map<string, string>();
@@ -203,7 +268,10 @@ export const adminUsageStats = createServerFn({ method: "POST" })
     if (userIds.length || studyIds.length) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       if (userIds.length) {
-        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({
+          page: 1,
+          perPage: 1000,
+        });
         (usersData?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
       }
       if (studyIds.length) {
@@ -211,7 +279,9 @@ export const adminUsageStats = createServerFn({ method: "POST" })
           .from("studies")
           .select("id,cidade,bairro")
           .in("id", studyIds);
-        (studyRows ?? []).forEach((s: any) => studyMeta.set(s.id, { cidade: s.cidade ?? null, bairro: s.bairro ?? null }));
+        (studyRows ?? []).forEach((s: any) =>
+          studyMeta.set(s.id, { cidade: s.cidade ?? null, bairro: s.bairro ?? null }),
+        );
       }
     }
 

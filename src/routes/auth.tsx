@@ -19,6 +19,7 @@ import remaxFull from "@/assets/remax-full.png";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { publicListTeams, selfJoinTeam } from "@/lib/team.functions";
+import { selfMarkPending } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -103,18 +104,25 @@ function AuthPage() {
           toast.error(friendly);
           return;
         }
-        if (signUpData.session && parsed.data.teamId !== NO_TEAM) {
+        if (signUpData.session) {
+          if (parsed.data.teamId !== NO_TEAM) {
+            try {
+              await selfJoinTeam({ data: { teamId: parsed.data.teamId } });
+            } catch (joinErr) {
+              console.error("[auth] selfJoinTeam error", joinErr);
+              toast.error(
+                "Conta criada, mas não deu para vincular à equipe automaticamente. Peça ao seu gestor para te adicionar.",
+              );
+            }
+          }
           try {
-            await selfJoinTeam({ data: { teamId: parsed.data.teamId } });
-          } catch (joinErr) {
-            console.error("[auth] selfJoinTeam error", joinErr);
-            toast.error(
-              "Conta criada, mas não deu para vincular à equipe automaticamente. Peça ao seu gestor para te adicionar.",
-            );
+            await selfMarkPending();
+          } catch (pendingErr) {
+            console.error("[auth] selfMarkPending error", pendingErr);
           }
         }
-        toast.success("Conta criada! Bem-vindo(a).");
-        navigate({ to: "/app", replace: true });
+        toast.success("Conta criada! Aguarde a liberação do administrador ou gestor para acessar.");
+        navigate({ to: "/pendente", replace: true });
       } finally {
         setLoading(false);
       }

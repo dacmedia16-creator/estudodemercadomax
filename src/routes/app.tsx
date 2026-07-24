@@ -5,7 +5,12 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Plus, LogOut } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
@@ -21,6 +26,9 @@ export const Route = createFileRoute("/app")({
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
       throw redirect({ to: "/auth" });
+    }
+    if (data.user.app_metadata?.active === false) {
+      throw redirect({ to: "/pendente" });
     }
     return { user: data.user };
   },
@@ -69,16 +77,24 @@ function AppLayout() {
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Menu da conta">
+                  <button
+                    className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    aria-label="Menu da conta"
+                  >
                     <Avatar className="h-9 w-9 border border-border">
-                      <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">{initials}</AvatarFallback>
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                        {initials}
+                      </AvatarFallback>
                     </Avatar>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="truncate">{email || "Conta"}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="gap-2 text-destructive focus:text-destructive">
+                  <DropdownMenuItem
+                    onClick={handleSignOut}
+                    className="gap-2 text-destructive focus:text-destructive"
+                  >
                     <LogOut className="h-4 w-4" /> Sair
                   </DropdownMenuItem>
                 </DropdownMenuContent>

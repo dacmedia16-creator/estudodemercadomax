@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PendenteRouteImport } from './routes/pendente'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
@@ -25,6 +26,11 @@ import { Route as AppCarregandoRouteImport } from './routes/app.carregando'
 import { Route as AppAdminRouteImport } from './routes/app.admin'
 import { Route as AppRelatorioIdRouteImport } from './routes/app.relatorio.$id'
 
+const PendenteRoute = PendenteRouteImport.update({
+  id: '/pendente',
+  path: '/pendente',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/pendente': typeof PendenteRoute
   '/app/admin': typeof AppAdminRoute
   '/app/carregando': typeof AppCarregandoRoute
   '/app/comparativos': typeof AppComparativosRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/pendente': typeof PendenteRoute
   '/app/admin': typeof AppAdminRoute
   '/app/carregando': typeof AppCarregandoRoute
   '/app/comparativos': typeof AppComparativosRoute
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
+  '/pendente': typeof PendenteRoute
   '/app/admin': typeof AppAdminRoute
   '/app/carregando': typeof AppCarregandoRoute
   '/app/comparativos': typeof AppComparativosRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/pendente'
     | '/app/admin'
     | '/app/carregando'
     | '/app/comparativos'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/pendente'
     | '/app/admin'
     | '/app/carregando'
     | '/app/comparativos'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/pendente'
     | '/app/admin'
     | '/app/carregando'
     | '/app/comparativos'
@@ -209,10 +221,18 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
+  PendenteRoute: typeof PendenteRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/pendente': {
+      id: '/pendente'
+      path: '/pendente'
+      fullPath: '/pendente'
+      preLoaderRoute: typeof PendenteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -357,6 +377,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
+  PendenteRoute: PendenteRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

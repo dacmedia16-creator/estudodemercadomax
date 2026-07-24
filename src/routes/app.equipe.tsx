@@ -6,19 +6,37 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExternalLink, FileText, Loader2, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useIsGestor } from "@/hooks/use-is-gestor";
 import {
-  gestorAddMember, gestorListTeam, gestorListTeamStudies, gestorRemoveMember,
+  gestorAddMember,
+  gestorListTeam,
+  gestorListTeamStudies,
+  gestorRemoveMember,
+  gestorSetMemberActive,
 } from "@/lib/team.functions";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 
@@ -69,12 +87,24 @@ function TeamPage() {
     try {
       await gestorAddMember({ data: { email: email.trim(), password } });
       toast.success("Corretor adicionado.");
-      setEmail(""); setPassword(""); setAddOpen(false);
+      setEmail("");
+      setPassword("");
+      setAddOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["gestor-team"] });
     } catch (e: any) {
       toast.error(e?.message ?? "Falha ao adicionar.");
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleToggleActive = async (userId: string, active: boolean) => {
+    try {
+      await gestorSetMemberActive({ data: { userId, active } });
+      toast.success(active ? "Corretor liberado." : "Corretor desativado.");
+      await queryClient.invalidateQueries({ queryKey: ["gestor-team"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao atualizar.");
     }
   };
 
@@ -113,7 +143,9 @@ function TeamPage() {
         </div>
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><UserPlus className="h-4 w-4" /> Adicionar corretor</Button>
+            <Button className="gap-2">
+              <UserPlus className="h-4 w-4" /> Adicionar corretor
+            </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -125,15 +157,27 @@ function TeamPage() {
             <div className="space-y-3">
               <div>
                 <Label htmlFor="gam-email">E-mail</Label>
-                <Input id="gam-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input
+                  id="gam-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
               <div>
                 <Label htmlFor="gam-pass">Senha inicial (mín. 8)</Label>
-                <Input id="gam-pass" type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Input
+                  id="gam-pass"
+                  type="text"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAddOpen(false)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setAddOpen(false)}>
+                Cancelar
+              </Button>
               <Button onClick={handleAdd} disabled={adding}>
                 {adding && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Adicionar
               </Button>
@@ -164,7 +208,9 @@ function TeamPage() {
         <TabsContent value="members" className="pt-4">
           <Card className="p-0 overflow-hidden">
             {teamQ.isLoading ? (
-              <div className="p-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              <div className="p-8 flex justify-center">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
             ) : members.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 Nenhum corretor na sua equipe. Clique em "Adicionar corretor" para começar.
@@ -172,15 +218,34 @@ function TeamPage() {
             ) : (
               <div className="divide-y">
                 {members.map((m) => (
-                  <div key={m.userId} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div
+                    key={m.userId}
+                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                  >
                     <div className="min-w-0">
-                      <div className="font-medium truncate">{m.email}</div>
+                      <div className="font-medium truncate flex items-center gap-2">
+                        {m.email}
+                        {!m.active && (
+                          <Badge className="border border-warning/30 bg-warning/10 text-[10px] text-warning-foreground">
+                            Pendente
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         Adicionado em {new Date(m.createdAt).toLocaleDateString("pt-BR")}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-3">
                       <Badge variant="secondary">{m.studyCount} estudo(s)</Badge>
+                      <div
+                        className="flex items-center gap-2"
+                        title={m.active ? "Ativo" : "Liberar acesso"}
+                      >
+                        <Switch
+                          checked={m.active}
+                          onCheckedChange={(v) => handleToggleActive(m.userId, v)}
+                        />
+                      </div>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button size="sm" variant="ghost" className="text-destructive">
@@ -191,7 +256,8 @@ function TeamPage() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Remover {m.email} da equipe?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              O corretor sai da sua equipe mas mantém a conta e os estudos. Somente o administrador pode excluir a conta.
+                              O corretor sai da sua equipe mas mantém a conta e os estudos. Somente
+                              o administrador pode excluir a conta.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -216,7 +282,9 @@ function TeamPage() {
         <TabsContent value="studies" className="pt-4">
           <Card className="p-0 overflow-hidden">
             {studiesQ.isLoading ? (
-              <div className="p-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
+              <div className="p-8 flex justify-center">
+                <Loader2 className="h-5 w-5 animate-spin" />
+              </div>
             ) : studies.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 Nenhum estudo criado pela sua equipe ainda.
@@ -224,17 +292,21 @@ function TeamPage() {
             ) : (
               <div className="divide-y">
                 {studies.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div
+                    key={s.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                  >
                     <div className="min-w-0">
                       <div className="font-medium truncate flex items-center gap-2">
                         <FileText className="h-4 w-4 text-muted-foreground" />
-                        {s.bairro || "—"}{s.cidade ? ` · ${s.cidade}` : ""}
+                        {s.bairro || "—"}
+                        {s.cidade ? ` · ${s.cidade}` : ""}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {s.email} · {new Date(s.createdAt).toLocaleDateString("pt-BR")}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {s.status && <Badge variant="outline">{s.status}</Badge>}
                       <Link to="/app/relatorio/$id" params={{ id: s.id }}>
                         <Button size="sm" variant="ghost" className="gap-1">

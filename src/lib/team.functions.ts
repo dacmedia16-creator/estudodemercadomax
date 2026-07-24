@@ -374,6 +374,7 @@ export const gestorListTeam = createServerFn({ method: "GET" })
     const ids = (members ?? []).map((m: any) => m.user_id as string);
 
     const emailById = new Map<string, string>();
+    const activeById = new Map<string, boolean>();
     const studyCountById = new Map<string, number>();
     if (ids.length) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -381,7 +382,13 @@ export const gestorListTeam = createServerFn({ method: "GET" })
         page: 1,
         perPage: 1000,
       });
-      (usersData?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
+      (usersData?.users ?? []).forEach((u) => {
+        emailById.set(u.id, u.email ?? "");
+        activeById.set(
+          u.id,
+          (u.app_metadata as { active?: boolean } | undefined)?.active !== false,
+        );
+      });
 
       const { data: studies } = await context.supabase
         .from("studies")
@@ -398,8 +405,40 @@ export const gestorListTeam = createServerFn({ method: "GET" })
         email: emailById.get(m.user_id) ?? "(usuário removido)",
         createdAt: m.created_at as string,
         studyCount: studyCountById.get(m.user_id) ?? 0,
+        active: activeById.get(m.user_id) ?? true,
       })),
     };
+  });
+
+// Ativa/desativa um corretor da própria equipe. Gestor só pode mexer em
+// membros vinculados a ele (manager_id = context.userId) — verificação
+// explícita, não apenas via RLS, porque a escrita passa por service role.
+export const gestorSetMemberActive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; active: boolean }) =>
+    z.object({ userId: z.string().uuid(), active: z.boolean() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await assertGestorOrAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: link } = await supabaseAdmin
+      .from("team_members")
+      .select("id")
+      .eq("manager_id", context.userId)
+      .eq("user_id", data.userId)
+      .maybeSingle();
+    if (!link) throw new Error("Este usuário não pertence à sua equipe.");
+
+    const { data: existing, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
+      data.userId,
+    );
+    if (getErr) throw new Error(getErr.message);
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+      app_metadata: { ...(existing.user?.app_metadata ?? {}), active: data.active },
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
   });
 
 export const gestorRemoveMember = createServerFn({ method: "POST" })
