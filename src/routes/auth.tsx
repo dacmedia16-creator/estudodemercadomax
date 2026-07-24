@@ -1,22 +1,34 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import remaxFull from "@/assets/remax-full.png";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { publicListTeams, selfJoinTeam } from "@/lib/team.functions";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
   head: () => ({
     meta: [
       { title: "Entrar — Estudo de Mercado Pro" },
-      { name: "description", content: "Acesse sua conta para gerar e gerenciar estudos de mercado imobiliários." },
+      {
+        name: "description",
+        content: "Acesse sua conta para gerar e gerenciar estudos de mercado imobiliários.",
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -28,16 +40,31 @@ const credsSchema = z.object({
   password: z.string().min(8, "Mínimo 8 caracteres").max(72),
 });
 
+const signupSchema = credsSchema.extend({
+  name: z.string().trim().min(2, "Informe seu nome completo").max(120),
+  teamId: z.string().uuid("Selecione uma equipe"),
+});
+
 function AuthPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [teamId, setTeamId] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorInfo, setErrorInfo] = useState<{
     friendly: string;
     raw: Record<string, unknown>;
   } | null>(null);
+
+  const { data: teamsData, isLoading: teamsLoading } = useQuery({
+    queryKey: ["public-teams"],
+    queryFn: () => publicListTeams(),
+    enabled: tab === "signup",
+    staleTime: 30_000,
+  });
+  const teams = teamsData?.teams ?? [];
 
   // If already signed in, bounce into the app.
   useEffect(() => {
@@ -50,18 +77,22 @@ function AuthPage() {
   const handle = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorInfo(null);
-    const parsed = credsSchema.safeParse({ email, password });
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? "Dados inválidos");
-      return;
-    }
-    setLoading(true);
-    try {
-      if (tab === "signup") {
-        const { error } = await supabase.auth.signUp({
+
+    if (tab === "signup") {
+      const parsed = signupSchema.safeParse({ email, password, name, teamId });
+      if (!parsed.success) {
+        toast.error(parsed.error.issues[0]?.message ?? "Dados inválidos");
+        return;
+      }
+      setLoading(true);
+      try {
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email: parsed.data.email,
           password: parsed.data.password,
-          options: { emailRedirectTo: `${window.location.origin}/app` },
+          options: {
+            data: { full_name: parsed.data.name },
+            emailRedirectTo: `${window.location.origin}/app`,
+          },
         });
         if (error) {
           console.error("[auth] signup error", error);
@@ -70,19 +101,41 @@ function AuthPage() {
           toast.error(friendly);
           return;
         }
-        toast.success("Conta criada! Bem-vindo(a).");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: parsed.data.email,
-          password: parsed.data.password,
-        });
-        if (error) {
-          console.error("[auth] signin error", error);
-          const friendly = translateAuthError(error);
-          setErrorInfo({ friendly, raw: serializeAuthError(error) });
-          toast.error(friendly);
-          return;
+        if (signUpData.session) {
+          try {
+            await selfJoinTeam({ data: { teamId: parsed.data.teamId } });
+          } catch (joinErr) {
+            console.error("[auth] selfJoinTeam error", joinErr);
+            toast.error(
+              "Conta criada, mas não deu para vincular à equipe automaticamente. Peça ao seu gestor para te adicionar.",
+            );
+          }
         }
+        toast.success("Conta criada! Bem-vindo(a).");
+        navigate({ to: "/app", replace: true });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    const parsed = credsSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Dados inválidos");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: parsed.data.email,
+        password: parsed.data.password,
+      });
+      if (error) {
+        console.error("[auth] signin error", error);
+        const friendly = translateAuthError(error);
+        setErrorInfo({ friendly, raw: serializeAuthError(error) });
+        toast.error(friendly);
+        return;
       }
       navigate({ to: "/app", replace: true });
     } finally {
@@ -113,6 +166,21 @@ function AuthPage() {
             </TabsContent>
 
             <form onSubmit={handle} className="mt-6 space-y-4">
+              {tab === "signup" && (
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome completo</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Seu nome"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -143,7 +211,42 @@ function AuthPage() {
                   <p className="text-[11px] text-muted-foreground">Mínimo 8 caracteres.</p>
                 )}
               </div>
-              <Button type="submit" className="w-full gap-2" disabled={loading}>
+              {tab === "signup" && (
+                <div className="space-y-2">
+                  <Label htmlFor="team">Equipe</Label>
+                  <Select
+                    value={teamId}
+                    onValueChange={setTeamId}
+                    disabled={loading || teamsLoading}
+                  >
+                    <SelectTrigger id="team">
+                      <SelectValue
+                        placeholder={
+                          teamsLoading ? "Carregando equipes..." : "Selecione sua equipe"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!teamsLoading && teams.length === 0 && (
+                    <p className="text-[11px] text-destructive">
+                      Nenhuma equipe disponível no momento. Fale com o administrador antes de criar
+                      sua conta.
+                    </p>
+                  )}
+                </div>
+              )}
+              <Button
+                type="submit"
+                className="w-full gap-2"
+                disabled={loading || (tab === "signup" && !teamsLoading && teams.length === 0)}
+              >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {tab === "signup" ? "Criar conta" : "Entrar"}
               </Button>
@@ -155,7 +258,7 @@ function AuthPage() {
                       Ver detalhes técnicos
                     </summary>
                     <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/60 p-2 font-mono text-[11px] leading-relaxed text-foreground">
-{JSON.stringify(errorInfo.raw, null, 2)}
+                      {JSON.stringify(errorInfo.raw, null, 2)}
                     </pre>
                   </details>
                 </div>
@@ -179,13 +282,22 @@ function translateAuthError(error: { code?: string; message: string }): string {
   const code = (error.code ?? "").toLowerCase();
   const msg = (error.message ?? "").toLowerCase();
 
-  if (code === "weak_password" || msg.includes("known to be weak") || msg.includes("easy to guess") || msg.includes("pwned")) {
+  if (
+    code === "weak_password" ||
+    msg.includes("known to be weak") ||
+    msg.includes("easy to guess") ||
+    msg.includes("pwned")
+  ) {
     return "Esta senha é muito comum ou apareceu em vazamentos públicos. Escolha outra — combine letras maiúsculas, minúsculas, números e um símbolo.";
   }
   if (code === "invalid_credentials" || msg.includes("invalid login")) {
     return "Email ou senha incorretos.";
   }
-  if (code === "user_already_exists" || msg.includes("user already") || msg.includes("already registered")) {
+  if (
+    code === "user_already_exists" ||
+    msg.includes("user already") ||
+    msg.includes("already registered")
+  ) {
     return "Já existe uma conta com este email. Use a aba Entrar.";
   }
   if (code === "email_address_invalid" || msg.includes("invalid email")) {
@@ -194,7 +306,11 @@ function translateAuthError(error: { code?: string; message: string }): string {
   if (code === "signup_disabled") {
     return "Cadastro temporariamente desativado. Tente novamente em instantes.";
   }
-  if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit" || msg.includes("rate limit")) {
+  if (
+    code === "over_email_send_rate_limit" ||
+    code === "over_request_rate_limit" ||
+    msg.includes("rate limit")
+  ) {
     return "Muitas tentativas em sequência. Aguarde alguns segundos e tente de novo.";
   }
   if (code === "email_not_confirmed") {
@@ -221,9 +337,23 @@ function serializeAuthError(error: unknown): Record<string, unknown> {
 // Bloqueia o usuário cedo contra as senhas mais óbvias para evitar um
 // round-trip até o HIBP do servidor (que retornaria erro mesmo assim).
 const OBVIOUS_PASSWORDS = new Set([
-  "12345678", "123456789", "1234567890", "password", "senha123", "12341234",
-  "qwerty123", "abcdefgh", "11111111", "00000000", "iloveyou", "admin123",
-  "password1", "senhasenha", "87654321", "asdfghjk", "zxcvbnm1",
+  "12345678",
+  "123456789",
+  "1234567890",
+  "password",
+  "senha123",
+  "12341234",
+  "qwerty123",
+  "abcdefgh",
+  "11111111",
+  "00000000",
+  "iloveyou",
+  "admin123",
+  "password1",
+  "senhasenha",
+  "87654321",
+  "asdfghjk",
+  "zxcvbnm1",
 ]);
 
 function PasswordHint({ password }: { password: string }) {
@@ -231,13 +361,16 @@ function PasswordHint({ password }: { password: string }) {
   if (isObvious) {
     return (
       <p className="text-[11px] font-medium text-destructive">
-        Esta senha é muito comum e será recusada. Misture letras, números e um símbolo (ex.: <span className="font-mono">Radar!Imovel2026</span>).
+        Esta senha é muito comum e será recusada. Misture letras, números e um símbolo (ex.:{" "}
+        <span className="font-mono">Radar!Imovel2026</span>).
       </p>
     );
   }
   return (
     <p className="text-[11px] text-muted-foreground">
-      Mínimo 8 caracteres. Senhas comuns como <span className="font-mono">12345678</span> ou <span className="font-mono">senha123</span> são bloqueadas — combine letras, números e um símbolo.
+      Mínimo 8 caracteres. Senhas comuns como <span className="font-mono">12345678</span> ou{" "}
+      <span className="font-mono">senha123</span> são bloqueadas — combine letras, números e um
+      símbolo.
     </p>
   );
 }

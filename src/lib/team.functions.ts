@@ -11,11 +11,57 @@ async function assertAdmin(supabase: any, userId: string) {
 async function assertGestorOrAdmin(supabase: any, userId: string) {
   const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
   if (isAdmin) return "admin" as const;
-  const { data: isGestor, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "gestor" });
+  const { data: isGestor, error } = await supabase.rpc("has_role", {
+    _user_id: userId,
+    _role: "gestor",
+  });
   if (error) throw new Error(error.message);
   if (!isGestor) throw new Error("Acesso restrito a gestores.");
   return "gestor" as const;
 }
+
+// ============ PÚBLICO: SELEÇÃO DE EQUIPE NO CADASTRO ============
+
+// Sem middleware de auth de propósito — usada na tela de cadastro, antes de
+// existir sessão. Só expõe id + nome (nada sensível).
+export const publicListTeams = createServerFn({ method: "GET" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("teams")
+    .select("id, name")
+    .order("name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return {
+    teams: (data ?? []).map((t: any) => ({ id: t.id as string, name: t.name as string })),
+  };
+});
+
+// Usada logo após o cadastro: o próprio usuário recém-criado se vincula à
+// equipe que escolheu no formulário. Não deixa escolher em nome de outro
+// usuário — sempre usa context.userId (o dono da sessão autenticada).
+export const selfJoinTeam = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { teamId: string }) =>
+    z.object({ teamId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: team, error: teamErr } = await supabaseAdmin
+      .from("teams")
+      .select("id, manager_id")
+      .eq("id", data.teamId)
+      .maybeSingle();
+    if (teamErr) throw new Error(teamErr.message);
+    if (!team) throw new Error("Equipe não encontrada.");
+
+    const { error: linkErr } = await supabaseAdmin.from("team_members").insert({
+      team_id: (team as any).id as string,
+      manager_id: (team as any).manager_id as string,
+      user_id: context.userId,
+    });
+    if (linkErr && !linkErr.message.includes("duplicate")) throw new Error(linkErr.message);
+    return { ok: true as const };
+  });
 
 // ============ ADMIN: TEAMS CRUD ============
 
@@ -48,7 +94,10 @@ export const adminListTeams = createServerFn({ method: "GET" })
     const allUserIds = new Set<string>(managerIds);
     (members ?? []).forEach((m: any) => allUserIds.add(m.user_id));
 
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
     const emailById = new Map<string, string>();
     (usersData?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
 
@@ -83,13 +132,24 @@ export const adminGetTeam = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: team, error } = await supabaseAdmin
-      .from("teams").select("id, name, manager_id, created_at").eq("id", data.id).maybeSingle();
+      .from("teams")
+      .select("id, name, manager_id, created_at")
+      .eq("id", data.id)
+      .maybeSingle();
     if (error) throw new Error(error.message);
     if (!team) throw new Error("Equipe não encontrada.");
     const { data: members } = await supabaseAdmin
-      .from("team_members").select("user_id, created_at").eq("team_id", data.id);
-    const uids = [(team as any).manager_id as string, ...((members ?? []).map((m: any) => m.user_id as string))];
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      .from("team_members")
+      .select("user_id, created_at")
+      .eq("team_id", data.id);
+    const uids = [
+      (team as any).manager_id as string,
+      ...(members ?? []).map((m: any) => m.user_id as string),
+    ];
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
     const emailById = new Map<string, string>();
     (usersData?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
     void uids;
@@ -108,13 +168,21 @@ export const adminGetTeam = createServerFn({ method: "POST" })
 
 export const adminCreateTeam = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { name: string; managerId?: string; managerEmail?: string; managerPassword?: string }) =>
-    z.object({
-      name: z.string().trim().min(2).max(80),
-      managerId: z.string().uuid().optional(),
-      managerEmail: z.string().email().max(255).optional(),
-      managerPassword: z.string().min(8).max(72).optional(),
-    }).parse(input),
+  .inputValidator(
+    (input: {
+      name: string;
+      managerId?: string;
+      managerEmail?: string;
+      managerPassword?: string;
+    }) =>
+      z
+        .object({
+          name: z.string().trim().min(2).max(80),
+          managerId: z.string().uuid().optional(),
+          managerEmail: z.string().email().max(255).optional(),
+          managerPassword: z.string().min(8).max(72).optional(),
+        })
+        .parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
@@ -124,12 +192,17 @@ export const adminCreateTeam = createServerFn({ method: "POST" })
     if (!managerId) {
       if (!data.managerEmail) throw new Error("Selecione um gestor ou informe um e-mail.");
       const email = data.managerEmail.trim().toLowerCase();
-      const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
       managerId = (usersData?.users ?? []).find((u) => (u.email ?? "").toLowerCase() === email)?.id;
       if (!managerId) {
         if (!data.managerPassword) throw new Error("Informe uma senha para criar o novo gestor.");
         const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-          email, password: data.managerPassword, email_confirm: true,
+          email,
+          password: data.managerPassword,
+          email_confirm: true,
         });
         if (error) throw new Error(error.message);
         if (!created.user) throw new Error("Falha ao criar gestor.");
@@ -139,13 +212,15 @@ export const adminCreateTeam = createServerFn({ method: "POST" })
 
     // ensure gestor role
     const { error: roleErr } = await supabaseAdmin
-      .from("user_roles").insert({ user_id: managerId, role: "gestor" as any });
+      .from("user_roles")
+      .insert({ user_id: managerId, role: "gestor" as any });
     if (roleErr && !roleErr.message.includes("duplicate")) throw new Error(roleErr.message);
 
     const { data: team, error: teamErr } = await supabaseAdmin
       .from("teams")
       .insert({ name: data.name.trim(), manager_id: managerId, created_by: context.userId })
-      .select("id").single();
+      .select("id")
+      .single();
     if (teamErr) throw new Error(teamErr.message);
     return { id: (team as any).id as string };
   });
@@ -155,7 +230,10 @@ export const adminListAvailableUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: usersData, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data: usersData, error } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
     if (error) throw new Error(error.message);
     const users = (usersData?.users ?? []).filter((u) => !!u.email);
     const ids = users.map((u) => u.id);
@@ -169,11 +247,13 @@ export const adminListAvailableUsers = createServerFn({ method: "GET" })
       rolesByUser.set(r.user_id, arr);
     });
     return {
-      users: users.map((u) => {
-        const rs = rolesByUser.get(u.id) ?? [];
-        const role = rs.includes("admin") ? "admin" : rs.includes("gestor") ? "gestor" : "user";
-        return { id: u.id, email: u.email ?? "", role };
-      }).sort((a, b) => a.email.localeCompare(b.email)),
+      users: users
+        .map((u) => {
+          const rs = rolesByUser.get(u.id) ?? [];
+          const role = rs.includes("admin") ? "admin" : rs.includes("gestor") ? "gestor" : "user";
+          return { id: u.id, email: u.email ?? "", role };
+        })
+        .sort((a, b) => a.email.localeCompare(b.email)),
     };
   });
 
@@ -185,7 +265,10 @@ export const adminUpdateTeam = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("teams").update({ name: data.name.trim() }).eq("id", data.id);
+    const { error } = await supabaseAdmin
+      .from("teams")
+      .update({ name: data.name.trim() })
+      .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -204,27 +287,37 @@ export const adminDeleteTeam = createServerFn({ method: "POST" })
 export const adminAddMemberToTeam = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { teamId: string; email: string; password: string }) =>
-    z.object({
-      teamId: z.string().uuid(),
-      email: z.string().email().max(255),
-      password: z.string().min(8).max(72),
-    }).parse(input),
+    z
+      .object({
+        teamId: z.string().uuid(),
+        email: z.string().email().max(255),
+        password: z.string().min(8).max(72),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: team, error: teamErr } = await supabaseAdmin
-      .from("teams").select("id, manager_id").eq("id", data.teamId).maybeSingle();
+      .from("teams")
+      .select("id, manager_id")
+      .eq("id", data.teamId)
+      .maybeSingle();
     if (teamErr) throw new Error(teamErr.message);
     if (!team) throw new Error("Equipe não encontrada.");
 
     // find or create user
     const email = data.email.trim().toLowerCase();
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
     let userId = (usersData?.users ?? []).find((u) => (u.email ?? "").toLowerCase() === email)?.id;
     if (!userId) {
       const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-        email, password: data.password, email_confirm: true,
+        email,
+        password: data.password,
+        email_confirm: true,
       });
       if (error) throw new Error(error.message);
       if (!created.user) throw new Error("Falha ao criar corretor.");
@@ -243,15 +336,22 @@ export const adminAddMemberToTeam = createServerFn({ method: "POST" })
 export const adminRemoveMemberFromTeam = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { teamId: string; userId: string; deleteAccount: boolean }) =>
-    z.object({
-      teamId: z.string().uuid(), userId: z.string().uuid(), deleteAccount: z.boolean(),
-    }).parse(input),
+    z
+      .object({
+        teamId: z.string().uuid(),
+        userId: z.string().uuid(),
+        deleteAccount: z.boolean(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: delErr } = await supabaseAdmin
-      .from("team_members").delete().eq("team_id", data.teamId).eq("user_id", data.userId);
+      .from("team_members")
+      .delete()
+      .eq("team_id", data.teamId)
+      .eq("user_id", data.userId);
     if (delErr) throw new Error(delErr.message);
     if (data.deleteAccount) {
       const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
@@ -277,7 +377,10 @@ export const gestorListTeam = createServerFn({ method: "GET" })
     const studyCountById = new Map<string, number>();
     if (ids.length) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
       (usersData?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
 
       const { data: studies } = await context.supabase
@@ -330,28 +433,38 @@ export const gestorRemoveMember = createServerFn({ method: "POST" })
 export const gestorAddMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { email: string; password: string }) =>
-    z.object({
-      email: z.string().email().max(255),
-      password: z.string().min(8).max(72),
-    }).parse(input),
+    z
+      .object({
+        email: z.string().email().max(255),
+        password: z.string().min(8).max(72),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     await assertGestorOrAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: teams, error: teamErr } = await supabaseAdmin
-      .from("teams").select("id").eq("manager_id", context.userId).limit(1);
+      .from("teams")
+      .select("id")
+      .eq("manager_id", context.userId)
+      .limit(1);
     if (teamErr) throw new Error(teamErr.message);
     const team = (teams ?? [])[0] as { id: string } | undefined;
     if (!team) throw new Error("Você ainda não gerencia nenhuma equipe.");
 
     // find or create user
     const email = data.email.trim().toLowerCase();
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
     let userId = (usersData?.users ?? []).find((u) => (u.email ?? "").toLowerCase() === email)?.id;
     if (!userId) {
       const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-        email, password: data.password, email_confirm: true,
+        email,
+        password: data.password,
+        email_confirm: true,
       });
       if (error) throw new Error(error.message);
       if (!created.user) throw new Error("Falha ao criar corretor.");
@@ -385,7 +498,10 @@ export const gestorListTeamStudies = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
     const emailById = new Map<string, string>();
     (usersData?.users ?? []).forEach((u) => emailById.set(u.id, u.email ?? ""));
 
