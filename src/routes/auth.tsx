@@ -148,8 +148,11 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-6 flex items-center justify-center">
+        <Link to="/" className="mb-6 flex flex-col items-center justify-center gap-2">
           <img src={remaxFull} alt="ESTUDO DE MERCADO" className="h-24 w-auto rounded-lg" />
+          <span className="text-sm font-bold uppercase tracking-wider text-foreground">
+            Estudo de Mercado <span className="text-primary">MAX</span>
+          </span>
         </Link>
 
         <Card className="border-border/60 p-6 shadow-[var(--shadow-elegant)]">
