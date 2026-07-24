@@ -1,10 +1,12 @@
 import sharp from "sharp";
 import { mkdir } from "node:fs/promises";
 
-const SRC = "src/assets/estudo-mercado-max-logo.png";
+// Symbol-only crop (no wordmark): at favicon/app-icon sizes the full lockup's
+// text turns into an illegible smudge, so icons use just the bars+arrow mark.
+const SRC = "src/assets/estudo-mercado-max-symbol.png";
 const OUT_DIR = "public/icons";
 // White, not the app's primary blue: the logo itself already uses blue for
-// half its ring/text, so a blue backdrop makes those parts disappear.
+// part of its mark, so a blue backdrop makes that part disappear.
 const ICON_BG = "#ffffff";
 
 await mkdir(OUT_DIR, { recursive: true });
